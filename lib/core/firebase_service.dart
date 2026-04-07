@@ -17,6 +17,9 @@ class FirebaseService {
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
+  String? get currentUserId => _auth.currentUser?.uid;
+  String get currentUserName => _auth.currentUser?.displayName ?? "Traveler";
+
   Future<UserCredential> signUp({required String email, required String password}) async {
     return await _auth.createUserWithEmailAndPassword(email: email, password: password);
   }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -75,12 +76,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _triggerBackend({String? command}) async {
     try {
-      // Fetch real Firestore events to send to AI
       final events = await FirebaseService.instance.getRecentEvents(limit: 30);
+      final userId = FirebaseService.instance.currentUserId ?? "temp_user";
+      final userName = FirebaseService.instance.currentUserName;
+
       await http.post(
         Uri.parse('http://localhost:8000/analyze-behavior'),
         headers: {'Content-Type': 'application/json'},
-        body: '{"user_id": "uzair", "events": ${events.isEmpty ? "[]" : "[]"}, "command": ${command != null ? "\"$command\"" : "null"}}',
+        body: jsonEncode({
+          "user_id": userId,
+          "user_name": userName,
+          "events": events,
+          "command": command,
+        }),
       );
     } catch (e) {
       debugPrint('Error triggering backend: $e');
