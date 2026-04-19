@@ -158,6 +158,57 @@ class FirebaseService {
   }
 
   // ─────────────────────────────────────────────────────────────
+  // TARGETED GENUI CONTEXT SNAPSHOT
+  // ─────────────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> buildContextSnapshot() async {
+    final uid = currentUserId;
+    if (uid == null) return {};
+    try {
+      final now = DateTime.now();
+      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      // 1. Get 3 Pending Tasks
+      final tSnap = await _tasksCol
+          .where('userId', isEqualTo: uid)
+          .where('done', isEqualTo: false)
+          .limit(3)
+          .get();
+      final topTasks = tSnap.docs.map((d) => (d.data() as Map<String, dynamic>)['title']).toList();
+
+      // 2. Get Missing Habits Today
+      final hSnap = await _habitsCol.where('userId', isEqualTo: uid).get();
+      final missingHabits = <String>[];
+      for (var d in hSnap.docs) {
+        final data = d.data() as Map<String, dynamic>;
+        final completed = (data['completedDates'] as List<dynamic>?) ?? [];
+        if (!completed.contains(todayStr)) {
+          missingHabits.add(data['name'] as String);
+        }
+      }
+
+      // 3. Get 1 Recent Note
+      final nSnap = await _notesCol
+          .where('userId', isEqualTo: uid)
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get();
+      final recentNote = nSnap.docs.isNotEmpty
+          ? (nSnap.docs.first.data() as Map<String, dynamic>)['content']
+          : null;
+
+      return {
+        'top_tasks': topTasks,
+        'missing_habits': missingHabits.take(3).toList(),
+        'recent_note': recentNote,
+      };
+    } catch (e) {
+      debugPrint('Error building context snapshot: $e');
+      return {};
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // TASKS
   // ─────────────────────────────────────────────────────────────
 

@@ -10,6 +10,7 @@ import '../widgets/habit_module.dart';
 import '../widgets/focus_module.dart';
 import '../widgets/notes_module.dart';
 import '../widgets/ai_dashboard_module.dart';
+import '../widgets/generative_card_module.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -27,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _isLoadingInsight = true;
   int _focusMinutesToday = 0;
   String? _todayMood;
+  Map<String, dynamic>? _generativeCardPayload;
   final _commandController = TextEditingController();
   late AnimationController _responseAnimController;
   
@@ -118,6 +120,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           case 'start_focus':
             // We do not switch to the timer tab explicitly here,
             // because we want the user to see the dynamic home layout animate.
+            break;
+          case 'show_dynamic_card':
+            if (action.params.containsKey('card')) {
+              _generativeCardPayload = Map<String, dynamic>.from(action.params['card'] as Map);
+            }
             break;
           case 'navigate':
             final tab = action.params['tab'] as String?;
@@ -309,6 +316,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _getModuleWidget(String name) {
     switch (name) {
+      case 'GenerativeCardModule':
+        if (_generativeCardPayload != null) {
+          return GenerativeCardModule(
+            cardData: _generativeCardPayload!,
+            onAction: () {
+               final actModule = _generativeCardPayload!['action_module'] as String?;
+               if (actModule == 'FocusTimerModule') {
+                  setState(() => _currentIndex = 3);
+               } else if (actModule == 'TasksModule') {
+                  setState(() => _currentIndex = 1);
+               } 
+            },
+          );
+        }
+        return const SizedBox.shrink();
       case 'FocusTimerModule':
         return const FocusTimerModule();
       case 'TasksModule':

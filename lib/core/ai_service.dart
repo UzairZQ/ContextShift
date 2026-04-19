@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'firebase_service.dart';
 
 /// Result model for an AI command
 class AiCommandResult {
@@ -61,6 +62,10 @@ class AiService {
     Map<String, dynamic>? context,
   }) async {
     try {
+      final Map<String, dynamic> finalContext = Map.from(context ?? {});
+      final backgroundData = await FirebaseService.instance.buildContextSnapshot();
+      finalContext['background_data'] = backgroundData;
+
       final response = await http
           .post(
             Uri.parse('$_backendUrl/ai-command'),
@@ -68,7 +73,7 @@ class AiService {
             body: jsonEncode({
               'command': command,
               'user_name': userName,
-              'context': context ?? {},
+              'context': finalContext,
             }),
           )
           .timeout(const Duration(seconds: 15));
