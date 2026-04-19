@@ -200,7 +200,7 @@ class _NotesModuleState extends State<NotesModule> {
   Widget _buildEmptyState() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40.0),
+        padding: const EdgeInsets.symmetric(vertical: 20.0),
         child: Column(
           children: [
             Icon(LucideIcons.stickyNote, size: 48, color: AppTheme.onSurfaceVariant.withValues(alpha: 0.2)),

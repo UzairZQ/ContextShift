@@ -106,6 +106,13 @@ class AiService {
             ),
           ],
           response: 'Added "$title" to your tasks.',
+          layoutOrder: ['TasksModule', 'FocusTimerModule', 'HabitModule', 'NotesModule'],
+        );
+      } else {
+        return AiCommandResult(
+          actions: [],
+          response: 'What task would you like to add?',
+          layoutOrder: ['TasksModule', 'FocusTimerModule', 'HabitModule', 'NotesModule'],
         );
       }
     }
@@ -149,6 +156,12 @@ class AiService {
           response: 'Now tracking "$name" as a daily habit.',
           layoutOrder: ['HabitModule', 'FocusTimerModule', 'TasksModule', 'NotesModule'],
         );
+      } else {
+        return AiCommandResult(
+          actions: [],
+          response: 'What habit would you like to build?',
+          layoutOrder: ['HabitModule', 'FocusTimerModule', 'TasksModule', 'NotesModule'],
+        );
       }
     }
 
@@ -166,26 +179,35 @@ class AiService {
           response: 'Saved to your notes.',
           layoutOrder: ['NotesModule', 'FocusTimerModule', 'TasksModule', 'HabitModule'],
         );
+      } else {
+        return AiCommandResult(
+          actions: [],
+          response: 'What do you want to note down?',
+          layoutOrder: ['NotesModule', 'FocusTimerModule', 'TasksModule', 'HabitModule'],
+        );
       }
     }
 
-    // ── Navigation patterns ──
+    // ── Prioritize Module Display patterns ──
     if (_matchesAny(lower, ['show task', 'my task', 'open task', 'go to task'])) {
       return AiCommandResult(
-        actions: [AiAction(type: 'navigate', params: {'tab': 'tasks'})],
-        response: 'Opening your tasks!',
+        actions: [],
+        response: 'Here are your tasks.',
+        layoutOrder: ['TasksModule', 'FocusTimerModule', 'HabitModule', 'NotesModule'],
       );
     }
     if (_matchesAny(lower, ['show habit', 'my habit', 'open habit'])) {
       return AiCommandResult(
-        actions: [AiAction(type: 'navigate', params: {'tab': 'habits'})],
-        response: 'Opening your habits!',
+        actions: [],
+        response: 'Here are your habits.',
+        layoutOrder: ['HabitModule', 'TasksModule', 'FocusTimerModule', 'NotesModule'],
       );
     }
     if (_matchesAny(lower, ['show note', 'my note', 'open note'])) {
       return AiCommandResult(
-        actions: [AiAction(type: 'navigate', params: {'tab': 'notes'})],
-        response: 'Opening your notes!',
+        actions: [],
+        response: 'Here are your notes.',
+        layoutOrder: ['NotesModule', 'TasksModule', 'FocusTimerModule', 'HabitModule'],
       );
     }
 

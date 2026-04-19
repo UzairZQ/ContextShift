@@ -163,7 +163,7 @@ class _HabitModuleState extends State<HabitModule> {
         if (habits.isEmpty) {
           return Center(
             child: Padding(
-              padding: const EdgeInsets.all(32.0),
+              padding: const EdgeInsets.symmetric(vertical: 20.0),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -266,7 +266,6 @@ class _HabitModuleState extends State<HabitModule> {
                   );
                 },
               ),
-              const SizedBox(height: 24),
             ],
         );
       },

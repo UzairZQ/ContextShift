@@ -265,13 +265,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _buildAICommandBar(),
           const SizedBox(height: 16),
           if (_aiResponse != null) _buildAIResponseCard(),
+          _buildDynamicModules(),
           _buildMoodCheckIn(),
           const SizedBox(height: 20),
           _buildStatsSection(),
           const SizedBox(height: 20),
           _buildAIInsightCard(),
-          const SizedBox(height: 16),
-          _buildDynamicModules(),
           const SizedBox(height: 120), // padding for floating nav
         ],
       ),
@@ -280,13 +279,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildDynamicModules() {
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 500),
-      switchInCurve: Curves.easeOutExpo,
-      switchOutCurve: Curves.easeInExpo,
+      duration: const Duration(milliseconds: 350),
+      switchInCurve: Curves.easeOutQuad,
+      switchOutCurve: Curves.easeInQuad,
       transitionBuilder: (Widget child, Animation<double> animation) {
         return SlideTransition(
           position: Tween<Offset>(
-            begin: const Offset(0, 0.15), // Slide up from underneath
+            begin: const Offset(0, 0.05),
             end: Offset.zero,
           ).animate(animation),
           child: FadeTransition(
