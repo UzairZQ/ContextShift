@@ -37,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     'FocusTimerModule',
     'NotesModule'
   ];
+  String _layoutRefresher = '';
 
   @override
   void initState() {
@@ -86,6 +87,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _processCommand(String command) async {
     if (command.trim().isEmpty) return;
     setState(() => _isProcessingCommand = true);
+    bool navigatedByAction = false;
 
     try {
       final result = await AiService.instance.processCommand(
@@ -114,13 +116,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             );
             break;
           case 'start_focus':
-            if (mounted) setState(() => _currentIndex = 3);
+            // We do not switch to the timer tab explicitly here,
+            // because we want the user to see the dynamic home layout animate.
             break;
           case 'navigate':
             final tab = action.params['tab'] as String?;
             final tabMap = {'home': 0, 'tasks': 1, 'habits': 2, 'focus': 3, 'notes': 4};
             if (tab != null && tabMap.containsKey(tab) && mounted) {
               setState(() => _currentIndex = tabMap[tab]!);
+              navigatedByAction = true;
             }
             break;
         }
@@ -142,8 +146,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           }
           if (result.layoutOrder != null && result.layoutOrder!.isNotEmpty) {
             _moduleOrder = result.layoutOrder!;
-            // Ensure we are on the Home tab to see the dynamic layout
-            _currentIndex = 0;
+            _layoutRefresher = DateTime.now().toIso8601String();
+            // Ensure we are on the Home tab to see the dynamic layout,
+            // unless the user specifically asked to navigate somewhere else.
+            if (!navigatedByAction) _currentIndex = 0;
           }
         });
         _responseAnimController.forward(from: 0);
@@ -290,7 +296,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       },
       child: Column(
-        key: ValueKey(_moduleOrder.join('-')),
+        key: ValueKey(_moduleOrder.join('-') + _layoutRefresher),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: _moduleOrder.map((moduleName) {
           return Padding(
