@@ -26,8 +26,9 @@ io.on('connection', (socket) => {
 // Endpoint for FastAPI to hit to broadcast to clients
 app.post('/api/layout-update', (req, res) => {
   const layoutConfig = req.body;
-  console.log('Received new layout config form FastAPI, broadcasting to Flutter clients:', layoutConfig);
+  console.log('[Relay] Received layout from FastAPI. Payload size:', JSON.stringify(layoutConfig).length);
   io.emit('layout_update', layoutConfig);
+  console.log('[Relay] Broadcasted "layout_update" to Flutter clients.');
   res.status(200).send({ success: true, message: 'Layout broadcasted' });
 });
 

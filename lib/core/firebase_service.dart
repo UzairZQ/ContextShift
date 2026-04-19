@@ -1,9 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 /// Singleton service for all Firestore interactions.
-/// Logs user behavior events and performs CRUD on tasks/habits.
 class FirebaseService {
   FirebaseService._();
   static final FirebaseService instance = FirebaseService._();
@@ -13,19 +13,71 @@ class FirebaseService {
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   // ── Auth ─────────────────────────────────────────────────────
-  
+
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   String? get currentUserId => _auth.currentUser?.uid;
   String get currentUserName => _auth.currentUser?.displayName ?? "Traveler";
+  String get firstName => currentUserName.split(' ').first;
 
-  Future<UserCredential> signUp({required String email, required String password}) async {
-    return await _auth.createUserWithEmailAndPassword(email: email, password: password);
+  Future<UserCredential> signUp({
+    required String email,
+    required String password,
+    required String name,
+  }) async {
+    try {
+      debugPrint('Firebase: Attempting sign up for $email...');
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      if (credential.user != null) {
+        debugPrint('Firebase: User created. Updating display name to $name...');
+        await credential.user!.updateDisplayName(name);
+      }
+      return credential;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('Firebase Auth Error Code: ${e.code}');
+      throw _handleAuthError(e);
+    } catch (e, stack) {
+      debugPrint('Unexpected Error during SignUp: $e');
+      debugPrint('Stacktrace: $stack');
+      throw 'An unexpected error occurred. Please check your console.';
+    }
   }
 
-  Future<UserCredential> signIn({required String email, required String password}) async {
-    return await _auth.signInWithEmailAndPassword(email: email, password: password);
+  Future<UserCredential> signIn({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      return await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthError(e);
+    } catch (e) {
+      throw 'An unexpected error occurred. Please try again.';
+    }
+  }
+
+  String _handleAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'weak-password':
+        return 'The password provided is too weak.';
+      case 'email-already-in-use':
+        return 'An account already exists for that email.';
+      case 'user-not-found':
+        return 'No user found for that email.';
+      case 'wrong-password':
+        return 'Wrong password provided for that user.';
+      case 'invalid-email':
+        return 'The email address is badly formatted.';
+      default:
+        return e.message ?? 'An internal error occurred.';
+    }
   }
 
   Future<UserCredential?> signInWithGoogle() async {
@@ -33,7 +85,8 @@ class FirebaseService {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return null;
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
@@ -41,7 +94,7 @@ class FirebaseService {
 
       return await _auth.signInWithCredential(credential);
     } catch (e) {
-      print('Google Sign-In error: $e');
+      debugPrint('Google Sign-In error: $e');
       return null;
     }
   }
@@ -57,20 +110,24 @@ class FirebaseService {
   CollectionReference get _eventsCol => _db.collection('behavior_events');
   CollectionReference get _focusCol => _db.collection('focus_sessions');
   CollectionReference get _notesCol => _db.collection('notes');
+  CollectionReference get _moodCol => _db.collection('mood_entries');
+  CollectionReference get _aiCommandsCol => _db.collection('ai_commands');
 
   // ─────────────────────────────────────────────────────────────
   // BEHAVIOR EVENT LOGGING
   // ─────────────────────────────────────────────────────────────
 
-  /// Logs any user interaction (tab tap, module open, etc.)
   Future<void> logEvent({
     required String eventType,
     required String module,
     Map<String, dynamic>? metadata,
   }) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
     try {
       await _eventsCol.add({
-        'userId': 'uzair',
+        'userId': uid,
         'eventType': eventType,
         'module': module,
         'metadata': metadata ?? {},
@@ -78,15 +135,17 @@ class FirebaseService {
       });
     } catch (e) {
       // Silently fail — never block the UI for logging
-      print('FirebaseService.logEvent error: $e');
+      debugPrint('FirebaseService.logEvent error: $e');
     }
   }
 
-  /// Fetches recent behavior events for the AI to analyze.
   Future<List<Map<String, dynamic>>> getRecentEvents({int limit = 50}) async {
+    final uid = currentUserId;
+    if (uid == null) return [];
+
     try {
       final snap = await _eventsCol
-          .where('userId', isEqualTo: 'uzair')
+          .where('userId', isEqualTo: uid)
           .orderBy('timestamp', descending: true)
           .limit(limit)
           .get();
@@ -103,24 +162,20 @@ class FirebaseService {
   // ─────────────────────────────────────────────────────────────
 
   Stream<List<Map<String, dynamic>>> watchTasks() {
-    // We remove the strict orderBy here because it filters out documents with null 'createdAt' 
-    // (which occurs momentarily during the optimistic local update).
-    // Sorting is handled client-side for better UX.
-    return _tasksCol
-        .where('userId', isEqualTo: 'uzair')
-        .snapshots()
-        .map((snap) {
+    final uid = currentUserId;
+    if (uid == null) return Stream.value([]);
+
+    return _tasksCol.where('userId', isEqualTo: uid).snapshots().map((snap) {
       final docs = snap.docs
           .map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>})
           .toList();
-      
-      // Sort client-side: items without a timestamp (new ones) go to the top
+
       docs.sort((a, b) {
         final ta = a['createdAt'] as Timestamp?;
         final tb = b['createdAt'] as Timestamp?;
         if (ta == null) return -1;
         if (tb == null) return 1;
-        return tb.compareTo(ta); // Newest first
+        return tb.compareTo(ta);
       });
       return docs;
     });
@@ -130,16 +185,28 @@ class FirebaseService {
     required String title,
     String priority = 'normal',
     String due = 'Today',
+    List<Map<String, dynamic>> subtasks = const [],
   }) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
     await _tasksCol.add({
-      'userId': 'uzair',
+      'userId': uid,
       'title': title,
       'done': false,
       'priority': priority,
       'due': due,
+      'subtasks': subtasks,
       'createdAt': FieldValue.serverTimestamp(),
     });
     await logEvent(eventType: 'task_created', module: 'tasks');
+  }
+
+  Future<void> updateTask(
+    String taskId,
+    Map<String, dynamic> updates,
+  ) async {
+    await _tasksCol.doc(taskId).update(updates);
   }
 
   Future<void> toggleTask(String taskId, bool isDone) async {
@@ -160,17 +227,23 @@ class FirebaseService {
   // ─────────────────────────────────────────────────────────────
 
   Stream<List<Map<String, dynamic>>> watchHabits() {
-    return _habitsCol
-        .where('userId', isEqualTo: 'uzair')
-        .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>})
-            .toList());
+    final uid = currentUserId;
+    if (uid == null) return Stream.value([]);
+
+    return _habitsCol.where('userId', isEqualTo: uid).snapshots().map(
+          (snap) => snap.docs
+              .map(
+                  (d) => {'id': d.id, ...d.data() as Map<String, dynamic>})
+              .toList(),
+        );
   }
 
   Future<void> addHabit({required String name, required String icon}) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
     await _habitsCol.add({
-      'userId': 'uzair',
+      'userId': uid,
       'name': name,
       'icon': icon,
       'completedDates': <String>[],
@@ -202,8 +275,11 @@ class FirebaseService {
   // ─────────────────────────────────────────────────────────────
 
   Future<String> startFocusSession({int durationMinutes = 25}) async {
+    final uid = currentUserId;
+    if (uid == null) throw 'User not authenticated';
+
     final doc = await _focusCol.add({
-      'userId': 'uzair',
+      'userId': uid,
       'durationMinutes': durationMinutes,
       'startedAt': FieldValue.serverTimestamp(),
       'completedAt': null,
@@ -225,15 +301,47 @@ class FirebaseService {
     await logEvent(eventType: 'focus_completed', module: 'focus');
   }
 
+  /// Get total focus minutes completed today
+  Future<int> getTodayFocusMinutes() async {
+    final uid = currentUserId;
+    if (uid == null) return 0;
+
+    try {
+      final snap = await _focusCol
+          .where('userId', isEqualTo: uid)
+          .where('completed', isEqualTo: true)
+          .get();
+
+      final today = _todayString();
+      int total = 0;
+      for (final doc in snap.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final completedAt = data['completedAt'] as Timestamp?;
+        if (completedAt != null) {
+          final d = completedAt.toDate();
+          final dateStr =
+              '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+          if (dateStr == today) {
+            total += (data['durationMinutes'] as int?) ?? 0;
+          }
+        }
+      }
+      return total;
+    } catch (e) {
+      debugPrint('getTodayFocusMinutes error: $e');
+      return 0;
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────
   // QUICK NOTES
   // ─────────────────────────────────────────────────────────────
 
   Stream<List<Map<String, dynamic>>> watchNotes() {
-    return _notesCol
-        .where('userId', isEqualTo: 'uzair')
-        .snapshots()
-        .map((snap) {
+    final uid = currentUserId;
+    if (uid == null) return Stream.value([]);
+
+    return _notesCol.where('userId', isEqualTo: uid).snapshots().map((snap) {
       final docs = snap.docs
           .map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>})
           .toList();
@@ -249,8 +357,11 @@ class FirebaseService {
   }
 
   Future<void> addNote({required String content, List<String>? tags}) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
     await _notesCol.add({
-      'userId': 'uzair',
+      'userId': uid,
       'content': content,
       'tags': tags ?? [],
       'updatedAt': FieldValue.serverTimestamp(),
@@ -259,19 +370,150 @@ class FirebaseService {
     await logEvent(eventType: 'note_created', module: 'notes');
   }
 
-  Future<void> updateNote(String noteId, String content, {List<String>? tags}) async {
+  Future<void> deleteNote(String noteId) async {
+    await _notesCol.doc(noteId).delete();
+    await logEvent(eventType: 'note_deleted', module: 'notes');
+  }
+
+  Future<void> updateNote(
+    String noteId,
+    String content, {
+    List<String>? tags,
+    String? summary,
+  }) async {
     await _notesCol.doc(noteId).update({
       'content': content,
       if (tags != null) 'tags': tags,
+      if (summary != null) 'summary': summary,
       'updatedAt': FieldValue.serverTimestamp(),
     });
     await logEvent(eventType: 'note_updated', module: 'notes');
   }
 
-  Future<void> deleteNote(String noteId) async {
-    await _notesCol.doc(noteId).delete();
-    await logEvent(eventType: 'note_deleted', module: 'notes');
+  // ─────────────────────────────────────────────────────────────
+  // MOOD TRACKING
+  // ─────────────────────────────────────────────────────────────
+
+  Future<void> saveMood(String mood) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    await _moodCol.add({
+      'userId': uid,
+      'mood': mood,
+      'date': _todayString(),
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+    await logEvent(
+      eventType: 'mood_logged',
+      module: 'mood',
+      metadata: {'mood': mood},
+    );
   }
+
+  Future<String?> getTodayMood() async {
+    final uid = currentUserId;
+    if (uid == null) return null;
+
+    try {
+      final today = _todayString();
+      final snap = await _moodCol
+          .where('userId', isEqualTo: uid)
+          .where('date', isEqualTo: today)
+          .limit(1)
+          .get();
+
+      if (snap.docs.isNotEmpty) {
+        return (snap.docs.first.data() as Map<String, dynamic>)['mood']
+            as String?;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Stream<List<Map<String, dynamic>>> watchMoods({int days = 14}) {
+    final uid = currentUserId;
+    if (uid == null) return Stream.value([]);
+
+    return _moodCol
+        .where('userId', isEqualTo: uid)
+        .orderBy('timestamp', descending: true)
+        .limit(days)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>})
+            .toList());
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // AI COMMAND HISTORY
+  // ─────────────────────────────────────────────────────────────
+
+  Future<void> saveAiCommand({
+    required String command,
+    required String response,
+    List<Map<String, dynamic>>? actions,
+  }) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    await _aiCommandsCol.add({
+      'userId': uid,
+      'command': command,
+      'response': response,
+      'actions': actions ?? [],
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Stream<List<Map<String, dynamic>>> watchAiCommands({int limit = 20}) {
+    final uid = currentUserId;
+    if (uid == null) return Stream.value([]);
+
+    return _aiCommandsCol
+        .where('userId', isEqualTo: uid)
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>})
+            .toList());
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // STREAK CALCULATION
+  // ─────────────────────────────────────────────────────────────
+
+  /// Compute the current streak (consecutive days with at least 1 habit done)
+  int computeStreak(List<Map<String, dynamic>> habits) {
+    if (habits.isEmpty) return 0;
+
+    final Set<String> allDates = {};
+    for (final h in habits) {
+      final dates = (h['completedDates'] as List<dynamic>?) ?? [];
+      for (final d in dates) {
+        if (d is String) allDates.add(d);
+      }
+    }
+
+    int streak = 0;
+    DateTime day = DateTime.now();
+    while (true) {
+      final dayStr =
+          '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+      if (allDates.contains(dayStr)) {
+        streak++;
+        day = day.subtract(const Duration(days: 1));
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  // ── Helpers ───────────────────────────────────────────────
 
   String _todayString() {
     final now = DateTime.now();

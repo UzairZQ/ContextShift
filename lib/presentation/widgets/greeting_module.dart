@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../core/app_theme.dart';
 
 class GreetingModule extends StatelessWidget {
   final String greetingText;
@@ -23,22 +22,6 @@ class GreetingModule extends StatelessWidget {
               style: Theme.of(
                 context,
               ).textTheme.displayLarge?.copyWith(fontSize: 28),
-            ),
-          ),
-          Container(
-            margin: const EdgeInsets.only(top: 8),
-            width: 12,
-            height: 12,
-            decoration: const BoxDecoration(
-              color: AppTheme.primary,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.primary,
-                  blurRadius: 12,
-                  spreadRadius: 2,
-                ),
-              ],
             ),
           ),
         ],

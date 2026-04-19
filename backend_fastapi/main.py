@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import httpx
 import os
 import json
 from dotenv import load_dotenv
@@ -10,7 +9,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 load_dotenv()
 
-app = FastAPI(title="ContextShift Behavior Engine")
+app = FastAPI(title="ContextShift AI Engine")
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,112 +18,89 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-NODE_SERVER_URL = "http://localhost:3000/api/layout-update"
-
 # Initialize Gemini via LangChain
 llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-pro",
+    model="gemini-2.0-flash",
     google_api_key=os.getenv("GOOGLE_API_KEY"),
-    temperature=0.7,  # Increased temperature for more creative greetings
+    temperature=0.7,
 )
 
-# ─── System Prompt ──────────────────────────────────────────────────────────────
-SYSTEM_PROMPT = """You are the AI brain of ContextShift, a high-end personal life OS.
-Your goals:
-1. Analyze user behavior and commands to decide the optimal module order.
-2. Generate a highly personalized, creative greeting that feels alive and context-aware.
 
-AVAILABLE MODULES:
-- GreetingModule (Always first, contains your dynamic 'greeting' text)
-- FocusTimerModule (Deep work, Pomodoro)
-- TasksModule (Daily to-do lists)
-- HabitModule (Routine and tracking)
-- NotesModule (Quick capture of thoughts)
+# ─── Request Models ─────────────────────────────────────────────────────────────
 
-GREETING GUIDELINES:
-- Use the user's name: {user_name}
-- Be context-aware: Mention the time of day, current focus, or recent achievements.
-- Be creative: Avoid generic "Hello". Use personas like a mentor, a co-pilot, or a serene sanctuary guide.
-- Keep it under 12 words.
+class CommandRequest(BaseModel):
+    command: str
+    user_name: str
+    context: dict = {}
 
-LAYOUT RULES:
-- PRIORITIZE the 'explicit_command' if provided.
-- "Study/Deep Work": Leads with FocusTimerModule + TasksModule.
-- "Capture/Ideate": Leads with NotesModule.
-- "Review/Routine": Leads with HabitModule + TasksModule.
-- If no command, use time-of-day:
-    - 05:00 - 11:00: Prioritize FocusTimerModule (Fresh start)
-    - 11:00 - 17:00: Prioritize TasksModule (Execution)
-    - 17:00 - 05:00: Prioritize HabitModule (Reflection)
 
-Return ONLY valid JSON:
-{{
-  "greeting": "Your creative, personalized greeting here",
-  "order": ["ModuleName1", "ModuleName2", "ModuleName3", "ModuleName4"]
-}}
+class InsightRequest(BaseModel):
+    user_name: str
+    stats: dict = {}
+
+
+class SummarizeRequest(BaseModel):
+    content: str
+
+
+# ─── System Prompts ─────────────────────────────────────────────────────────────
+
+COMMAND_PROMPT = """You are JARVIS, the AI brain of ContextShift — a personal productivity life OS.
+Analyze the user's command and return structured actions PLUS an optimal layout order for the home screen.
+
+AVAILABLE ACTIONS:
+- add_task: {{"title": "task description", "priority": "normal|medium|high"}}
+- add_habit: {{"name": "habit name", "icon": "single emoji"}}
+- add_note: {{"content": "note text"}}
+- start_focus: {{"duration_minutes": 25}}
+- navigate: {{"tab": "tasks|habits|focus|notes"}}
+- motivate: {{}}
+
+LAYOUT ORDER:
+Based on intent, reorder these 4 modules: ["FocusTimerModule", "TasksModule", "HabitModule", "NotesModule"]
+- "Study/Deep Work": FocusTimerModule first.
+- "Capture/Ideate": NotesModule first.
+- "Review/Organize": TasksModule first.
+
+RULES:
+1. Return ONLY valid JSON: {{"actions": [...], "response": "...", "greeting_update": "optional", "layout_order": [...]}}
+2. "response": 1-2 sentences, energetic, use the user's first name.
+3. If conversational, return 0 actions.
+4. "layout_order" MUST contain all 4 modules.
+
+EXAMPLES:
+User: "I need to study for physics"
+{{"actions": [{{"type": "add_task", "params": {{"title": "Study physics", "priority": "high"}}}}, {{"type": "start_focus", "params": {{"duration_minutes": 45}}}}], "response": "Study mode activated. 45-min focus session ready.", "greeting_update": "Deep study mode, {{name}}.", "layout_order": ["FocusTimerModule", "TasksModule", "NotesModule", "HabitModule"]}}
+
+User: "good morning"
+{{"actions": [], "response": "Good morning, {{name}}. Ready to own the day?", "layout_order": ["FocusTimerModule", "TasksModule", "HabitModule", "NotesModule"]}}
+"""
+
+INSIGHT_PROMPT = """You are the AI analytics engine of ContextShift, a personal productivity OS.
+Generate a SHORT, personalized productivity insight based on the user's stats.
+
+RULES:
+1. Keep it under 2 sentences.
+2. Be specific — reference their actual numbers.
+3. Give one actionable suggestion.
+4. Be encouraging but not generic. Avoid clichés.
+5. Return ONLY valid JSON: {{"insight": "your insight text"}}
+
+USER: {user_name}
+STATS: {stats}
 """
 
 
-class BehaviorData(BaseModel):
-    user_id: str
-    user_name: str
-    events: list
-    command: str | None = None
+# ─── Endpoints ──────────────────────────────────────────────────────────────────
 
+@app.post("/ai-command")
+async def process_command(data: CommandRequest):
+    first_name = data.user_name.split(' ')[0] if data.user_name else "Friend"
+    prompt = COMMAND_PROMPT.replace("{name}", first_name)
 
-def build_a2ui_payload(greeting: str, order: list[str]) -> dict:
-    """Converts AI layout decision into valid GenUI v0.9 A2UI payloads."""
-    component_ids = ["comp_greeting"] + [f"comp_{i}" for i in range(len(order))]
-    children_ids = component_ids
-
-    components = [
-        {
-            "id": "root",
-            "component": "RootLayout",
-            "children": children_ids,
-        },
-        {
-            "id": "comp_greeting",
-            "component": "GreetingModule",
-            "greetingText": greeting,
-        },
-    ]
-
-    for i, module_name in enumerate(order):
-        components.append({"id": f"comp_{i}", "component": module_name})
-
-    create_surface = json.dumps({
-        "version": "v0.9",
-        "createSurface": {
-            "surfaceId": "home_surf",
-            "catalogId": "context_shift_catalog"
-        }
-    })
-
-    update_components = json.dumps({
-        "version": "v0.9",
-        "updateComponents": {
-            "surfaceId": "home_surf",
-            "components": components
-        }
-    })
-
-    return {"a2ui_payloads": [create_surface, update_components]}
-
-
-@app.post("/analyze-behavior")
-async def analyze_behavior(data: BehaviorData):
-    from datetime import datetime
-    now = datetime.now()
-    time_context = f"Current time: {now.strftime('%H:%M')} on {now.strftime('%A, %B %d')}."
-    
-    event_summary = "First launch" if not data.events else f"Recent activity: {len(data.events)} interactions recorded."
-    
-    prompt = SYSTEM_PROMPT.format(user_name=data.user_name)
-    user_input = f"{time_context}\n{event_summary}\n"
-    if data.command:
-        user_input += f"USER COMMAND: '{data.command}'\n"
-    user_input += "Reconstruct the sanctuary."
+    user_input = f"User: {first_name}\nCommand: \"{data.command}\""
+    if data.context:
+        user_input += f"\nContext: {json.dumps(data.context)}"
 
     try:
         messages = [
@@ -133,28 +109,71 @@ async def analyze_behavior(data: BehaviorData):
         ]
         response = await llm.ainvoke(messages)
         raw = response.content.strip()
-        
+
+        # Strip markdown code fences if present
         if raw.startswith("```"):
             raw = raw.split("```")[1]
-            if raw.startswith("json"): raw = raw[4:]
-        
-        layout = json.loads(raw.strip())
-        greeting = layout.get("greeting", f"Welcome back, {data.user_name}")
-        order = layout.get("order", ["FocusTimerModule", "TasksModule", "HabitModule", "NotesModule"])
-    
-    except Exception as e:
-        print(f"[AI Error] {e}")
-        # Dynamic fallback
-        hour = now.hour
-        greeting = f"Ready for the morning, {data.user_name}?" if hour < 12 else f"Good evening, {data.user_name}."
-        order = ["FocusTimerModule", "TasksModule", "HabitModule", "NotesModule"]
+            if raw.startswith("json"):
+                raw = raw[4:]
 
-    payload = build_a2ui_payload(greeting, order)
+        result = json.loads(raw.strip())
+        print(f"[AI Command] '{data.command}' → {len(result.get('actions', []))} actions")
+        return result
+
+    except Exception as e:
+        print(f"[AI Command Error] {e}")
+        return {
+            "actions": [],
+            "response": f"I had trouble processing that, {first_name}. Try something like 'add task buy groceries' or 'focus 25 min'.",
+            "greeting_update": None,
+            "layout_order": ["FocusTimerModule", "TasksModule", "HabitModule", "NotesModule"]
+        }
+
+
+@app.post("/ai-insight")
+async def generate_insight(data: InsightRequest):
+    first_name = data.user_name.split(' ')[0] if data.user_name else "Friend"
+    prompt = INSIGHT_PROMPT.format(
+        user_name=first_name,
+        stats=json.dumps(data.stats) if data.stats else "No stats available yet",
+    )
 
     try:
-        async with httpx.AsyncClient() as client:
-            await client.post(NODE_SERVER_URL, json=payload, timeout=5.0)
-    except Exception as e:
-        print(f"[Node Error] {e}")
+        messages = [
+            SystemMessage(content=prompt),
+            HumanMessage(content=f"Generate an insight for {first_name}."),
+        ]
+        response = await llm.ainvoke(messages)
+        raw = response.content.strip()
 
-    return {"status": "success", "greeting": greeting, "order": order}
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+
+        result = json.loads(raw.strip())
+        return {"insight": result.get("insight", f"Keep going, {first_name}!")}
+
+    except Exception as e:
+        print(f"[AI Insight Error] {e}")
+        return {"insight": f"Stay consistent, {first_name}. Small wins compound into big results."}
+
+
+@app.post("/summarize")
+async def summarize_note(data: SummarizeRequest):
+    prompt = "Summarize this thought in exactly ONE short, punchy sentence. Focus on the core intent. Avoid 'The user wants...' style."
+    try:
+        messages = [
+            SystemMessage(content=prompt),
+            HumanMessage(content=data.content),
+        ]
+        response = await llm.ainvoke(messages)
+        return {"summary": response.content.strip()}
+    except Exception as e:
+        print(f"[Summarize Error] {e}")
+        return {"summary": "Unable to summarize at this time."}
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "ContextShift AI Engine"}

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/app_theme.dart';
 import '../../core/firebase_service.dart';
+import '../../core/ai_service.dart';
 
 class NotesModule extends StatefulWidget {
   const NotesModule({super.key});
@@ -17,8 +18,10 @@ class _NotesModuleState extends State<NotesModule> {
   void _submitNote() {
     if (_noteController.text.trim().isEmpty) return;
     FirebaseService.instance.addNote(content: _noteController.text.trim());
-    _noteController.clear();
-    setState(() => _isAdding = false);
+    if (mounted) {
+      _noteController.clear();
+      setState(() => _isAdding = false);
+    }
   }
 
   @override
@@ -46,17 +49,28 @@ class _NotesModuleState extends State<NotesModule> {
             final notes = snapshot.data!;
             if (notes.isEmpty) return _buildEmptyState();
 
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.1,
-              ),
-              itemCount: notes.length,
-              itemBuilder: (context, index) => _buildNoteCard(notes[index]),
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                int crossAxisCount = 2;
+                if (constraints.maxWidth > 800) {
+                  crossAxisCount = 4;
+                } else if (constraints.maxWidth > 500) {
+                  crossAxisCount = 3;
+                }
+
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 1.1,
+                  ),
+                  itemCount: notes.length,
+                  itemBuilder: (context, index) => _buildNoteCard(notes[index]),
+                );
+              },
             );
           },
         ),
@@ -97,7 +111,12 @@ class _NotesModuleState extends State<NotesModule> {
     );
   }
 
+  final Map<String, bool> _summarizingIds = {};
+
   Widget _buildNoteCard(Map<String, dynamic> note) {
+    final String? summary = note['summary'];
+    final bool isSummarizing = _summarizingIds[note['id']] ?? false;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -110,25 +129,64 @@ class _NotesModuleState extends State<NotesModule> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (summary != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    summary,
+                    style: const TextStyle(
+                      color: AppTheme.primary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
               Expanded(
                 child: Text(
                   note['content'] ?? '',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  maxLines: 4,
+                  style: TextStyle(
+                    color: summary != null ? Colors.white60 : Colors.white,
+                    fontSize: 14,
+                  ),
+                  maxLines: summary != null ? 3 : 5,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(height: 8),
-              if ((note['tags'] as List?)?.isNotEmpty ?? false)
-                Text(
-                  (note['tags'] as List).map((t) => '#$t').join(' '),
-                  style: const TextStyle(color: AppTheme.primary, fontSize: 10),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      ((note['tags'] as List?) ?? []).map((t) => '#$t').join(' '),
+                      style: const TextStyle(color: AppTheme.primary, fontSize: 10),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: isSummarizing ? null : () async {
+                      setState(() => _summarizingIds[note['id']] = true);
+                      final summary = await AiService.instance.summarizeNote(note['content'] ?? '');
+                      if (summary != null) {
+                        await FirebaseService.instance.updateNote(note['id'], note['content'], summary: summary);
+                      }
+                      if (mounted) setState(() => _summarizingIds[note['id']] = false);
+                    },
+                    child: Icon(
+                      LucideIcons.sparkles,
+                      size: 14,
+                      color: isSummarizing ? AppTheme.primary : AppTheme.primary.withValues(alpha: 0.4),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
           Positioned(
             right: -8,
-            bottom: -8,
+            top: -8,
             child: IconButton(
               onPressed: () => FirebaseService.instance.deleteNote(note['id']),
               icon: const Icon(LucideIcons.trash2, size: 14, color: Colors.white24),

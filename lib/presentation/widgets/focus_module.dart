@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/app_theme.dart';
 import '../../core/firebase_service.dart';
+import '../../core/responsive.dart';
 
 class FocusTimerModule extends StatefulWidget {
   const FocusTimerModule({super.key});
@@ -13,7 +14,7 @@ class FocusTimerModule extends StatefulWidget {
 
 class _FocusTimerModuleState extends State<FocusTimerModule>
     with SingleTickerProviderStateMixin {
-  static const _presets = [15, 25, 45, 60];
+  String _sessionType = 'Focus';
   int _selectedMinutes = 25;
   late int _remainingSeconds;
   bool _isRunning = false;
@@ -31,7 +32,7 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
       vsync: this,
       duration: const Duration(seconds: 1),
     )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 1.0, end: 1.08).animate(
+    _pulseAnim = Tween<double>(begin: 1.0, end: 1.05).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
     FirebaseService.instance.logEvent(eventType: 'screen_open', module: 'focus');
@@ -44,9 +45,10 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
     super.dispose();
   }
 
-  void _selectPreset(int minutes) {
+  void _updateSession(String type, int minutes) {
     if (_isRunning) return;
     setState(() {
+      _sessionType = type;
       _selectedMinutes = minutes;
       _remainingSeconds = minutes * 60;
     });
@@ -56,27 +58,29 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
     _sessionId = await FirebaseService.instance.startFocusSession(
       durationMinutes: _selectedMinutes,
     );
-    setState(() => _isRunning = true);
+    if (mounted) setState(() => _isRunning = true);
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_remainingSeconds <= 0) {
         _completeSession();
       } else {
-        setState(() => _remainingSeconds--);
+        if (mounted) setState(() => _remainingSeconds--);
       }
     });
   }
 
   void _pauseTimer() {
     _timer?.cancel();
-    setState(() => _isRunning = false);
+    if (mounted) setState(() => _isRunning = false);
   }
 
   void _resetTimer() {
     _timer?.cancel();
-    setState(() {
-      _isRunning = false;
-      _remainingSeconds = _selectedMinutes * 60;
-    });
+    if (mounted) {
+      setState(() {
+        _isRunning = false;
+        _remainingSeconds = _selectedMinutes * 60;
+      });
+    }
   }
 
   Future<void> _completeSession() async {
@@ -84,11 +88,11 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
     if (_sessionId != null) {
       await FirebaseService.instance.completeFocusSession(_sessionId!);
     }
-    setState(() {
-      _isRunning = false;
-      _remainingSeconds = _selectedMinutes * 60;
-    });
     if (mounted) {
+      setState(() {
+        _isRunning = false;
+        _remainingSeconds = _selectedMinutes * 60;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('🎉 Focus session complete! Great work!'),
@@ -113,152 +117,201 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 16),
-        Text('Focus Timer', style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: 32),
-
-        // Preset selector
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: _presets.map((min) {
-            final isSelected = min == _selectedMinutes;
-            return GestureDetector(
-              onTap: () => _selectPreset(min),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.symmetric(horizontal: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected ? AppTheme.primary : AppTheme.surfaceHigh,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  '${min}m',
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.white54,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 16),
+          Text('Focus Timer', style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 32),
+    
+          ResponsiveWrapper(
+            maxWidth: 600,
+            child: Column(
+              children: [
+                // Session Type Selector
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceHigh,
+                    borderRadius: BorderRadius.circular(24),
                   ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: 48),
-
-        // Timer ring
-        Center(
-          child: ScaleTransition(
-            scale: _isRunning ? _pulseAnim : const AlwaysStoppedAnimation(1.0),
-            child: SizedBox(
-              width: 220,
-              height: 220,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox.expand(
-                    child: CircularProgressIndicator(
-                      value: _progress,
-                      strokeWidth: 8,
-                      backgroundColor: AppTheme.surfaceHigh,
-                      valueColor: const AlwaysStoppedAnimation(AppTheme.primary),
-                    ),
-                  ),
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        _timeDisplay,
-                        style: const TextStyle(
-                          fontSize: 52,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 2,
-                        ),
-                      ),
-                      Text(
-                        _isRunning ? 'Focus mode' : 'Ready',
-                        style: const TextStyle(color: Colors.white38, fontSize: 13),
-                      ),
+                      _buildSessionChip('Focus', 25, LucideIcons.brain),
+                      _buildSessionChip('Short Break', 5, LucideIcons.coffee),
+                      _buildSessionChip('Long Break', 15, LucideIcons.batteryCharging),
                     ],
                   ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 48),
-
-        // Controls
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _ControlButton(
-              icon: LucideIcons.rotateCcw,
-              label: 'Reset',
-              onTap: _resetTimer,
-              color: Colors.white24,
-            ),
-            const SizedBox(width: 20),
-            GestureDetector(
-              onTap: _isRunning ? _pauseTimer : _startTimer,
-              child: Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppTheme.primary,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.primary.withValues(alpha: 0.4),
-                      blurRadius: 20,
-                      spreadRadius: 2,
+                ),
+                const SizedBox(height: 48),
+    
+                // Timer ring
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final size = constraints.maxWidth * 0.7;
+                    final cappedSize = size.clamp(200.0, 320.0);
+                    
+                    return Center(
+                      child: ScaleTransition(
+                        scale: _isRunning ? _pulseAnim : const AlwaysStoppedAnimation(1.0),
+                        child: SizedBox(
+                          width: cappedSize,
+                          height: cappedSize,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              SizedBox.expand(
+                                child: CircularProgressIndicator(
+                                  value: _progress,
+                                  strokeWidth: Responsive.isMobile(context) ? 8 : 12,
+                                  backgroundColor: AppTheme.surfaceHigh,
+                                  valueColor: const AlwaysStoppedAnimation(AppTheme.primary),
+                                ),
+                              ),
+                              Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    _timeDisplay,
+                                    style: TextStyle(
+                                      fontSize: cappedSize * 0.25,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                      letterSpacing: 2,
+                                    ),
+                                  ),
+                                  Text(
+                                    _isRunning ? _sessionType : 'Ready',
+                                    style: TextStyle(color: Colors.white38, fontSize: cappedSize * 0.06),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 48),
+    
+                // Controls
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _ControlButton(
+                      icon: LucideIcons.rotateCcw,
+                      label: 'Reset',
+                      onTap: _resetTimer,
+                      color: Colors.white24,
+                    ),
+                    const SizedBox(width: 20),
+                    GestureDetector(
+                      onTap: _isRunning ? _pauseTimer : _startTimer,
+                      child: Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppTheme.primary,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.primary.withValues(alpha: 0.4),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          _isRunning ? LucideIcons.pause : LucideIcons.play,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    _ControlButton(
+                      icon: LucideIcons.skipForward,
+                      label: 'Done',
+                      onTap: _completeSession,
+                      color: Colors.white24,
                     ),
                   ],
                 ),
-                child: Icon(
-                  _isRunning ? LucideIcons.pause : LucideIcons.play,
-                  color: Colors.white,
-                  size: 28,
-                ),
-              ),
+                const SizedBox(height: 40),
+    
+                // Tip
+                _buildProductivityTip(),
+                const SizedBox(height: 40),
+              ],
             ),
-            const SizedBox(width: 20),
-            _ControlButton(
-              icon: LucideIcons.skipForward,
-              label: 'Done',
-              onTap: _completeSession,
-              color: Colors.white24,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductivityTip() {
+    final hour = DateTime.now().hour;
+    String tip;
+    if (hour < 11) {
+      tip = 'Early sessions have 20% higher completion rates. Your flow is strongest now.';
+    } else if (hour < 17) {
+      tip = 'The afternoon slump is real. Consider a 5-minute movement break between sessions.';
+    } else {
+      tip = 'Deep work before bed can affect sleep. Aim for one final "Review" session.';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceHigh,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Row(
+        children: [
+          const Icon(LucideIcons.sparkles, color: AppTheme.primary, size: 18),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              tip,
+              style: const TextStyle(color: Colors.white54, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSessionChip(String type, int minutes, IconData icon) {
+    final isSelected = _sessionType == type;
+    return GestureDetector(
+      onTap: () => _updateSession(type, minutes),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 14, color: isSelected ? Colors.white : Colors.white38),
+            const SizedBox(width: 8),
+            Text(
+              type,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white38,
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 40),
-
-        // Tip
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceHigh,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-          ),
-          child: Row(
-            children: [
-              const Icon(LucideIcons.sparkles, color: AppTheme.primary, size: 18),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Your AI noticed you focus best at 9AM. Sessions logged here will improve your daily layout suggestions.',
-                  style: const TextStyle(color: Colors.white54, fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-      ],
+      ),
     );
   }
 }
