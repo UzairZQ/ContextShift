@@ -1,30 +1,48 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
+import 'package:context_shift/core/app_theme.dart';
+import 'package:context_shift/presentation/widgets/generative_card_module.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:context_shift/main.dart';
-
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const ContextShiftApp());
+  testWidgets('Generative card renders AI content', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: Scaffold(
+          body: GenerativeCardModule(
+            cardData: {
+              'title': 'Adaptive Plan',
+              'type': 'planner',
+              'description': 'A short plan generated from your Jarvis prompt.',
+              'list_items': [
+                {
+                  'text': 'Pick the most important outcome',
+                  'task_payload': {
+                    'title': 'Define the main outcome for today',
+                    'priority': 'high',
+                  },
+                },
+                {
+                  'text': 'Run one 25 minute sprint',
+                  'task_payload': {
+                    'title': 'Do one 25 minute sprint',
+                    'priority': 'normal',
+                  },
+                },
+              ],
+              'action_label': 'Start Focus',
+              'action_module': 'FocusTimerModule',
+            },
+          ),
+        ),
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpAndSettle();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Adaptive Plan'), findsOneWidget);
+    expect(find.text('A short plan generated from your Jarvis prompt.'), findsOneWidget);
+    expect(find.text('Pick the most important outcome'), findsOneWidget);
+    expect(find.text('START FOCUS'), findsOneWidget);
   });
 }

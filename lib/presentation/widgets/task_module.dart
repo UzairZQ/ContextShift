@@ -9,30 +9,12 @@ class TasksModule extends StatefulWidget {
 
   @override
   State<TasksModule> createState() => _TasksModuleState();
-}
 
-class _TasksModuleState extends State<TasksModule> {
-  final _newTaskController = TextEditingController();
-  Stream<List<Map<String, dynamic>>>? _tasksStream;
-
-  @override
-  void initState() {
-    super.initState();
-    _tasksStream = FirebaseService.instance.watchTasks();
-    FirebaseService.instance.logEvent(eventType: 'screen_open', module: 'tasks');
-  }
-
-  @override
-  void dispose() {
-    _newTaskController.dispose();
-    super.dispose();
-  }
-
-
-  void _showAddTaskSheet() {
-    String priority = 'normal';
+  static void showAddTaskSheet(BuildContext context, {String? initialTitle, String? initialPriority, List<String>? initialSubtasks}) {
+    String priority = initialPriority ?? 'normal';
+    final newTaskController = TextEditingController(text: initialTitle);
     final subtaskController = TextEditingController();
-    List<String> subtasks = [];
+    List<String> subtasks = initialSubtasks ?? [];
 
     showModalBottomSheet(
       context: context,
@@ -54,7 +36,7 @@ class _TasksModuleState extends State<TasksModule> {
               Text('New Task', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 16),
               TextField(
-                controller: _newTaskController,
+                controller: newTaskController,
                 autofocus: true,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
@@ -143,23 +125,28 @@ class _TasksModuleState extends State<TasksModule> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: () async {
-                    final title = _newTaskController.text.trim();
+                    final title = newTaskController.text.trim();
                     if (title.isEmpty) return;
+                    
+                    // Map String subtasks to Map structure expected by FirebaseService
+                    final mappedSubtasks = subtasks.map((s) => {'title': s, 'completed': false}).toList();
+                    
                     await FirebaseService.instance.addTask(
                       title: title,
                       priority: priority,
-                      subtasks: subtasks.map((s) => {'title': s, 'done': false}).toList(),
+                      subtasks: mappedSubtasks,
                     );
-                    _newTaskController.clear();
-                    if (ctx.mounted) Navigator.pop(ctx);
+                    if (ctx.mounted) {
+                      Navigator.pop(ctx);
+                    }
                   },
                   style: FilledButton.styleFrom(
                     backgroundColor: AppTheme.primary,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('Add Task'),
+                  child: const Text('Add Task', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -168,232 +155,206 @@ class _TasksModuleState extends State<TasksModule> {
       ),
     );
   }
+}
+
+class _TasksModuleState extends State<TasksModule> {
+  Stream<List<Map<String, dynamic>>>? _tasksStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _tasksStream = FirebaseService.instance.watchTasks();
+    FirebaseService.instance.logEvent(eventType: 'screen_open', module: 'tasks');
+  }
+
+  void _showAddTaskSheet() {
+    TasksModule.showAddTaskSheet(context);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Tasks', style: Theme.of(context).textTheme.headlineMedium),
-            IconButton.filled(
-              onPressed: _showAddTaskSheet,
-              icon: const Icon(LucideIcons.plus, color: Colors.white),
-              style: IconButton.styleFrom(backgroundColor: AppTheme.primary),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        _buildTasksContent(),
-      ],
+    return Container(
+      width: double.infinity,
+      decoration: AppTheme.cardDecoration(
+        color: AppTheme.surfaceContainer.withValues(alpha: 0.6),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(LucideIcons.checkSquare, color: AppTheme.primary, size: 20),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Active Intentions',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.5,
+                        ),
+                  ),
+                ],
+              ),
+              IconButton(
+                onPressed: _showAddTaskSheet,
+                icon: const Icon(LucideIcons.plus, color: AppTheme.primary),
+                style: IconButton.styleFrom(
+                  backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+                  padding: const EdgeInsets.all(8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildTaskStats(),
+          const SizedBox(height: 20),
+          _buildTaskList(),
+        ],
+      ),
     );
   }
 
-  Widget _buildTasksContent() {
+  Widget _buildTaskStats() {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _tasksStream,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        final tasks = snapshot.data!;
+        final done = tasks.where((t) => t['done'] == true).length;
+        final total = tasks.length;
+        final progress = total == 0 ? 0.0 : done / total;
+
+        return Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '$done of $total missions completed',
+                  style: TextStyle(
+                    color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  '${(progress * 100).toInt()}%',
+                  style: const TextStyle(
+                    color: AppTheme.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: AppTheme.surfaceHighest,
+                valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primary),
+                minHeight: 6,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTaskList() {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: _tasksStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(32.0),
-              child: CircularProgressIndicator(color: AppTheme.primary, strokeWidth: 2),
-            ),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
-        final tasks = snapshot.data ?? [];
-        if (tasks.isEmpty) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return Center(
             child: Padding(
-              padding: const EdgeInsets.all(32.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(LucideIcons.checkSquare, color: Colors.white24, size: 48),
-                  const SizedBox(height: 12),
-                  const Text('No tasks yet', style: TextStyle(color: Colors.white38)),
-                  const SizedBox(height: 6),
-                  const Text('Tap + to add your first task',
-                      style: TextStyle(color: Colors.white24, fontSize: 13)),
-                ],
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Text(
+                'No pending missions. JARVIS is proud.',
+                style: TextStyle(color: AppTheme.onSurfaceVariant.withValues(alpha: 0.5)),
               ),
             ),
           );
         }
-        final done = tasks.where((t) => t['done'] == true).toList();
-        final pending = tasks.where((t) => t['done'] != true).toList();
-        return Column(
-          children: [
-            ...pending.map((t) => _TaskTile(task: t)),
-            if (done.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Text('Completed (${done.length})',
-                    style: const TextStyle(color: Colors.white38, fontSize: 13)),
-              ),
-              ...done.map((t) => _TaskTile(task: t, isDimmed: true)),
-            ]
-          ],
+
+        final tasks = snapshot.data!;
+        return ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: tasks.length > 5 ? 5 : tasks.length,
+          separatorBuilder: (context, index) => const SizedBox(height: 12),
+          itemBuilder: (context, index) => _TaskItem(task: tasks[index]),
         );
       },
     );
   }
 }
 
-class _TaskTile extends StatelessWidget {
+class _TaskItem extends StatelessWidget {
   final Map<String, dynamic> task;
-  final bool isDimmed;
 
-  const _TaskTile({required this.task, this.isDimmed = false});
+  const _TaskItem({required this.task});
 
   @override
   Widget build(BuildContext context) {
-    final isDone = task['done'] == true;
-    final priority = task['priority'] ?? 'normal';
-    final subtasks = (task['subtasks'] as List<dynamic>?) ?? [];
+    final isDone = task['done'] as bool? ?? false;
+    final priority = task['priority'] as String? ?? 'normal';
+    final pColor = priority == 'urgent' ? AppTheme.error : (priority == 'high' ? AppTheme.primary : AppTheme.onSurfaceVariant);
 
-    Color priorityColor;
-    if (priority == 'high') {
-      priorityColor = AppTheme.primary;
-    } else if (priority == 'medium') {
-      priorityColor = Colors.amber;
-    } else {
-      priorityColor = Colors.blue;
-    }
-
-    return Dismissible(
-      key: Key(task['id']),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(16),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDone ? Colors.transparent : Colors.white.withValues(alpha: 0.05),
         ),
-        child: const Icon(LucideIcons.trash2, color: Colors.red),
       ),
-      onDismissed: (_) => FirebaseService.instance.deleteTask(task['id']),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(
-          color: AppTheme.surfaceHigh,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: priority == 'high' && !isDone
-                ? AppTheme.primary.withValues(alpha: 0.4)
-                : Colors.white.withValues(alpha: 0.05),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: GestureDetector(
+          onTap: () => FirebaseService.instance.toggleTask(task['id'], !isDone),
+          child: Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: isDone ? AppTheme.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: isDone ? AppTheme.primary : AppTheme.onSurfaceVariant.withValues(alpha: 0.4),
+                width: 2,
+              ),
+            ),
+            child: isDone
+                ? const Icon(LucideIcons.check, size: 16, color: Colors.white)
+                : null,
           ),
         ),
-        child: Column(
-          children: [
-            ListTile(
-              onTap: () => FirebaseService.instance.toggleTask(task['id'], !isDone),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              leading: _buildCheckbox(isDone),
-              title: Row(
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: priorityColor,
-                      boxShadow: [
-                        BoxShadow(
-                          color: priorityColor.withValues(alpha: 0.4),
-                          blurRadius: 4,
-                          spreadRadius: 1,
-                        )
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      task['title'] ?? '',
-                      style: TextStyle(
-                        color: isDone ? Colors.white38 : Colors.white,
-                        fontSize: 15,
-                        decoration: isDone ? TextDecoration.lineThrough : null,
-                        decorationColor: Colors.white38,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              subtitle: task['due'] != null ? Padding(
-                padding: const EdgeInsets.only(top: 4, left: 16),
-                child: Text(task['due'], style: const TextStyle(color: Colors.white24, fontSize: 11)),
-              ) : null,
-            ),
-            if (subtasks.isNotEmpty && !isDone)
-              Padding(
-                padding: const EdgeInsets.only(left: 48, right: 16, bottom: 12),
-                child: Column(
-                  children: List.generate(subtasks.length, (idx) {
-                    final sub = subtasks[idx];
-                    final subDone = sub['done'] == true;
-                    return GestureDetector(
-                      onTap: () {
-                        final newSubtasks = List<Map<String, dynamic>>.from(
-                          subtasks.map((s) => Map<String, dynamic>.from(s))
-                        );
-                        newSubtasks[idx]['done'] = !subDone;
-                        FirebaseService.instance.updateTask(task['id'], {'subtasks': newSubtasks});
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          children: [
-                            Icon(
-                              subDone ? LucideIcons.checkSquare : LucideIcons.square,
-                              size: 14,
-                              color: subDone ? AppTheme.primary : Colors.white24,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                sub['title'] ?? '',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: subDone ? Colors.white24 : Colors.white60,
-                                  decoration: subDone ? TextDecoration.lineThrough : null,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-              ),
-          ],
+        title: Text(
+          task['title'],
+          style: TextStyle(
+            color: isDone ? AppTheme.onSurfaceVariant.withValues(alpha: 0.5) : AppTheme.onSurface,
+            decoration: isDone ? TextDecoration.lineThrough : null,
+            fontWeight: FontWeight.w500,
+            fontSize: 14,
+          ),
+        ),
+        trailing: Container(
+          width: 4,
+          height: 16,
+          decoration: BoxDecoration(
+            color: pColor,
+            borderRadius: BorderRadius.circular(2),
+          ),
         ),
       ),
-    );
-  }
-
-  Widget _buildCheckbox(bool isDone) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      width: 22,
-      height: 22,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: isDone ? AppTheme.primary.withValues(alpha: 0.2) : Colors.transparent,
-        border: Border.all(
-          color: isDone ? AppTheme.primary : Colors.white30,
-          width: 2,
-        ),
-      ),
-      child: isDone
-          ? const Icon(LucideIcons.check, color: AppTheme.primary, size: 12)
-          : null,
     );
   }
 }

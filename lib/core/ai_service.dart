@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -51,8 +52,29 @@ class AiService {
   AiService._();
   static final AiService instance = AiService._();
 
-  static const _backendUrl = 'http://localhost:8000';
+  static const String _configuredBackendUrl = String.fromEnvironment(
+    'AI_BACKEND_URL',
+    defaultValue: '',
+  );
   String? _cachedInsight;
+
+  String get _backendUrl {
+    if (_configuredBackendUrl.isNotEmpty) {
+      return _configuredBackendUrl;
+    }
+    if (kIsWeb) return 'http://localhost:8000';
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'http://10.0.2.2:8000';
+      case TargetPlatform.iOS:
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+        return 'http://localhost:8000';
+      default:
+        return 'http://localhost:8000';
+    }
+  }
 
   // ── AI Command Processing ─────────────────────────────────
 
@@ -66,17 +88,17 @@ class AiService {
       final backgroundData = await FirebaseService.instance.buildContextSnapshot();
       finalContext['background_data'] = backgroundData;
 
-      final response = await http
-          .post(
-            Uri.parse('$_backendUrl/ai-command'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'command': command,
-              'user_name': userName,
-              'context': finalContext,
-            }),
-          )
-          .timeout(const Duration(seconds: 15));
+      final payload = jsonEncode({
+        'command': command,
+        'user_name': userName,
+        'context': finalContext,
+      });
+
+      final response = await _postJsonWithFallback(
+        paths: const ['/command', '/ai-command'],
+        body: payload,
+        timeout: const Duration(seconds: 45),
+      );
 
       if (response.statusCode == 200) {
         return AiCommandResult.fromJson(
@@ -85,13 +107,16 @@ class AiService {
       }
       throw Exception('Backend returned ${response.statusCode}');
     } catch (e) {
-      debugPrint('AI Command — backend unavailable, using local: $e');
-      return _processLocally(command, userName);
+      debugPrint('AI Command — backend unavailable, using local fallback: $e');
+      return _processLocally(command, userName, e is TimeoutException);
     }
   }
 
-  AiCommandResult _processLocally(String command, String userName) {
+  AiCommandResult _processLocally(String command, String userName, bool isTimeout) {
     final lower = command.toLowerCase().trim();
+    final fallbackResponse = isTimeout 
+        ? "JARVIS is thinking deeply about this. I've saved it as a task for now so we don't lose it!"
+        : "I'm having trouble connecting to JARVIS. I've added this to your tasks locally.";
 
     // ── Task patterns ──
     if (_matchesAny(lower, ['add task', 'todo', 'remind me', 'create task'])) {
@@ -144,6 +169,76 @@ class AiService {
         response: 'Focus mode activated. $minutes-minute session ready.',
         greetingUpdate: 'Deep focus mode, $userName.',
         layoutOrder: ['FocusTimerModule', 'TasksModule', 'NotesModule', 'HabitModule'],
+      );
+    }
+
+    // ── Dynamic planning / advice patterns ──
+    if (_matchesAny(lower, ['workout', 'exercise', 'routine', 'plan', 'planner', 'advice'])) {
+      final isWorkout = _matchesAny(lower, ['workout', 'exercise']);
+      final isPlanner = !isWorkout && _matchesAny(lower, ['plan', 'planner', 'routine']);
+      final cardType = isWorkout ? 'workout' : (isPlanner ? 'planner' : 'advice');
+      final cardTitle = isWorkout
+          ? 'Quick Workout Builder'
+          : (isPlanner ? 'Adaptive Plan' : 'Jarvis Guidance');
+      final cardDescription = isWorkout
+          ? 'Built around your prompt, $userName. Tap any step to turn it into a task.'
+          : (isPlanner
+              ? 'Here is a focused structure based on what you asked for. Tap a step to add it to your backlog.'
+              : 'A short action stack to help you move forward right now.');
+      final listItems = isWorkout
+          ? [
+              {
+                'text': '5 min mobility warm-up',
+                'task_payload': {'title': 'Do a 5 min mobility warm-up', 'priority': 'normal'}
+              },
+              {
+                'text': '20 min main set',
+                'task_payload': {'title': 'Complete a 20 min workout block', 'priority': 'high'}
+              },
+              {
+                'text': '5 min cooldown',
+                'task_payload': {'title': 'Finish with a 5 min cooldown', 'priority': 'normal'}
+              },
+            ]
+          : [
+              {
+                'text': 'Pick the one outcome that matters most',
+                'task_payload': {'title': 'Define the main outcome for today', 'priority': 'high'}
+              },
+              {
+                'text': 'Break it into a 25 min sprint',
+                'task_payload': {'title': 'Run one 25 min sprint on the main outcome', 'priority': 'normal'}
+              },
+              {
+                'text': 'Capture the next step before you stop',
+                'task_payload': {'title': 'Write down the next step before stopping', 'priority': 'normal'}
+              },
+            ];
+
+      return AiCommandResult(
+        actions: [
+          AiAction(
+            type: 'show_dynamic_card',
+            params: {
+              'card': {
+                'title': cardTitle,
+                'type': cardType,
+                'description': cardDescription,
+                'list_items': listItems,
+                'action_label': isWorkout ? 'Open Tasks' : 'Start Focus',
+                'action_module': isWorkout ? 'TasksModule' : 'FocusTimerModule',
+              },
+            },
+          ),
+        ],
+        response: 'I built a live card for that request.',
+        layoutOrder: const [
+          'GenerativeCardModule',
+          'FocusTimerModule',
+          'TasksModule',
+          'HabitModule',
+          'NotesModule',
+        ],
       );
     }
 
@@ -216,8 +311,43 @@ class AiService {
       );
     }
 
-    // ── Motivation patterns ──
-    if (_matchesAny(lower, ['motivat', 'inspir', 'pep talk', 'encourage'])) {
+    // ── Motivation / Support patterns ──
+    if (_matchesAny(lower, [
+      'motivat',
+      'inspir',
+      'pep talk',
+      'encourage',
+      'overwhelmed',
+      'stressed',
+      'help',
+      'stuck'
+    ])) {
+      if (_matchesAny(lower, ['overwhelmed', 'stressed', 'stuck', 'help'])) {
+        return AiCommandResult(
+          actions: [
+            AiAction(
+              type: 'show_dynamic_card',
+              params: {
+                'card': {
+                  'title': 'Overwhelm Protocol',
+                  'type': 'advice',
+                  'description': 'Take a breath, $userName. I\'ve moved your Focus Timer and Tasks to the top. Just pick one thing.',
+                  'list_items': [
+                    {'text': 'Hide your phone', 'task_payload': null},
+                    {'text': 'Start a 15 min focus block', 'task_payload': null},
+                    {'text': 'Knock out one task from the top', 'task_payload': null}
+                  ],
+                  'action_label': 'Start 15min Block',
+                  'action_module': 'FocusTimerModule'
+                }
+              },
+            )
+          ],
+          response:
+              'Take a breath, $userName. I\'ve built a quick protocol to get you back on track.',
+          layoutOrder: ['GenerativeCardModule', 'FocusTimerModule', 'TasksModule', 'HabitModule', 'NotesModule'],
+        );
+      }
       final messages = [
         'You\'re already ahead by showing up, $userName. Keep pushing.',
         'Small steps still move you forward, $userName. Let\'s go.',
@@ -229,8 +359,8 @@ class AiService {
       );
     }
 
-    // ── Default: treat as a task ──
-    if (lower.length > 3) {
+    // ── Default: treat as a task if it was a real command ──
+    if (lower.length > 5) {
       return AiCommandResult(
         actions: [
           AiAction(
@@ -238,7 +368,7 @@ class AiService {
             params: {'title': command.trim(), 'priority': 'normal'},
           ),
         ],
-        response: 'Added "${command.trim()}" as a task!',
+        response: fallbackResponse,
       );
     }
 
@@ -249,12 +379,32 @@ class AiService {
     );
   }
 
+  // ── Health Check ──────────────────────────────────────────
+  
+  Future<bool> checkBackendStatus() async {
+    try {
+      final response = await http
+          .get(Uri.parse('$_backendUrl/health'))
+          .timeout(const Duration(seconds: 3));
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ── AI Insight Fetching ────────────────────────────────────
 
   Future<String> fetchInsight({
     required String userName,
     Map<String, dynamic>? stats,
   }) async {
+    // Fast fail if status check is not healthy
+    final isOnline = await checkBackendStatus();
+    if (!isOnline) {
+      debugPrint('AI Insight — skipping fetch (JARVIS offline)');
+      return _cachedInsight ?? _localInsight(userName);
+    }
+
     try {
       final response = await http
           .post(
@@ -265,7 +415,7 @@ class AiService {
               'stats': stats ?? {},
             }),
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 35)); // Hardened to 35s for unreliable network/slow LLM
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -281,6 +431,35 @@ class AiService {
   }
 
   String get cachedInsight => _cachedInsight ?? '';
+
+  Future<http.Response> _postJsonWithFallback({
+    required List<String> paths,
+    required String body,
+    required Duration timeout,
+  }) async {
+    Object? lastError;
+
+    for (final path in paths) {
+      try {
+        final response = await http
+            .post(
+              Uri.parse('$_backendUrl$path'),
+              headers: {'Content-Type': 'application/json'},
+              body: body,
+            )
+            .timeout(timeout);
+
+        if (response.statusCode != 404) {
+          return response;
+        }
+        lastError = Exception('Endpoint not found: $path');
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError ?? Exception('Unable to reach AI backend');
+  }
 
   String _localInsight(String userName) {
     final hour = DateTime.now().hour;
@@ -305,7 +484,7 @@ class AiService {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'content': content}),
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 30));
       if (response.statusCode == 200) {
         return (jsonDecode(response.body) as Map<String, dynamic>)['summary']
             as String?;

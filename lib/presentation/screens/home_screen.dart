@@ -31,6 +31,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Map<String, dynamic>? _generativeCardPayload;
   final _commandController = TextEditingController();
   late AnimationController _responseAnimController;
+  bool _isJarvisOnline = true;
+  Timer? _heartbeatTimer;
+  final List<String> _offlineMessages = [
+    'Jarvis is taking a power nap. Check back shortly.',
+    'Jarvis is lost in the world. Give him access!',
+    'AI is out of orbit. Back in a few!',
+    'Jarvis is meditating. Zero interruptions allowed.',
+  ];
+  String _currentOfflineHint = '';
   
   // Default dynamic order
   List<String> _moduleOrder = [
@@ -50,6 +59,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
     _computeGreeting();
     _loadInitialData();
+    _startHeartbeat();
+  }
+
+  @override
+  void dispose() {
+    _heartbeatTimer?.cancel();
+    _responseAnimController.dispose();
+    _commandController.dispose();
+    super.dispose();
+  }
+
+  void _startHeartbeat() {
+    _currentOfflineHint = _offlineMessages[0];
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+      final isOnline = await AiService.instance.checkBackendStatus();
+      if (mounted && isOnline != _isJarvisOnline) {
+        setState(() {
+          _isJarvisOnline = isOnline;
+          if (!isOnline) {
+             _currentOfflineHint = _offlineMessages[
+               DateTime.now().millisecond % _offlineMessages.length
+             ];
+             _commandController.clear();
+          }
+        });
+      }
+    });
   }
 
   void _computeGreeting() {
@@ -67,29 +103,50 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _loadInitialData() async {
-    // Load all data in parallel
+    // Load core stats in parallel
     final results = await Future.wait([
       FirebaseService.instance.getTodayFocusMinutes(),
       FirebaseService.instance.getTodayMood(),
-      AiService.instance.fetchInsight(
-        userName: FirebaseService.instance.firstName,
-      ),
     ]);
 
     if (mounted) {
       setState(() {
         _focusMinutesToday = results[0] as int;
         _todayMood = results[1] as String?;
-        _aiInsight = results[2] as String;
-        _isLoadingInsight = false;
       });
+    }
+
+    // Load AI Insight in background without blocking
+    _loadAiInsight();
+  }
+
+  Future<void> _loadAiInsight() async {
+    if (mounted) setState(() => _isLoadingInsight = true);
+    try {
+      final insight = await AiService.instance.fetchInsight(
+        userName: FirebaseService.instance.firstName,
+      );
+      if (mounted) {
+        setState(() {
+          _aiInsight = insight;
+          _isLoadingInsight = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _aiInsight = "Continue your streak, ${FirebaseService.instance.firstName}!";
+          _isLoadingInsight = false;
+        });
+      }
     }
   }
 
   Future<void> _processCommand(String command) async {
     if (command.trim().isEmpty) return;
-    setState(() => _isProcessingCommand = true);
+    if (mounted) setState(() => _isProcessingCommand = true);
     bool navigatedByAction = false;
+    Map<String, dynamic>? nextGenerativeCardPayload;
 
     try {
       final result = await AiService.instance.processCommand(
@@ -123,7 +180,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             break;
           case 'show_dynamic_card':
             if (action.params.containsKey('card')) {
-              _generativeCardPayload = Map<String, dynamic>.from(action.params['card'] as Map);
+              nextGenerativeCardPayload = Map<String, dynamic>.from(
+                action.params['card'] as Map,
+              );
             }
             break;
           case 'navigate':
@@ -148,30 +207,46 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (mounted) {
         setState(() {
           _aiResponse = result.response;
+          _generativeCardPayload = nextGenerativeCardPayload;
           if (result.greetingUpdate != null) {
             _greeting = result.greetingUpdate!;
           }
           if (result.layoutOrder != null && result.layoutOrder!.isNotEmpty) {
             _moduleOrder = result.layoutOrder!;
             _layoutRefresher = DateTime.now().toIso8601String();
-            // Ensure we are on the Home tab to see the dynamic layout,
-            // unless the user specifically asked to navigate somewhere else.
             if (!navigatedByAction) _currentIndex = 0;
           }
         });
         _responseAnimController.forward(from: 0);
 
-        // Show response snackbar
+        // Show response snackbar with premium glassmorphic style
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result.response),
-            backgroundColor: AppTheme.surfaceBright,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+            content: Row(
+              children: [
+                Icon(LucideIcons.sparkles, color: AppTheme.primary, size: 18),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    result.response,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            margin: const EdgeInsets.only(bottom: 80, left: 20, right: 20),
-            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.black.withValues(alpha: 0.8),
+            behavior: SnackBarBehavior.floating,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(color: AppTheme.primary.withValues(alpha: 0.3), width: 1.5),
+            ),
+            margin: const EdgeInsets.only(bottom: 110, left: 24, right: 24),
+            duration: const Duration(seconds: 4),
           ),
         );
 
@@ -188,29 +263,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _saveMood(String mood) async {
-    setState(() => _todayMood = mood);
+    if (mounted) setState(() => _todayMood = mood);
     await FirebaseService.instance.saveMood(mood);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Mood logged: $mood'),
-          backgroundColor: AppTheme.surfaceBright,
+          content: Row(
+            children: [
+              const Icon(LucideIcons.heart, color: Colors.pinkAccent, size: 18),
+              const SizedBox(width: 12),
+              Text(
+                'Mood logged: $mood',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.black.withValues(alpha: 0.8),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: Colors.pinkAccent.withValues(alpha: 0.3), width: 1),
           ),
-          duration: const Duration(seconds: 1),
+          margin: const EdgeInsets.only(bottom: 110, left: 24, right: 24),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
   }
 
-  @override
-  void dispose() {
-    _commandController.dispose();
-    _responseAnimController.dispose();
-    super.dispose();
-  }
+
 
   String _todayString() {
     final now = DateTime.now();
@@ -272,6 +353,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _buildAICommandBar(),
           const SizedBox(height: 16),
           if (_aiResponse != null) _buildAIResponseCard(),
+          if (_isProcessingCommand) _buildThinkingCard(),
           _buildDynamicModules(),
           _buildMoodCheckIn(),
           const SizedBox(height: 20),
@@ -322,9 +404,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             cardData: _generativeCardPayload!,
             onAction: () {
                final actModule = _generativeCardPayload!['action_module'] as String?;
-               if (actModule == 'FocusTimerModule') {
+               if (actModule == 'FocusTimerModule' && mounted) {
                   setState(() => _currentIndex = 3);
-               } else if (actModule == 'TasksModule') {
+               } else if (actModule == 'TasksModule' && mounted) {
                   setState(() => _currentIndex = 1);
                } 
             },
@@ -420,7 +502,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               SizedBox(
                 width: 40,
                 height: 40,
-                child: _AIPulsar(isAnalyzing: _isProcessingCommand),
+                child: _AIPulsar(
+                  isAnalyzing: _isProcessingCommand,
+                  isOnline: _isJarvisOnline,
+                ),
               ),
             ],
           ),
@@ -439,19 +524,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
       child: TextField(
         controller: _commandController,
+        enabled: _isJarvisOnline,
         textInputAction: TextInputAction.send,
         style: const TextStyle(color: AppTheme.onSurface),
         decoration: InputDecoration(
           icon: Icon(
-            LucideIcons.sparkles,
-            color: _isProcessingCommand
-                ? AppTheme.primary
-                : AppTheme.primary.withValues(alpha: 0.6),
+            _isJarvisOnline ? LucideIcons.sparkles : LucideIcons.cloudOff,
+            color: !_isJarvisOnline
+                ? AppTheme.error.withValues(alpha: 0.6)
+                : (_isProcessingCommand
+                    ? AppTheme.primary
+                    : AppTheme.primary.withValues(alpha: 0.6)),
             size: 20,
           ),
-          hintText: 'Tell JARVIS what to do...',
+          hintText: _isJarvisOnline 
+              ? 'Tell JARVIS what to do...' 
+              : _currentOfflineHint,
           hintStyle: TextStyle(
-            color: AppTheme.onSurfaceVariant.withValues(alpha: 0.4),
+            color: _isJarvisOnline 
+                ? AppTheme.onSurfaceVariant.withValues(alpha: 0.4)
+                : AppTheme.error.withValues(alpha: 0.5),
+            fontStyle: _isJarvisOnline ? FontStyle.normal : FontStyle.italic,
           ),
           border: InputBorder.none,
           suffixIcon: _isProcessingCommand
@@ -467,25 +560,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                 )
               : IconButton(
-                  onPressed: () {
+                  onPressed: _isJarvisOnline ? () {
                     final val = _commandController.text.trim();
                     if (val.isEmpty) return;
                     _processCommand(val);
-                    _commandController.clear();
-                    FocusScope.of(context).unfocus();
-                  },
-                  icon: const Icon(
+                  } : null,
+                  icon: Icon(
                     LucideIcons.send,
-                    color: AppTheme.primary,
+                    color: _isJarvisOnline ? AppTheme.primary : AppTheme.onSurfaceVariant.withValues(alpha: 0.3),
                     size: 18,
                   ),
                 ),
         ),
-        onSubmitted: (val) {
-          if (val.trim().isEmpty) return;
-          _processCommand(val);
-          _commandController.clear();
-        },
+        onSubmitted: _isJarvisOnline ? _processCommand : null,
       ),
     );
   }
@@ -514,11 +601,50 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ),
             GestureDetector(
-              onTap: () => setState(() => _aiResponse = null),
+              onTap: () {
+                if (mounted) setState(() => _aiResponse = null);
+              },
               child: const Icon(LucideIcons.x, size: 14, color: AppTheme.onSurfaceVariant),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildThinkingCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: AppTheme.glassmorphism(
+        tint: AppTheme.primary.withValues(alpha: 0.1),
+        borderRadius: 20,
+      ),
+      child: Row(
+        children: [
+          _ThinkingPulse(),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'JARVIS is working on it...',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: AppTheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                Text(
+                  'Building a generative command module based on your prompt.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -639,9 +765,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildAIInsightCard() {
     return GestureDetector(
       onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const AiDashboardScreen()),
-        );
+        if (mounted) {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const AiDashboardScreen()),
+          );
+        }
       },
       child: Container(
         width: double.infinity,
@@ -839,9 +967,61 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+class _ThinkingPulse extends StatefulWidget {
+  @override
+  State<_ThinkingPulse> createState() => _ThinkingPulseState();
+}
+
+class _ThinkingPulseState extends State<_ThinkingPulse>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppTheme.primary.withValues(alpha: 0.1),
+            border: Border.all(
+              color: AppTheme.primary.withValues(alpha: 0.2 + (0.3 * _controller.value)),
+              width: 1,
+            ),
+          ),
+          child: Icon(
+            LucideIcons.sparkles,
+            size: 16 + (4 * _controller.value),
+            color: AppTheme.primary.withValues(alpha: 0.6 + (0.4 * _controller.value)),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _AIPulsar extends StatefulWidget {
   final bool isAnalyzing;
-  const _AIPulsar({this.isAnalyzing = false});
+  final bool isOnline;
+  const _AIPulsar({this.isAnalyzing = false, this.isOnline = false});
 
   @override
   State<_AIPulsar> createState() => _AIPulsarState();
@@ -891,19 +1071,19 @@ class _AIPulsarState extends State<_AIPulsar>
                 height: 12 + (16 * _controller.value),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppTheme.primary
+                  color: (widget.isOnline ? AppTheme.success : AppTheme.primary)
                       .withValues(alpha: 0.7 * (1 - _controller.value)),
                 ),
               ),
               Container(
                 width: 10,
                 height: 10,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppTheme.primary,
+                  color: widget.isOnline ? AppTheme.success : AppTheme.primary,
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.primary,
+                      color: widget.isOnline ? AppTheme.success : AppTheme.primary,
                       blurRadius: 8,
                       spreadRadius: 2,
                     ),

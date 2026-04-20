@@ -187,15 +187,21 @@ class FirebaseService {
         }
       }
 
-      // 3. Get 1 Recent Note
+      // 3. Get 5 Recent Notes (sort manually to avoid index requirement)
       final nSnap = await _notesCol
           .where('userId', isEqualTo: uid)
-          .orderBy('createdAt', descending: true)
-          .limit(1)
+          .limit(5)
           .get();
-      final recentNote = nSnap.docs.isNotEmpty
-          ? (nSnap.docs.first.data() as Map<String, dynamic>)['content']
-          : null;
+      
+      final notes = nSnap.docs.map((d) => d.data() as Map<String, dynamic>).toList();
+      // In-memory sort by createdAt (descending)
+      notes.sort((a, b) {
+        final aTime = (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime(2000);
+        final bTime = (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime(2000);
+        return bTime.compareTo(aTime);
+      });
+
+      final recentNote = notes.isNotEmpty ? notes.first['content'] : null;
 
       return {
         'top_tasks': topTasks,
@@ -432,12 +438,14 @@ class FirebaseService {
     List<String>? tags,
     String? summary,
   }) async {
-    await _notesCol.doc(noteId).update({
+    final updateData = <String, dynamic>{
       'content': content,
-      if (tags != null) 'tags': tags,
-      if (summary != null) 'summary': summary,
       'updatedAt': FieldValue.serverTimestamp(),
-    });
+    };
+    if (tags != null) updateData['tags'] = tags;
+    if (summary != null) updateData['summary'] = summary;
+
+    await _notesCol.doc(noteId).update(updateData);
     await logEvent(eventType: 'note_updated', module: 'notes');
   }
 
