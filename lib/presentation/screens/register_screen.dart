@@ -72,11 +72,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         password: password,
         name: name,
       );
-      await FirebaseService.instance.saveUserProfile(
-        name: name,
-        focusArea: _focusController.text.trim(),
-        isGuest: false,
-      );
+      try {
+        await FirebaseService.instance.saveUserProfile(
+          name: name,
+          focusArea: _focusController.text.trim(),
+          isGuest: false,
+        );
+      } catch (e) {
+        debugPrint('Profile save skipped after signup: $e');
+      }
 
       if (mounted) Navigator.pop(context);
     } catch (e) {

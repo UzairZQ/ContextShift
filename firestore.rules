@@ -50,6 +50,11 @@ service cloud.firestore {
       allow create: if isOwner(request.resource.data.userId);
     }
 
+    // ── Profiles ──
+    match /profiles/{userId} {
+      allow read, create, update, delete: if isOwner(userId);
+    }
+
     // ── Deny everything else by default ──
     match /{document=**} {
       allow read, write: if false;

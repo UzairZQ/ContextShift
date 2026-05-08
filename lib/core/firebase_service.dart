@@ -49,15 +49,19 @@ class FirebaseService {
         debugPrint('Firebase: User created. Updating display name to $name...');
         await credential.user!.updateDisplayName(name);
       }
-      await saveUserProfile(name: name, isGuest: false);
       return credential;
     } on FirebaseAuthException catch (e) {
       debugPrint('Firebase Auth Error Code: ${e.code}');
       throw _handleAuthError(e);
+    } on FirebaseException catch (e, stack) {
+      debugPrint('Firebase error during SignUp: ${e.code} ${e.message}');
+      debugPrint('Stacktrace: $stack');
+      throw e.message ??
+          'Firebase setup error. Check your project configuration.';
     } catch (e, stack) {
       debugPrint('Unexpected Error during SignUp: $e');
       debugPrint('Stacktrace: $stack');
-      throw 'An unexpected error occurred. Please check your console.';
+      throw 'An unexpected error occurred during sign up.';
     }
   }
 
@@ -89,6 +93,12 @@ class FirebaseService {
         return 'Wrong password provided for that user.';
       case 'invalid-email':
         return 'The email address is badly formatted.';
+      case 'operation-not-allowed':
+        return 'This sign-in method is not enabled in Firebase yet.';
+      case 'network-request-failed':
+        return 'Network error while contacting Firebase.';
+      case 'too-many-requests':
+        return 'Too many attempts right now. Please try again shortly.';
       default:
         return e.message ?? 'An internal error occurred.';
     }
@@ -107,14 +117,17 @@ class FirebaseService {
       );
 
       final userCredential = await _auth.signInWithCredential(credential);
-      await saveUserProfile(
+      await _trySaveUserProfile(
         name: userCredential.user?.displayName,
         isGuest: false,
       );
       return userCredential;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('Google Sign-In auth error: ${e.code} ${e.message}');
+      throw _handleAuthError(e);
     } catch (e) {
       debugPrint('Google Sign-In error: $e');
-      return null;
+      rethrow;
     }
   }
 
@@ -123,20 +136,28 @@ class FirebaseService {
     required String focusArea,
     String? supportNeed,
   }) async {
-    final credential = await _auth.signInAnonymously();
-    final trimmedName = name.trim();
+    try {
+      final credential = await _auth.signInAnonymously();
+      final trimmedName = name.trim();
 
-    if (credential.user != null && trimmedName.isNotEmpty) {
-      await credential.user!.updateDisplayName(trimmedName);
+      if (credential.user != null && trimmedName.isNotEmpty) {
+        await credential.user!.updateDisplayName(trimmedName);
+      }
+
+      await _trySaveUserProfile(
+        name: trimmedName,
+        focusArea: focusArea,
+        supportNeed: supportNeed,
+        isGuest: true,
+      );
+      return credential;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('Anonymous auth error: ${e.code} ${e.message}');
+      throw _handleAuthError(e);
+    } on FirebaseException catch (e) {
+      debugPrint('Guest mode Firebase error: ${e.code} ${e.message}');
+      throw e.message ?? 'Guest mode could not start right now.';
     }
-
-    await saveUserProfile(
-      name: trimmedName,
-      focusArea: focusArea,
-      supportNeed: supportNeed,
-      isGuest: true,
-    );
-    return credential;
   }
 
   Future<void> saveUserProfile({
@@ -166,6 +187,26 @@ class FirebaseService {
     }
 
     await _profilesCol.doc(uid).set(payload, SetOptions(merge: true));
+  }
+
+  Future<void> _trySaveUserProfile({
+    String? name,
+    String? focusArea,
+    String? supportNeed,
+    bool? isGuest,
+  }) async {
+    try {
+      await saveUserProfile(
+        name: name,
+        focusArea: focusArea,
+        supportNeed: supportNeed,
+        isGuest: isGuest,
+      );
+    } on FirebaseException catch (e) {
+      debugPrint('Non-fatal profile write failure: ${e.code} ${e.message}');
+    } catch (e) {
+      debugPrint('Non-fatal profile write failure: $e');
+    }
   }
 
   Future<void> signOut() async {
