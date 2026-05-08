@@ -24,9 +24,11 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
   }
 
   Future<void> _loadData() async {
+    final stats = await FirebaseService.instance.buildInsightStats();
     final results = await Future.wait([
       AiService.instance.fetchInsight(
         userName: FirebaseService.instance.firstName,
+        stats: stats,
       ),
       FirebaseService.instance.getTodayFocusMinutes(),
     ]);
@@ -98,8 +100,8 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
               Text(
                 'ContextShift',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               Text(
                 'Neural Intelligence Report',
@@ -130,16 +132,18 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppTheme.primary.withValues(alpha: 0.15),
-        ),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.15)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(LucideIcons.sparkles, color: AppTheme.primary, size: 20),
+              const Icon(
+                LucideIcons.sparkles,
+                color: AppTheme.primary,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 'AI Analysis',
@@ -165,9 +169,9 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
               : Text(
                   _weeklyInsight ?? 'No insight available.',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppTheme.onSurface,
-                        height: 1.5,
-                      ),
+                    color: AppTheme.onSurface,
+                    height: 1.5,
+                  ),
                 ),
         ],
       ),
@@ -192,7 +196,9 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
               crossAxisCount: 2,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              childAspectRatio: 1.4,
+              childAspectRatio: MediaQuery.of(context).size.width < 380
+                  ? 1.18
+                  : 1.32,
               children: [
                 _DashStatCard(
                   value: '$tasksDone',
@@ -282,7 +288,9 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
                     spacing: spacing,
                     runSpacing: spacing,
                     children: List.generate(cols, (index) {
-                      final day = now.subtract(Duration(days: (cols - 1) - index));
+                      final day = now.subtract(
+                        Duration(days: (cols - 1) - index),
+                      );
                       final dayStr =
                           '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
                       final count = dailyCounts[dayStr] ?? 0;
@@ -304,8 +312,9 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
                           boxShadow: count > 0
                               ? [
                                   BoxShadow(
-                                    color: AppTheme.primary
-                                        .withValues(alpha: opacity * 0.4),
+                                    color: AppTheme.primary.withValues(
+                                      alpha: opacity * 0.4,
+                                    ),
                                     blurRadius: 4,
                                   ),
                                 ]
@@ -336,8 +345,9 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
               return Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
-                decoration:
-                    AppTheme.cardDecoration(color: AppTheme.surfaceContainer),
+                decoration: AppTheme.cardDecoration(
+                  color: AppTheme.surfaceContainer,
+                ),
                 child: Text(
                   'No commands yet.\nTry the AI command bar on the home screen.',
                   style: TextStyle(
@@ -353,8 +363,10 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
                 return Container(
                   width: double.infinity,
                   margin: const EdgeInsets.only(bottom: 8),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   decoration: AppTheme.cardDecoration(
                     color: AppTheme.surfaceContainer,
                   ),
@@ -387,7 +399,9 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
                       Text(
                         cmd['response'] ?? '',
                         style: TextStyle(
-                          color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
+                          color: AppTheme.onSurfaceVariant.withValues(
+                            alpha: 0.7,
+                          ),
                           fontSize: 12,
                         ),
                         maxLines: 2,
@@ -419,8 +433,9 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
               return Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
-                decoration:
-                    AppTheme.cardDecoration(color: AppTheme.surfaceContainer),
+                decoration: AppTheme.cardDecoration(
+                  color: AppTheme.surfaceContainer,
+                ),
                 child: Text(
                   'No mood data yet.\nLog your mood from the home screen.',
                   style: TextStyle(
@@ -434,8 +449,9 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
             return Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
-              decoration:
-                  AppTheme.cardDecoration(color: AppTheme.surfaceContainer),
+              decoration: AppTheme.cardDecoration(
+                color: AppTheme.surfaceContainer,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: moods.reversed.take(7).map((m) {
@@ -450,7 +466,9 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
                       Text(
                         dayPart,
                         style: TextStyle(
-                          color: AppTheme.onSurfaceVariant.withValues(alpha: 0.4),
+                          color: AppTheme.onSurfaceVariant.withValues(
+                            alpha: 0.4,
+                          ),
                           fontSize: 10,
                         ),
                       ),
@@ -497,17 +515,14 @@ class _DashStatCard extends StatelessWidget {
             value,
             style: TextStyle(
               color: AppTheme.onSurface,
-              fontSize: 28,
+              fontSize: 26,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
-            style: TextStyle(
-              color: AppTheme.onSurfaceVariant,
-              fontSize: 12,
-            ),
+            style: TextStyle(color: AppTheme.onSurfaceVariant, fontSize: 12),
           ),
           Text(
             sublabel,

@@ -10,7 +10,10 @@ class FirebaseService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId:
+        '433096952478-34i020h90f28hh9purrh9dtje3otplh5.apps.googleusercontent.com',
+  );
 
   // ── Auth ─────────────────────────────────────────────────────
 
@@ -18,8 +21,18 @@ class FirebaseService {
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   String? get currentUserId => _auth.currentUser?.uid;
-  String get currentUserName => _auth.currentUser?.displayName ?? "Traveler";
-  String get firstName => currentUserName.split(' ').first;
+  bool get isGuest => _auth.currentUser?.isAnonymous ?? false;
+  String get currentUserName {
+    final displayName = _auth.currentUser?.displayName?.trim() ?? '';
+    if (displayName.isNotEmpty) return displayName;
+    return isGuest ? 'Guest Explorer' : 'Traveler';
+  }
+
+  String get firstName {
+    final name = currentUserName.trim();
+    if (name.isEmpty) return isGuest ? 'Guest' : 'Traveler';
+    return name.split(' ').first;
+  }
 
   Future<UserCredential> signUp({
     required String email,
@@ -36,6 +49,7 @@ class FirebaseService {
         debugPrint('Firebase: User created. Updating display name to $name...');
         await credential.user!.updateDisplayName(name);
       }
+      await saveUserProfile(name: name, isGuest: false);
       return credential;
     } on FirebaseAuthException catch (e) {
       debugPrint('Firebase Auth Error Code: ${e.code}');
@@ -92,11 +106,66 @@ class FirebaseService {
         idToken: googleAuth.idToken,
       );
 
-      return await _auth.signInWithCredential(credential);
+      final userCredential = await _auth.signInWithCredential(credential);
+      await saveUserProfile(
+        name: userCredential.user?.displayName,
+        isGuest: false,
+      );
+      return userCredential;
     } catch (e) {
       debugPrint('Google Sign-In error: $e');
       return null;
     }
+  }
+
+  Future<UserCredential> signInAsGuest({
+    required String name,
+    required String focusArea,
+    String? supportNeed,
+  }) async {
+    final credential = await _auth.signInAnonymously();
+    final trimmedName = name.trim();
+
+    if (credential.user != null && trimmedName.isNotEmpty) {
+      await credential.user!.updateDisplayName(trimmedName);
+    }
+
+    await saveUserProfile(
+      name: trimmedName,
+      focusArea: focusArea,
+      supportNeed: supportNeed,
+      isGuest: true,
+    );
+    return credential;
+  }
+
+  Future<void> saveUserProfile({
+    String? name,
+    String? focusArea,
+    String? supportNeed,
+    bool? isGuest,
+  }) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final payload = <String, dynamic>{
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (name != null && name.trim().isNotEmpty) {
+      payload['name'] = name.trim();
+    }
+    if (focusArea != null && focusArea.trim().isNotEmpty) {
+      payload['focusArea'] = focusArea.trim();
+    }
+    if (supportNeed != null && supportNeed.trim().isNotEmpty) {
+      payload['supportNeed'] = supportNeed.trim();
+    }
+    if (isGuest != null) {
+      payload['isGuest'] = isGuest;
+    }
+
+    await _profilesCol.doc(uid).set(payload, SetOptions(merge: true));
   }
 
   Future<void> signOut() async {
@@ -112,6 +181,7 @@ class FirebaseService {
   CollectionReference get _notesCol => _db.collection('notes');
   CollectionReference get _moodCol => _db.collection('mood_entries');
   CollectionReference get _aiCommandsCol => _db.collection('ai_commands');
+  CollectionReference get _profilesCol => _db.collection('profiles');
 
   // ─────────────────────────────────────────────────────────────
   // BEHAVIOR EVENT LOGGING
@@ -166,17 +236,20 @@ class FirebaseService {
     if (uid == null) return {};
     try {
       final now = DateTime.now();
-      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final todayStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-      // 1. Get 3 Pending Tasks
+      final profileFuture = _profilesCol.doc(uid).get();
+
       final tSnap = await _tasksCol
           .where('userId', isEqualTo: uid)
           .where('done', isEqualTo: false)
           .limit(3)
           .get();
-      final topTasks = tSnap.docs.map((d) => (d.data() as Map<String, dynamic>)['title']).toList();
+      final topTasks = tSnap.docs
+          .map((d) => (d.data() as Map<String, dynamic>)['title'])
+          .toList();
 
-      // 2. Get Missing Habits Today
       final hSnap = await _habitsCol.where('userId', isEqualTo: uid).get();
       final missingHabits = <String>[];
       for (var d in hSnap.docs) {
@@ -187,29 +260,117 @@ class FirebaseService {
         }
       }
 
-      // 3. Get 5 Recent Notes (sort manually to avoid index requirement)
       final nSnap = await _notesCol
           .where('userId', isEqualTo: uid)
           .limit(5)
           .get();
-      
-      final notes = nSnap.docs.map((d) => d.data() as Map<String, dynamic>).toList();
-      // In-memory sort by createdAt (descending)
+      final notes = nSnap.docs
+          .map((d) => d.data() as Map<String, dynamic>)
+          .toList();
       notes.sort((a, b) {
-        final aTime = (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime(2000);
-        final bTime = (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime(2000);
+        final aTime =
+            (a['createdAt'] as Timestamp?)?.toDate() ?? DateTime(2000);
+        final bTime =
+            (b['createdAt'] as Timestamp?)?.toDate() ?? DateTime(2000);
         return bTime.compareTo(aTime);
       });
-
       final recentNote = notes.isNotEmpty ? notes.first['content'] : null;
 
+      final commandSnap = await _aiCommandsCol
+          .where('userId', isEqualTo: uid)
+          .limit(5)
+          .get();
+      final recentCommands =
+          commandSnap.docs.map((d) => d.data() as Map<String, dynamic>).toList()
+            ..sort((a, b) {
+              final aTime =
+                  (a['timestamp'] as Timestamp?)?.toDate() ?? DateTime(2000);
+              final bTime =
+                  (b['timestamp'] as Timestamp?)?.toDate() ?? DateTime(2000);
+              return bTime.compareTo(aTime);
+            });
+
+      final eventSnap = await _eventsCol
+          .where('userId', isEqualTo: uid)
+          .limit(10)
+          .get();
+      final recentEvents =
+          eventSnap.docs.map((d) => d.data() as Map<String, dynamic>).toList()
+            ..sort((a, b) {
+              final aTime =
+                  (a['timestamp'] as Timestamp?)?.toDate() ?? DateTime(2000);
+              final bTime =
+                  (b['timestamp'] as Timestamp?)?.toDate() ?? DateTime(2000);
+              return bTime.compareTo(aTime);
+            });
+
+      final profileSnap = await profileFuture;
+      final profile = profileSnap.data() as Map<String, dynamic>? ?? {};
+      final todayMood = await getTodayMood();
+
       return {
+        'profile': {
+          'name': profile['name'] ?? currentUserName,
+          'focus_area': profile['focusArea'],
+          'support_need': profile['supportNeed'],
+          'is_guest': profile['isGuest'] ?? isGuest,
+        },
         'top_tasks': topTasks,
         'missing_habits': missingHabits.take(3).toList(),
         'recent_note': recentNote,
+        'today_mood': todayMood,
+        'recent_commands': recentCommands
+            .take(3)
+            .map((c) => {'command': c['command'], 'response': c['response']})
+            .toList(),
+        'recent_events': recentEvents
+            .take(5)
+            .map((e) => {'event_type': e['eventType'], 'module': e['module']})
+            .toList(),
       };
     } catch (e) {
       debugPrint('Error building context snapshot: $e');
+      return {};
+    }
+  }
+
+  Future<Map<String, dynamic>> buildInsightStats() async {
+    final uid = currentUserId;
+    if (uid == null) return {};
+
+    try {
+      final tasksSnap = await _tasksCol.where('userId', isEqualTo: uid).get();
+      final habitsSnap = await _habitsCol.where('userId', isEqualTo: uid).get();
+      final focusMinutes = await getTodayFocusMinutes();
+      final todayMood = await getTodayMood();
+
+      final tasks = tasksSnap.docs
+          .map((d) => d.data() as Map<String, dynamic>)
+          .toList();
+      final habits = habitsSnap.docs
+          .map((d) => d.data() as Map<String, dynamic>)
+          .toList();
+      final today = _todayString();
+
+      final openTasks = tasks.where((task) => task['done'] != true).length;
+      final completedTasks = tasks.where((task) => task['done'] == true).length;
+      final completedHabits = habits.where((habit) {
+        final completedDates =
+            (habit['completedDates'] as List<dynamic>?) ?? [];
+        return completedDates.contains(today);
+      }).length;
+
+      return {
+        'open_tasks': openTasks,
+        'completed_tasks': completedTasks,
+        'total_habits': habits.length,
+        'completed_habits_today': completedHabits,
+        'focus_minutes_today': focusMinutes,
+        'current_streak': computeStreak(habits),
+        'today_mood': todayMood,
+      };
+    } catch (e) {
+      debugPrint('Error building insight stats: $e');
       return {};
     }
   }
@@ -259,10 +420,7 @@ class FirebaseService {
     await logEvent(eventType: 'task_created', module: 'tasks');
   }
 
-  Future<void> updateTask(
-    String taskId,
-    Map<String, dynamic> updates,
-  ) async {
+  Future<void> updateTask(String taskId, Map<String, dynamic> updates) async {
     await _tasksCol.doc(taskId).update(updates);
   }
 
@@ -287,10 +445,12 @@ class FirebaseService {
     final uid = currentUserId;
     if (uid == null) return Stream.value([]);
 
-    return _habitsCol.where('userId', isEqualTo: uid).snapshots().map(
+    return _habitsCol
+        .where('userId', isEqualTo: uid)
+        .snapshots()
+        .map(
           (snap) => snap.docs
-              .map(
-                  (d) => {'id': d.id, ...d.data() as Map<String, dynamic>})
+              .map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>})
               .toList(),
         );
   }
@@ -501,9 +661,11 @@ class FirebaseService {
         .orderBy('timestamp', descending: true)
         .limit(days)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>})
-            .toList());
+        .map(
+          (snap) => snap.docs
+              .map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>})
+              .toList(),
+        );
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -536,9 +698,11 @@ class FirebaseService {
         .orderBy('timestamp', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>})
-            .toList());
+        .map(
+          (snap) => snap.docs
+              .map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>})
+              .toList(),
+        );
   }
 
   // ─────────────────────────────────────────────────────────────

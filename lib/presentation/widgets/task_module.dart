@@ -10,7 +10,12 @@ class TasksModule extends StatefulWidget {
   @override
   State<TasksModule> createState() => _TasksModuleState();
 
-  static void showAddTaskSheet(BuildContext context, {String? initialTitle, String? initialPriority, List<String>? initialSubtasks}) {
+  static void showAddTaskSheet(
+    BuildContext context, {
+    String? initialTitle,
+    String? initialPriority,
+    List<String>? initialSubtasks,
+  }) {
     String priority = initialPriority ?? 'normal';
     final newTaskController = TextEditingController(text: initialTitle);
     final subtaskController = TextEditingController();
@@ -19,137 +24,189 @@ class TasksModule extends StatefulWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: AppTheme.surfaceHigh,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) => Padding(
-          padding: EdgeInsets.only(
-            left: 24, right: 24, top: 24,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('New Task', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 16),
-              TextField(
-                controller: newTaskController,
-                autofocus: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'What needs to be done?',
-                  hintStyle: const TextStyle(color: Colors.white38),
-                  filled: true,
-                  fillColor: AppTheme.surface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+        builder: (ctx, setSheetState) => SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 24,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'New Task',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: newTaskController,
+                  autofocus: true,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'What needs to be done?',
+                    hintStyle: const TextStyle(color: Colors.white38),
+                    filled: true,
+                    fillColor: AppTheme.surface,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              const Text('Priority', style: TextStyle(color: Colors.white70, fontSize: 13)),
-              const SizedBox(height: 8),
-              Row(
-                children: ['normal', 'medium', 'high'].map((p) {
-                  final isSelected = priority == p;
-                  Color pColor = p == 'high' ? AppTheme.primary : (p == 'medium' ? Colors.amber : Colors.blue);
-                  return GestureDetector(
-                    onTap: () => setSheetState(() => priority = p),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: isSelected ? pColor.withValues(alpha: 0.2) : AppTheme.surface,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: isSelected ? pColor : Colors.transparent),
+                const SizedBox(height: 16),
+                const Text(
+                  'Priority',
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: ['normal', 'medium', 'high'].map((p) {
+                    final isSelected = priority == p;
+                    Color pColor = p == 'high'
+                        ? AppTheme.primary
+                        : (p == 'medium' ? Colors.amber : Colors.blue);
+                    return GestureDetector(
+                      onTap: () => setSheetState(() => priority = p),
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? pColor.withValues(alpha: 0.2)
+                              : AppTheme.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected ? pColor : Colors.transparent,
+                          ),
+                        ),
+                        child: Text(
+                          p.toUpperCase(),
+                          style: TextStyle(
+                            color: isSelected ? pColor : Colors.white38,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                      child: Text(
-                        p.toUpperCase(),
-                        style: TextStyle(color: isSelected ? pColor : Colors.white38, fontSize: 10, fontWeight: FontWeight.bold),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Subtasks',
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                ...subtasks.map(
+                  (s) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          LucideIcons.cornerDownRight,
+                          size: 12,
+                          color: Colors.white24,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          s,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: subtaskController,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Add a subtask...',
+                          hintStyle: TextStyle(color: Colors.white24),
+                          border: InputBorder.none,
+                        ),
+                        onSubmitted: (val) {
+                          if (val.trim().isEmpty) return;
+                          setSheetState(() {
+                            subtasks.add(val.trim());
+                            subtaskController.clear();
+                          });
+                        },
                       ),
                     ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 20),
-              const Text('Subtasks', style: TextStyle(color: Colors.white70, fontSize: 13)),
-              const SizedBox(height: 8),
-              ...subtasks.map((s) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  children: [
-                    const Icon(LucideIcons.cornerDownRight, size: 12, color: Colors.white24),
-                    const SizedBox(width: 8),
-                    Text(s, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                  ],
-                ),
-              )),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: subtaskController,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      decoration: const InputDecoration(
-                        hintText: 'Add a subtask...',
-                        hintStyle: TextStyle(color: Colors.white24),
-                        border: InputBorder.none,
-                      ),
-                      onSubmitted: (val) {
-                        if (val.trim().isEmpty) return;
+                    IconButton(
+                      onPressed: () {
+                        if (subtaskController.text.trim().isEmpty) return;
                         setSheetState(() {
-                          subtasks.add(val.trim());
+                          subtasks.add(subtaskController.text.trim());
                           subtaskController.clear();
                         });
                       },
+                      icon: const Icon(
+                        LucideIcons.plusCircle,
+                        size: 18,
+                        color: AppTheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () async {
+                      final title = newTaskController.text.trim();
+                      if (title.isEmpty) return;
+
+                      final mappedSubtasks = subtasks
+                          .map((s) => {'title': s, 'completed': false})
+                          .toList();
+
+                      await FirebaseService.instance.addTask(
+                        title: title,
+                        priority: priority,
+                        subtasks: mappedSubtasks,
+                      );
+                      if (ctx.mounted) {
+                        Navigator.pop(ctx);
+                      }
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Add Task',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
-                  IconButton(
-                    onPressed: () {
-                      if (subtaskController.text.trim().isEmpty) return;
-                      setSheetState(() {
-                        subtasks.add(subtaskController.text.trim());
-                        subtaskController.clear();
-                      });
-                    },
-                    icon: const Icon(LucideIcons.plusCircle, size: 18, color: AppTheme.primary),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () async {
-                    final title = newTaskController.text.trim();
-                    if (title.isEmpty) return;
-                    
-                    // Map String subtasks to Map structure expected by FirebaseService
-                    final mappedSubtasks = subtasks.map((s) => {'title': s, 'completed': false}).toList();
-                    
-                    await FirebaseService.instance.addTask(
-                      title: title,
-                      priority: priority,
-                      subtasks: mappedSubtasks,
-                    );
-                    if (ctx.mounted) {
-                      Navigator.pop(ctx);
-                    }
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('Add Task', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -164,7 +221,10 @@ class _TasksModuleState extends State<TasksModule> {
   void initState() {
     super.initState();
     _tasksStream = FirebaseService.instance.watchTasks();
-    FirebaseService.instance.logEvent(eventType: 'screen_open', module: 'tasks');
+    FirebaseService.instance.logEvent(
+      eventType: 'screen_open',
+      module: 'tasks',
+    );
   }
 
   void _showAddTaskSheet() {
@@ -187,14 +247,18 @@ class _TasksModuleState extends State<TasksModule> {
             children: [
               Row(
                 children: [
-                  const Icon(LucideIcons.checkSquare, color: AppTheme.primary, size: 20),
+                  const Icon(
+                    LucideIcons.checkSquare,
+                    color: AppTheme.primary,
+                    size: 20,
+                  ),
                   const SizedBox(width: 12),
                   Text(
                     'Active Intentions',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.5,
-                        ),
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                    ),
                   ),
                 ],
               ),
@@ -256,7 +320,9 @@ class _TasksModuleState extends State<TasksModule> {
               child: LinearProgressIndicator(
                 value: progress,
                 backgroundColor: AppTheme.surfaceHighest,
-                valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primary),
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  AppTheme.primary,
+                ),
                 minHeight: 6,
               ),
             ),
@@ -279,7 +345,9 @@ class _TasksModuleState extends State<TasksModule> {
               padding: const EdgeInsets.symmetric(vertical: 20),
               child: Text(
                 'No pending missions. JARVIS is proud.',
-                style: TextStyle(color: AppTheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                style: TextStyle(
+                  color: AppTheme.onSurfaceVariant.withValues(alpha: 0.5),
+                ),
               ),
             ),
           );
@@ -307,14 +375,18 @@ class _TaskItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDone = task['done'] as bool? ?? false;
     final priority = task['priority'] as String? ?? 'normal';
-    final pColor = priority == 'urgent' ? AppTheme.error : (priority == 'high' ? AppTheme.primary : AppTheme.onSurfaceVariant);
+    final pColor = priority == 'urgent'
+        ? AppTheme.error
+        : (priority == 'high' ? AppTheme.primary : AppTheme.onSurfaceVariant);
 
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.surfaceHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDone ? Colors.transparent : Colors.white.withValues(alpha: 0.05),
+          color: isDone
+              ? Colors.transparent
+              : Colors.white.withValues(alpha: 0.05),
         ),
       ),
       child: ListTile(
@@ -328,7 +400,9 @@ class _TaskItem extends StatelessWidget {
               color: isDone ? AppTheme.primary : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: isDone ? AppTheme.primary : AppTheme.onSurfaceVariant.withValues(alpha: 0.4),
+                color: isDone
+                    ? AppTheme.primary
+                    : AppTheme.onSurfaceVariant.withValues(alpha: 0.4),
                 width: 2,
               ),
             ),
@@ -340,7 +414,9 @@ class _TaskItem extends StatelessWidget {
         title: Text(
           task['title'],
           style: TextStyle(
-            color: isDone ? AppTheme.onSurfaceVariant.withValues(alpha: 0.5) : AppTheme.onSurface,
+            color: isDone
+                ? AppTheme.onSurfaceVariant.withValues(alpha: 0.5)
+                : AppTheme.onSurface,
             decoration: isDone ? TextDecoration.lineThrough : null,
             fontWeight: FontWeight.w500,
             fontSize: 14,

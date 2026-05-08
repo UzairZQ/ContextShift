@@ -5,7 +5,7 @@ class GreetingModule extends StatelessWidget {
 
   const GreetingModule({
     super.key,
-    this.greetingText = 'Good morning Uzair\nFocus mode active',
+    this.greetingText = 'Good morning\nFocus mode active',
   });
 
   @override

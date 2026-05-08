@@ -1,0 +1,11 @@
+{
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "python.defaultInterpreterPath": "${workspaceFolder}/backend_fastapi/venv/bin/python",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/backend_fastapi"
+    ],
+    "python.envFile": "${workspaceFolder}/backend_fastapi/.env",
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.python"
+    }
+}

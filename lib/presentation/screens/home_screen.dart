@@ -31,22 +31,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Map<String, dynamic>? _generativeCardPayload;
   final _commandController = TextEditingController();
   late AnimationController _responseAnimController;
-  bool _isJarvisOnline = true;
+  bool _isJarvisOnline = false;
   Timer? _heartbeatTimer;
   final List<String> _offlineMessages = [
-    'Jarvis is taking a power nap. Check back shortly.',
-    'Jarvis is lost in the world. Give him access!',
-    'AI is out of orbit. Back in a few!',
-    'Jarvis is meditating. Zero interruptions allowed.',
+    'JARVIS backend is offline. Local fallback is still ready.',
+    'No backend signal right now, but local command mode still works.',
+    'JARVIS cloud is out of orbit. Offline command mode is available.',
+    'Backend is meditating. You can still use the local assistant.',
   ];
   String _currentOfflineHint = '';
-  
+
   // Default dynamic order
   List<String> _moduleOrder = [
     'TasksModule',
     'HabitModule',
     'FocusTimerModule',
-    'NotesModule'
+    'NotesModule',
   ];
   String _layoutRefresher = '';
 
@@ -72,18 +72,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _startHeartbeat() {
     _currentOfflineHint = _offlineMessages[0];
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
-      final isOnline = await AiService.instance.checkBackendStatus();
-      if (mounted && isOnline != _isJarvisOnline) {
-        setState(() {
-          _isJarvisOnline = isOnline;
-          if (!isOnline) {
-             _currentOfflineHint = _offlineMessages[
-               DateTime.now().millisecond % _offlineMessages.length
-             ];
-             _commandController.clear();
-          }
-        });
+    _refreshJarvisStatus();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (
+      timer,
+    ) async {
+      await _refreshJarvisStatus();
+    });
+  }
+
+  Future<void> _refreshJarvisStatus() async {
+    final isOnline = await AiService.instance.checkBackendStatus();
+    if (!mounted) return;
+
+    setState(() {
+      _isJarvisOnline = isOnline;
+      if (!isOnline) {
+        _currentOfflineHint =
+            _offlineMessages[DateTime.now().millisecond %
+                _offlineMessages.length];
       }
     });
   }
@@ -123,8 +129,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _loadAiInsight() async {
     if (mounted) setState(() => _isLoadingInsight = true);
     try {
+      final stats = await FirebaseService.instance.buildInsightStats();
       final insight = await AiService.instance.fetchInsight(
         userName: FirebaseService.instance.firstName,
+        stats: stats,
       );
       if (mounted) {
         setState(() {
@@ -135,7 +143,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _aiInsight = "Continue your streak, ${FirebaseService.instance.firstName}!";
+          _aiInsight =
+              "Continue your streak, ${FirebaseService.instance.firstName}!";
           _isLoadingInsight = false;
         });
       }
@@ -144,6 +153,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _processCommand(String command) async {
     if (command.trim().isEmpty) return;
+    _commandController.clear();
     if (mounted) setState(() => _isProcessingCommand = true);
     bool navigatedByAction = false;
     Map<String, dynamic>? nextGenerativeCardPayload;
@@ -187,9 +197,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             break;
           case 'navigate':
             final tab = action.params['tab'] as String?;
-            final tabMap = {'home': 0, 'tasks': 1, 'habits': 2, 'focus': 3, 'notes': 4};
+            final tabMap = {
+              'home': 0,
+              'tasks': 1,
+              'habits': 2,
+              'focus': 3,
+              'notes': 4,
+            };
             if (tab != null && tabMap.containsKey(tab) && mounted) {
-              setState(() => _currentIndex = tabMap[tab]!);
+              _switchTab(tabMap[tab]!);
               navigatedByAction = true;
             }
             break;
@@ -200,7 +216,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       await FirebaseService.instance.saveAiCommand(
         command: command,
         response: result.response,
-        actions: result.actions.map((a) => {'type': a.type, ...a.params}).toList(),
+        actions: result.actions
+            .map((a) => {'type': a.type, ...a.params})
+            .toList(),
       );
 
       // Update UI
@@ -243,7 +261,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
-              side: BorderSide(color: AppTheme.primary.withValues(alpha: 0.3), width: 1.5),
+              side: BorderSide(
+                color: AppTheme.primary.withValues(alpha: 0.3),
+                width: 1.5,
+              ),
             ),
             margin: const EdgeInsets.only(bottom: 110, left: 24, right: 24),
             duration: const Duration(seconds: 4),
@@ -262,6 +283,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  void _switchTab(int index) {
+    if (_currentIndex == index) return;
+    setState(() => _currentIndex = index);
+    FirebaseService.instance.logEvent(
+      eventType: 'tab_tap',
+      module: ['home', 'tasks', 'habits', 'focus', 'notes'][index],
+    );
+  }
+
   Future<void> _saveMood(String mood) async {
     if (mounted) setState(() => _todayMood = mood);
     await FirebaseService.instance.saveMood(mood);
@@ -274,7 +304,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               const SizedBox(width: 12),
               Text(
                 'Mood logged: $mood',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
               ),
             ],
           ),
@@ -282,7 +316,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: Colors.pinkAccent.withValues(alpha: 0.3), width: 1),
+            side: BorderSide(
+              color: Colors.pinkAccent.withValues(alpha: 0.3),
+              width: 1,
+            ),
           ),
           margin: const EdgeInsets.only(bottom: 110, left: 24, right: 24),
           duration: const Duration(seconds: 2),
@@ -290,8 +327,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
     }
   }
-
-
 
   String _todayString() {
     final now = DateTime.now();
@@ -309,7 +344,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           child: ResponsiveWrapper(
             maxWidth: 1000,
-            child: _buildBody(),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 320),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) {
+                final offset = Tween<Offset>(
+                  begin: const Offset(0.04, 0),
+                  end: Offset.zero,
+                ).animate(animation);
+
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(position: offset, child: child),
+                );
+              },
+              child: KeyedSubtree(
+                key: ValueKey(_currentIndex),
+                child: _buildBody(),
+              ),
+            ),
           ),
         ),
       ),
@@ -345,10 +399,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           Text(
             _greeting,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  height: 1.3,
-                  fontSize: Responsive.isMobile(context) ? 20 : 24,
-                ),
+              fontWeight: FontWeight.w700,
+              height: 1.3,
+              fontSize: Responsive.isMobile(context) ? 20 : 24,
+            ),
           ),
           _buildAICommandBar(),
           const SizedBox(height: 16),
@@ -377,10 +431,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             begin: const Offset(0, 0.05),
             end: Offset.zero,
           ).animate(animation),
-          child: FadeTransition(
-            opacity: animation,
-            child: child,
-          ),
+          child: FadeTransition(opacity: animation, child: child),
         );
       },
       child: Column(
@@ -403,12 +454,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           return GenerativeCardModule(
             cardData: _generativeCardPayload!,
             onAction: () {
-               final actModule = _generativeCardPayload!['action_module'] as String?;
-               if (actModule == 'FocusTimerModule' && mounted) {
-                  setState(() => _currentIndex = 3);
-               } else if (actModule == 'TasksModule' && mounted) {
-                  setState(() => _currentIndex = 1);
-               } 
+              final actModule =
+                  _generativeCardPayload!['action_module'] as String?;
+              if (actModule == 'FocusTimerModule' && mounted) {
+                _switchTab(3);
+              } else if (actModule == 'TasksModule' && mounted) {
+                _switchTab(1);
+              }
             },
           );
         }
@@ -439,10 +491,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 Text(
                   'ContextShift',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        letterSpacing: -1,
-                        fontWeight: FontWeight.w900,
-                        fontSize: Responsive.isMobile(context) ? 28 : 36,
-                      ),
+                    letterSpacing: -1,
+                    fontWeight: FontWeight.w900,
+                    fontSize: Responsive.isMobile(context) ? 28 : 36,
+                  ),
                 ),
                 Text(
                   '${FirebaseService.instance.firstName}\'s Sanctuary',
@@ -524,7 +576,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
       child: TextField(
         controller: _commandController,
-        enabled: _isJarvisOnline,
+        enabled: !_isProcessingCommand,
         textInputAction: TextInputAction.send,
         style: const TextStyle(color: AppTheme.onSurface),
         decoration: InputDecoration(
@@ -533,17 +585,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             color: !_isJarvisOnline
                 ? AppTheme.error.withValues(alpha: 0.6)
                 : (_isProcessingCommand
-                    ? AppTheme.primary
-                    : AppTheme.primary.withValues(alpha: 0.6)),
+                      ? AppTheme.primary
+                      : AppTheme.primary.withValues(alpha: 0.6)),
             size: 20,
           ),
-          hintText: _isJarvisOnline 
-              ? 'Tell JARVIS what to do...' 
+          hintText: _isJarvisOnline
+              ? 'Tell JARVIS what to do...'
               : _currentOfflineHint,
           hintStyle: TextStyle(
-            color: _isJarvisOnline 
+            color: _isJarvisOnline
                 ? AppTheme.onSurfaceVariant.withValues(alpha: 0.4)
-                : AppTheme.error.withValues(alpha: 0.5),
+                : AppTheme.warning.withValues(alpha: 0.75),
             fontStyle: _isJarvisOnline ? FontStyle.normal : FontStyle.italic,
           ),
           border: InputBorder.none,
@@ -560,19 +612,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                 )
               : IconButton(
-                  onPressed: _isJarvisOnline ? () {
+                  onPressed: () {
                     final val = _commandController.text.trim();
                     if (val.isEmpty) return;
                     _processCommand(val);
-                  } : null,
+                  },
                   icon: Icon(
-                    LucideIcons.send,
-                    color: _isJarvisOnline ? AppTheme.primary : AppTheme.onSurfaceVariant.withValues(alpha: 0.3),
+                    _isJarvisOnline ? LucideIcons.send : LucideIcons.wifiOff,
+                    color: _isJarvisOnline
+                        ? AppTheme.primary
+                        : AppTheme.warning.withValues(alpha: 0.9),
                     size: 18,
                   ),
                 ),
         ),
-        onSubmitted: _isJarvisOnline ? _processCommand : null,
+        onSubmitted: _processCommand,
       ),
     );
   }
@@ -586,9 +640,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         decoration: BoxDecoration(
           color: AppTheme.primary.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppTheme.primary.withValues(alpha: 0.2),
-          ),
+          border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2)),
         ),
         child: Row(
           children: [
@@ -604,7 +656,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               onTap: () {
                 if (mounted) setState(() => _aiResponse = null);
               },
-              child: const Icon(LucideIcons.x, size: 14, color: AppTheme.onSurfaceVariant),
+              child: const Icon(
+                LucideIcons.x,
+                size: 14,
+                color: AppTheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -631,15 +687,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 Text(
                   'JARVIS is working on it...',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: AppTheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    color: AppTheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 Text(
                   'Building a generative command module based on your prompt.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
-                      ),
+                    color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
+                  ),
                 ),
               ],
             ),
@@ -659,7 +715,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            _todayMood != null ? 'Feeling $_todayMood today' : 'How are you feeling?',
+            _todayMood != null
+                ? 'Feeling $_todayMood today'
+                : 'How are you feeling?',
             style: Theme.of(context).textTheme.labelMedium,
           ),
           const SizedBox(height: 12),
@@ -724,7 +782,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               crossAxisCount: Responsive.isMobile(context) ? 2 : 4,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              childAspectRatio: 1.6,
+              childAspectRatio: Responsive.isMobile(context) ? 1.38 : 1.55,
               children: [
                 _StatCard(
                   value: '$tasksDone/$totalTasks',
@@ -766,9 +824,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return GestureDetector(
       onTap: () {
         if (mounted) {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const AiDashboardScreen()),
-          );
+          Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const AiDashboardScreen()));
         }
       },
       child: Container(
@@ -782,23 +840,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ],
           ),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: AppTheme.primary.withValues(alpha: 0.15),
-          ),
+          border: Border.all(color: AppTheme.primary.withValues(alpha: 0.15)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(LucideIcons.sparkles, color: AppTheme.primary, size: 18),
+                const Icon(
+                  LucideIcons.sparkles,
+                  color: AppTheme.primary,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'AI Insight',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppTheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    color: AppTheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const Spacer(),
                 const Icon(
@@ -821,8 +881,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 : Text(
                     _aiInsight ?? 'Tap to view your AI dashboard.',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: AppTheme.onSurface.withValues(alpha: 0.9),
-                        ),
+                      color: AppTheme.onSurface.withValues(alpha: 0.9),
+                    ),
                   ),
           ],
         ),
@@ -863,16 +923,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
             return GestureDetector(
               onTap: () {
-                setState(() => _currentIndex = i);
-                FirebaseService.instance.logEvent(
-                  eventType: 'tab_tap',
-                  module: ['home', 'tasks', 'habits', 'focus', 'notes'][i],
-                );
+                _switchTab(i);
               },
               behavior: HitTestBehavior.opaque,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: isActive
                       ? AppTheme.primary.withValues(alpha: 0.15)
@@ -1003,14 +1062,18 @@ class _ThinkingPulseState extends State<_ThinkingPulse>
             shape: BoxShape.circle,
             color: AppTheme.primary.withValues(alpha: 0.1),
             border: Border.all(
-              color: AppTheme.primary.withValues(alpha: 0.2 + (0.3 * _controller.value)),
+              color: AppTheme.primary.withValues(
+                alpha: 0.2 + (0.3 * _controller.value),
+              ),
               width: 1,
             ),
           ),
           child: Icon(
             LucideIcons.sparkles,
             size: 16 + (4 * _controller.value),
-            color: AppTheme.primary.withValues(alpha: 0.6 + (0.4 * _controller.value)),
+            color: AppTheme.primary.withValues(
+              alpha: 0.6 + (0.4 * _controller.value),
+            ),
           ),
         );
       },
@@ -1083,7 +1146,9 @@ class _AIPulsarState extends State<_AIPulsar>
                   color: widget.isOnline ? AppTheme.success : AppTheme.primary,
                   boxShadow: [
                     BoxShadow(
-                      color: widget.isOnline ? AppTheme.success : AppTheme.primary,
+                      color: widget.isOnline
+                          ? AppTheme.success
+                          : AppTheme.primary,
                       blurRadius: 8,
                       spreadRadius: 2,
                     ),

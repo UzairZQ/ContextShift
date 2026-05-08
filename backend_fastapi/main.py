@@ -69,7 +69,8 @@ RULES:
 2. "plan/routine/workout/advice" intent → use `show_dynamic_card` + GenerativeCardModule first.
 3. For workouts/routines, include at least 3-4 specific actionable steps in `list_items`, each with a `task_payload`.
 4. Keep `response` short and punchy.
-5. Output ONLY valid JSON."""
+5. Use the provided user context to personalize the response. Consider profile, mood, top tasks, missing habits, recent notes, recent commands, and recent behavior events.
+6. Output ONLY valid JSON."""
 
 
 INSIGHT_PROMPT = """You are the AI analytics engine of ContextShift, a personal productivity OS.
@@ -83,6 +84,8 @@ INSIGHT INTELLIGENCE RULES
 3. Detect a real pattern: streak risk, peak productivity window, habit drop-off, focus drop, task pile-up
 4. Give exactly ONE actionable suggestion
 5. Return ONLY valid JSON: {{"insight": "your insight text", "insight_type": "streak|warning|tip|pattern|milestone"}}
+6. User name: {user_name}
+7. Stats payload: {stats}
 """
 
 # ─── Endpoints ───────────────────────────────────────────────────────────────
@@ -95,7 +98,16 @@ async def process_command(data: CommandRequest):
     try:
         messages = [
             SystemMessage(content=COMMAND_PROMPT),
-            HumanMessage(content=user_input),
+            HumanMessage(
+                content=json.dumps(
+                    {
+                        "command": user_input,
+                        "user_name": first_name,
+                        "context": data.context or {},
+                    },
+                    ensure_ascii=False,
+                )
+            ),
         ]
         response = await llm.ainvoke(messages)
         raw = response.content.strip()

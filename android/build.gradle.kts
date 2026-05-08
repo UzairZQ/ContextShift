@@ -5,15 +5,15 @@ allprojects {
     }
 }
 
-val newBuildDir: Directory =
-    rootProject.layout.buildDirectory
-        .dir("../../build")
-        .get()
-rootProject.layout.buildDirectory.value(newBuildDir)
+// Restore original logic but using safe property-based setters for Gradle 8.x
+rootProject.layout.buildDirectory.set(
+    rootProject.layout.buildDirectory.dir("../../build")
+)
 
 subprojects {
-    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
-    project.layout.buildDirectory.value(newSubprojectBuildDir)
+    project.layout.buildDirectory.set(
+        rootProject.layout.buildDirectory.dir(project.name)
+    )
 }
 subprojects {
     project.evaluationDependsOn(":app")
