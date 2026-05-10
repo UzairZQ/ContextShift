@@ -1,0 +1,94 @@
+{
+  "/Users/uzair99/Development/context_shift/.graphify_scope/backend_fastapi/main.py": {
+    "mtime": 1778281736.0,
+    "hash": "f96dbffdb62e940da0a1a171e4afc439"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/firebase_options.dart": {
+    "mtime": 1778276429.0,
+    "hash": "b839a19287312debedd3e9899f77e3fe"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/main.dart": {
+    "mtime": 1778279104.0,
+    "hash": "a60807a03bda8ee363fa8f65772d656b"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/core/firebase_runtime_options.dart": {
+    "mtime": 1776721261.0,
+    "hash": "c0e61a0185a66873cb1236d772252c40"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/core/firebase_service.dart": {
+    "mtime": 1778280428.0,
+    "hash": "fc066a84457edccd57b452277a3466d0"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/core/app_theme.dart": {
+    "mtime": 1776628646.0,
+    "hash": "70a10cdcb8e9459a5a0b626afed8c5ec"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/core/responsive.dart": {
+    "mtime": 1775590711.0,
+    "hash": "cc410990f38e7f42b344aae4c68bb872"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/core/ai_service.dart": {
+    "mtime": 1778281845.0,
+    "hash": "e1d25f479445b74b6e9a147dd311f71c"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/presentation/screens/guest_profile_screen.dart": {
+    "mtime": 1778278827.0,
+    "hash": "f37c5af518da68bf2476023d2fa28864"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/presentation/screens/register_screen.dart": {
+    "mtime": 1778280407.0,
+    "hash": "42aaf2a5ef43e38c82b2c2c3ef0e871b"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/presentation/screens/onboarding_screen.dart": {
+    "mtime": 1778278827.0,
+    "hash": "4b3c767f5b8fb3ea75340e8b2a04f89f"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/presentation/screens/login_screen.dart": {
+    "mtime": 1778278826.0,
+    "hash": "575e031b57fb028f0f0d163b0580cfd4"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/presentation/screens/home_screen.dart": {
+    "mtime": 1778278827.0,
+    "hash": "69f9cebcc5fa9523853b0687e19335d6"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/presentation/widgets/task_module.dart": {
+    "mtime": 1778278827.0,
+    "hash": "661fff739702c9a6299bda6b622d1cd0"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/presentation/widgets/generative_card_module.dart": {
+    "mtime": 1776720794.0,
+    "hash": "5729e86a281051981006dec672379661"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/presentation/widgets/ai_dashboard_module.dart": {
+    "mtime": 1778278827.0,
+    "hash": "a0e40c343d9dc347ab09ce8e30dfd164"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/presentation/widgets/habit_module.dart": {
+    "mtime": 1778278827.0,
+    "hash": "6d0c1a4f48423ea05a9b8265d23b721e"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/presentation/widgets/greeting_module.dart": {
+    "mtime": 1778278630.0,
+    "hash": "bb3ceaa9932e5b652512c5dd3df9125b"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/presentation/widgets/ai_insights_module.dart": {
+    "mtime": 1775484984.0,
+    "hash": "c00a56a10fa7fc736272fbd6056e5c56"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/presentation/widgets/notes_module.dart": {
+    "mtime": 1776611646.0,
+    "hash": "47aa7e30bed133b2dfd4cb2c89ba6795"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/lib/presentation/widgets/focus_module.dart": {
+    "mtime": 1776628653.0,
+    "hash": "2c775982b9eeafab13b24957bf382abb"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/backend_node/index.js": {
+    "mtime": 1775596556.0,
+    "hash": "12a17db54557d498146b1d5374e23422"
+  },
+  "/Users/uzair99/Development/context_shift/.graphify_scope/backend_fastapi/requirements.txt": {
+    "mtime": 1775481119.0,
+    "hash": "c2e11d0fb44116e9ca5c75a6f4606cba"
+  }
+}
