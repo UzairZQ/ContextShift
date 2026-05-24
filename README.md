@@ -64,6 +64,11 @@ The images are available in `assets/screenshots/` and cover the app’s onboardi
 
 <div>
   <img src="assets/screenshots/3..png" alt="Onboarding 3" width="320" />
+  <img src="assets/screenshots/singup.png" alt="Signup screen" width="320" />
+</div>
+
+<div>
+  <img src="assets/screenshots/login.png" alt="Login screen" width="320" />
   <img src="assets/screenshots/home.png" alt="Home dashboard" width="320" />
 </div>
 
@@ -75,11 +80,6 @@ The images are available in `assets/screenshots/` and cover the app’s onboardi
 <div>
   <img src="assets/screenshots/focus.png" alt="Focus session" width="320" />
   <img src="assets/screenshots/quicknotes.png" alt="Quick notes" width="320" />
-</div>
-
-<div>
-  <img src="assets/screenshots/login.png" alt="Login screen" width="320" />
-  <img src="assets/screenshots/singup.png" alt="Signup screen" width="320" />
 </div>
 
 <div>
