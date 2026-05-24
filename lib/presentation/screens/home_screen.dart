@@ -576,7 +576,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
       child: TextField(
         controller: _commandController,
-        enabled: !_isProcessingCommand,
+        // Keep the field enabled so the user can still type while a
+        // background request is in-flight. Disabling the field prevented
+        // typing and felt like the UI was frozen.
+        enabled: true,
         textInputAction: TextInputAction.send,
         style: const TextStyle(color: AppTheme.onSurface),
         decoration: InputDecoration(

@@ -6,6 +6,7 @@ import os
 import json
 import re
 from dotenv import load_dotenv
+from google.oauth2 import service_account
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
@@ -21,12 +22,65 @@ app.add_middleware(
 )
 
 # Initialize Gemini via LangChain
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash",
-    google_api_key=os.getenv("GOOGLE_API_KEY"),
-    temperature=0.1,
-    max_retries=0,
-)
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+SERVICE_ACCOUNT_FILE = os.getenv("SERVICE_ACCOUNT_FILE", "service-account-key.json")
+MODEL_PRIORITIES = [
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-001",
+    "gemini-2.0-flash-lite",
+]
+
+# Try to load service account credentials first
+CREDENTIALS = None
+if os.path.exists(SERVICE_ACCOUNT_FILE):
+    try:
+        CREDENTIALS = service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE,
+            scopes=['https://www.googleapis.com/auth/cloud-platform']
+        )
+        print(f"[Init] Using service account credentials from {SERVICE_ACCOUNT_FILE}")
+    except Exception as e:
+        print(f"[Init] Failed to load service account: {e}")
+        CREDENTIALS = None
+
+
+def _build_llm(model: str) -> ChatGoogleGenerativeAI:
+    if CREDENTIALS:
+        return ChatGoogleGenerativeAI(
+            model=model,
+            credentials=CREDENTIALS,
+            temperature=0.1,
+            max_retries=0,
+        )
+    else:
+        return ChatGoogleGenerativeAI(
+            model=model,
+            google_api_key=GOOGLE_API_KEY,
+            temperature=0.1,
+            max_retries=0,
+        )
+
+
+async def _invoke_with_fallback(messages):
+    last_error = None
+    for model in MODEL_PRIORITIES:
+        try:
+            response = await asyncio.wait_for(
+                _build_llm(model).ainvoke(messages),
+                timeout=8,
+            )
+            return response
+        except Exception as e:
+            error_text = str(e)
+            print(f"[Gemini Fallback] model={model} failed: {error_text}")
+            if "RESOURCE_EXHAUSTED" in error_text or "429" in error_text:
+                last_error = e
+                continue
+            raise
+
+    if last_error is not None:
+        raise last_error
+    raise Exception("Unable to invoke Gemini with any fallback model.")
 
 
 # ─── Request Models ─────────────────────────────────────────────────────────────
@@ -111,7 +165,7 @@ async def process_command(data: CommandRequest):
                 )
             ),
         ]
-        response = await asyncio.wait_for(llm.ainvoke(messages), timeout=8)
+        response = await _invoke_with_fallback(messages)
         raw = response.content.strip()
 
         # Bulletproof JSON discovery: Find the first { and the last }
@@ -141,10 +195,16 @@ async def process_command(data: CommandRequest):
             "layout_order": ["FocusTimerModule", "TasksModule", "HabitModule", "NotesModule"]
         }
     except Exception as e:
-        print(f"[AI Command Error] {e}")
+        error_msg = str(e)
+        print(f"[AI Command Error] {error_msg}")
+        
+        response_text = f"I had trouble processing that, {first_name}."
+        if "RESOURCE_EXHAUSTED" in error_msg or "429" in error_msg:
+            response_text = f"It looks like JARVIS has reached his thinking quota for now, {first_name}. Please try again in a few minutes or check your Gemini API limits."
+            
         return {
             "actions": [],
-            "response": f"I had trouble processing that, {first_name}. Try something like 'add task buy groceries' or 'focus 25 min'.",
+            "response": response_text,
             "greeting_update": None,
             "layout_order": ["FocusTimerModule", "TasksModule", "HabitModule", "NotesModule"]
         }
@@ -168,7 +228,7 @@ async def generate_insight(data: InsightRequest):
             SystemMessage(content=prompt),
             HumanMessage(content=f"Generate an insight for {first_name}."),
         ]
-        response = await asyncio.wait_for(llm.ainvoke(messages), timeout=8)
+        response = await _invoke_with_fallback(messages)
         raw = response.content.strip()
 
         # Bulletproof JSON discovery
@@ -187,8 +247,12 @@ async def generate_insight(data: InsightRequest):
         print("[AI Insight Error] Timed out waiting for Gemini")
         return {"insight": f"Stay consistent, {first_name}. Small wins compound into big results."}
     except Exception as e:
-        print(f"[AI Insight Error] {e}")
-        return {"insight": f"Stay consistent, {first_name}. Small wins compound into big results."}
+        error_msg = str(e)
+        print(f"[AI Insight Error] {error_msg}")
+        insight_text = f"Stay consistent, {first_name}. Small wins compound into big results."
+        if "RESOURCE_EXHAUSTED" in error_msg or "429" in error_msg:
+            insight_text = "JARVIS is taking a breather (Quota reached). Keep up the great work locally!"
+        return {"insight": insight_text}
 
 
 @app.post("/summarize")
@@ -199,7 +263,7 @@ async def summarize_note(data: SummarizeRequest):
             SystemMessage(content=prompt),
             HumanMessage(content=data.content),
         ]
-        response = await asyncio.wait_for(llm.ainvoke(messages), timeout=8)
+        response = await _invoke_with_fallback(messages)
         return {"summary": response.content.strip()}
     except asyncio.TimeoutError:
         print("[Summarize Error] Timed out waiting for Gemini")

@@ -48,6 +48,9 @@ app.*.map.json
 .env
 .env.*
 **/*.env
+backend_fastapi/service-account-key.json
+*.key.json
+**/service-account*.json
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 lib/firebase_options.dart
