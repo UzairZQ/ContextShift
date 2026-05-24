@@ -58,32 +58,32 @@ The current version is intentionally moving away from account friction and gener
 The images are available in `assets/screenshots/` and cover the app’s onboarding, login, home dashboard, AI insight, focus mode, and notes flows.
 
 <div>
-  <img src="assets/screenshots/home.png" alt="Home dashboard" width="320" />
-  <img src="assets/screenshots/home2.png" alt="Home alternate" width="320" />
-</div>
-
-<div>
-  <img src="assets/screenshots/tasks.png" alt="Tasks module" width="320" />
-  <img src="assets/screenshots/focus.png" alt="Focus session" width="320" />
-</div>
-
-<div>
-  <img src="assets/screenshots/quicknotes.png" alt="Quick notes" width="320" />
-  <img src="assets/screenshots/login.png" alt="Login screen" width="320" />
-</div>
-
-<div>
-  <img src="assets/screenshots/singup.png" alt="Signup screen" width="320" />
-  <img src="assets/screenshots/ai_insights.png" alt="AI insights" width="320" />
-</div>
-
-<div>
   <img src="assets/screenshots/1.png" alt="Onboarding 1" width="320" />
   <img src="assets/screenshots/2.png" alt="Onboarding 2" width="320" />
 </div>
 
 <div>
   <img src="assets/screenshots/3..png" alt="Onboarding 3" width="320" />
+  <img src="assets/screenshots/home.png" alt="Home dashboard" width="320" />
+</div>
+
+<div>
+  <img src="assets/screenshots/home2.png" alt="Home alternate" width="320" />
+  <img src="assets/screenshots/tasks.png" alt="Tasks module" width="320" />
+</div>
+
+<div>
+  <img src="assets/screenshots/focus.png" alt="Focus session" width="320" />
+  <img src="assets/screenshots/quicknotes.png" alt="Quick notes" width="320" />
+</div>
+
+<div>
+  <img src="assets/screenshots/login.png" alt="Login screen" width="320" />
+  <img src="assets/screenshots/singup.png" alt="Signup screen" width="320" />
+</div>
+
+<div>
+  <img src="assets/screenshots/ai_insights.png" alt="AI insights" width="320" />
 </div>
 
 ### Personalization and behavior context
