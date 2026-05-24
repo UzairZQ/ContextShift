@@ -32,6 +32,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final _commandController = TextEditingController();
   late AnimationController _responseAnimController;
   bool _isJarvisOnline = false;
+  bool _hasCheckedJarvisStatus = false;
   Timer? _heartbeatTimer;
   final List<String> _offlineMessages = [
     'JARVIS backend is offline. Local fallback is still ready.',
@@ -86,6 +87,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     setState(() {
       _isJarvisOnline = isOnline;
+      _hasCheckedJarvisStatus = true;
       if (!isOnline) {
         _currentOfflineHint =
             _offlineMessages[DateTime.now().millisecond %
@@ -584,22 +586,34 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         style: const TextStyle(color: AppTheme.onSurface),
         decoration: InputDecoration(
           icon: Icon(
-            _isJarvisOnline ? LucideIcons.sparkles : LucideIcons.cloudOff,
-            color: !_isJarvisOnline
-                ? AppTheme.error.withValues(alpha: 0.6)
-                : (_isProcessingCommand
-                      ? AppTheme.primary
-                      : AppTheme.primary.withValues(alpha: 0.6)),
+            !_hasCheckedJarvisStatus
+                ? LucideIcons.loader2
+                : (_isJarvisOnline
+                      ? LucideIcons.sparkles
+                      : LucideIcons.cloudOff),
+            color: !_hasCheckedJarvisStatus
+                ? AppTheme.primary.withValues(alpha: 0.8)
+                : (_isJarvisOnline
+                      ? (_isProcessingCommand
+                            ? AppTheme.primary
+                            : AppTheme.primary.withValues(alpha: 0.6))
+                      : AppTheme.error.withValues(alpha: 0.6)),
             size: 20,
           ),
-          hintText: _isJarvisOnline
-              ? 'Tell JARVIS what to do...'
-              : _currentOfflineHint,
+          hintText: !_hasCheckedJarvisStatus
+              ? 'Checking JARVIS status...'
+              : (_isJarvisOnline
+                    ? 'Tell JARVIS what to do...'
+                    : _currentOfflineHint),
           hintStyle: TextStyle(
-            color: _isJarvisOnline
-                ? AppTheme.onSurfaceVariant.withValues(alpha: 0.4)
-                : AppTheme.warning.withValues(alpha: 0.75),
-            fontStyle: _isJarvisOnline ? FontStyle.normal : FontStyle.italic,
+            color: !_hasCheckedJarvisStatus
+                ? AppTheme.onSurfaceVariant.withValues(alpha: 0.55)
+                : (_isJarvisOnline
+                      ? AppTheme.onSurfaceVariant.withValues(alpha: 0.4)
+                      : AppTheme.warning.withValues(alpha: 0.75)),
+            fontStyle: !_hasCheckedJarvisStatus
+                ? FontStyle.italic
+                : (_isJarvisOnline ? FontStyle.normal : FontStyle.italic),
           ),
           border: InputBorder.none,
           suffixIcon: _isProcessingCommand
