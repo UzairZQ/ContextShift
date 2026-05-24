@@ -55,19 +55,29 @@ The current version is intentionally moving away from account friction and gener
 
 ## Screenshots
 
-All current screenshots are captured for a large phone display with a 6.8" diagonal screen, following iPhone Pro Max–style dimensions (approximately 2796×1290 px native display size, which maps to roughly 428×926 points at 3× scale).
-
 The images are available in `assets/screenshots/` and cover the app’s onboarding, login, home dashboard, AI insight, focus mode, and notes flows.
 
-- `assets/screenshots/home.png` — Home dashboard with the JARVIS command bar and dynamic module layout.
-- `assets/screenshots/home2.png` — Alternate home view showing module reordering and AI response state.
-- `assets/screenshots/tasks.png` — Tasks module view with task list layout.
-- `assets/screenshots/focus.png` — Focus session screen.
-- `assets/screenshots/quicknotes.png` — Notes capture screen.
-- `assets/screenshots/login.png` — Login screen.
-- `assets/screenshots/singup.png` — Registration/signup screen.
-- `assets/screenshots/ai_insights.png` — AI insights summary card.
-- `assets/screenshots/1.png`, `assets/screenshots/2.png`, `assets/screenshots/3..png` — Additional onboarding and feature showcase screens.
+![Home dashboard](assets/screenshots/home.png)
+
+![Home alternate](assets/screenshots/home2.png)
+
+![Tasks module](assets/screenshots/tasks.png)
+
+![Focus session](assets/screenshots/focus.png)
+
+![Quick notes](assets/screenshots/quicknotes.png)
+
+![Login screen](assets/screenshots/login.png)
+
+![Signup screen](assets/screenshots/singup.png)
+
+![AI insights](assets/screenshots/ai_insights.png)
+
+![Onboarding 1](assets/screenshots/1.png)
+
+![Onboarding 2](assets/screenshots/2.png)
+
+![Onboarding 3](assets/screenshots/3..png)
 
 ### Personalization and behavior context
 
