@@ -35,7 +35,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _hasCheckedJarvisStatus = false;
   Timer? _heartbeatTimer;
   final List<String> _offlineMessages = [
-    'JARVIS backend is offline. Local fallback is still ready.',
+    'JARVIS is ready in offline mode. Local fallback can still help.',
     'No backend signal right now, but local command mode still works.',
     'JARVIS cloud is out of orbit. Offline command mode is available.',
     'Backend is meditating. You can still use the local assistant.',
@@ -597,7 +597,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ? (_isProcessingCommand
                             ? AppTheme.primary
                             : AppTheme.primary.withValues(alpha: 0.6))
-                      : AppTheme.error.withValues(alpha: 0.6)),
+                      : AppTheme.warning.withValues(alpha: 0.85)),
             size: 20,
           ),
           hintText: !_hasCheckedJarvisStatus
