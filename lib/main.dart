@@ -46,6 +46,7 @@ class _LaunchGate extends StatefulWidget {
 
 class _LaunchGateState extends State<_LaunchGate> {
   static const _onboardingKey = 'has_seen_onboarding';
+  static const _forceOnboarding = true; // Temporary screenshot mode
   bool? _hasSeenOnboarding;
   bool _prefsUnavailable = false;
 
@@ -60,7 +61,9 @@ class _LaunchGateState extends State<_LaunchGate> {
       final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
       setState(() {
-        _hasSeenOnboarding = prefs.getBool(_onboardingKey) ?? false;
+        _hasSeenOnboarding = _forceOnboarding
+            ? false
+            : prefs.getBool(_onboardingKey) ?? false;
         _prefsUnavailable = false;
       });
     } on PlatformException catch (error) {

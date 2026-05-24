@@ -53,6 +53,22 @@ The current version is intentionally moving away from account friction and gener
 - Adaptive card generation for planning, advice, and routines
 - AI insight generation for dashboard summaries
 
+## Screenshots
+
+All current screenshots are captured for a large phone display with a 6.8" diagonal screen, following iPhone Pro Max–style dimensions (approximately 2796×1290 px native display size, which maps to roughly 428×926 points at 3× scale).
+
+The images are available in `assets/screenshots/` and cover the app’s onboarding, login, home dashboard, AI insight, focus mode, and notes flows.
+
+- `assets/screenshots/home.png` — Home dashboard with the JARVIS command bar and dynamic module layout.
+- `assets/screenshots/home2.png` — Alternate home view showing module reordering and AI response state.
+- `assets/screenshots/tasks.png` — Tasks module view with task list layout.
+- `assets/screenshots/focus.png` — Focus session screen.
+- `assets/screenshots/quicknotes.png` — Notes capture screen.
+- `assets/screenshots/login.png` — Login screen.
+- `assets/screenshots/singup.png` — Registration/signup screen.
+- `assets/screenshots/ai_insights.png` — AI insights summary card.
+- `assets/screenshots/1.png`, `assets/screenshots/2.png`, `assets/screenshots/3..png` — Additional onboarding and feature showcase screens.
+
 ### Personalization and behavior context
 
 - Firebase-backed storage scoped by `userId`

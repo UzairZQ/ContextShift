@@ -85,6 +85,14 @@ class AiService {
     Map<String, dynamic>? context,
   }) async {
     try {
+      final isBackendOnline = await checkBackendStatus();
+      if (!isBackendOnline) {
+        debugPrint(
+          'AI Command — backend offline, using local fallback immediately',
+        );
+        return _processLocally(command, userName, true);
+      }
+
       final Map<String, dynamic> finalContext = Map.from(context ?? {});
       final backgroundData = await FirebaseService.instance
           .buildContextSnapshot();
