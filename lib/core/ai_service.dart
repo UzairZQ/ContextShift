@@ -10,15 +10,20 @@ class AiCommandResult {
   final String response;
   final String? greetingUpdate;
   final List<String>? layoutOrder;
+  final bool fromBackend;
 
   AiCommandResult({
     required this.actions,
     required this.response,
     this.greetingUpdate,
     this.layoutOrder,
+    this.fromBackend = false,
   });
 
-  factory AiCommandResult.fromJson(Map<String, dynamic> json) {
+  factory AiCommandResult.fromJson(
+    Map<String, dynamic> json, {
+    bool fromBackend = false,
+  }) {
     return AiCommandResult(
       actions:
           (json['actions'] as List<dynamic>?)
@@ -30,6 +35,7 @@ class AiCommandResult {
       layoutOrder: (json['layout_order'] as List<dynamic>?)
           ?.map((e) => e.toString())
           .toList(),
+      fromBackend: fromBackend,
     );
   }
 }
@@ -58,6 +64,8 @@ class AiService {
     defaultValue: '',
   );
   String? _cachedInsight;
+  bool _lastInsightFetchSucceeded = false;
+  DateTime? _lastSuccessfulBackendResponseAt;
 
   String get _backendUrl {
     if (_configuredBackendUrl.isNotEmpty) {
@@ -83,9 +91,31 @@ class AiService {
     required String command,
     required String userName,
     Map<String, dynamic>? context,
+  }) {
+    return _performCommand(
+      command: command,
+      userName: userName,
+      context: context,
+    ).timeout(
+      const Duration(seconds: 15),
+      onTimeout: () {
+        debugPrint(
+          'AI Command — overall command timeout, using local fallback',
+        );
+        return _processLocally(command, userName, true);
+      },
+    );
+  }
+
+  Future<AiCommandResult> _performCommand({
+    required String command,
+    required String userName,
+    Map<String, dynamic>? context,
   }) async {
+    debugPrint('AI Command — starting command: "$command"');
     try {
       final isBackendOnline = await checkBackendStatus();
+      debugPrint('AI Command — backend status: $isBackendOnline');
       if (!isBackendOnline) {
         debugPrint(
           'AI Command — backend offline, using local fallback immediately',
@@ -94,8 +124,7 @@ class AiService {
       }
 
       final Map<String, dynamic> finalContext = Map.from(context ?? {});
-      final backgroundData = await FirebaseService.instance
-          .buildContextSnapshot();
+      final backgroundData = await _buildContextSnapshotWithTimeout();
       finalContext['background_data'] = backgroundData;
 
       final payload = jsonEncode({
@@ -109,23 +138,45 @@ class AiService {
         body: payload,
         timeout: const Duration(seconds: 10),
       );
+      debugPrint('AI Command — backend returned status ${response.statusCode}');
 
       if (response.statusCode == 200) {
+        _recordBackendSuccess();
         final parsed = AiCommandResult.fromJson(
           jsonDecode(response.body) as Map<String, dynamic>,
+          fromBackend: true,
         );
         if (_shouldUseLocalFallback(parsed)) {
           debugPrint(
             'AI Command — backend returned fallback copy, using local parser',
           );
-          return _processLocally(command, userName, false);
+          return _processLocally(command, userName, false, fromBackend: true);
         }
         return parsed;
       }
       throw Exception('Backend returned ${response.statusCode}');
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('AI Command — backend unavailable, using local fallback: $e');
+      debugPrint(stack.toString());
       return _processLocally(command, userName, e is TimeoutException);
+    }
+  }
+
+  Future<Map<String, dynamic>> _buildContextSnapshotWithTimeout() async {
+    try {
+      return await FirebaseService.instance.buildContextSnapshot().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          debugPrint(
+            'AI Command — context snapshot timeout, using empty context',
+          );
+          return <String, dynamic>{};
+        },
+      );
+    } catch (e, stack) {
+      debugPrint('AI Command — context snapshot error: $e');
+      debugPrint(stack.toString());
+      return {};
     }
   }
 
@@ -141,8 +192,24 @@ class AiService {
   AiCommandResult _processLocally(
     String command,
     String userName,
-    bool isTimeout,
-  ) {
+    bool isTimeout, {
+    bool fromBackend = false,
+  }) {
+    AiCommandResult build({
+      required List<AiAction> actions,
+      required String response,
+      String? greetingUpdate,
+      List<String>? layoutOrder,
+    }) {
+      return AiCommandResult(
+        actions: actions,
+        response: response,
+        greetingUpdate: greetingUpdate,
+        layoutOrder: layoutOrder,
+        fromBackend: fromBackend,
+      );
+    }
+
     final lower = command.toLowerCase().trim();
     final fallbackResponse = isTimeout
         ? "JARVIS is thinking deeply about this. I've saved it as a task for now so we don't lose it!"
@@ -158,7 +225,7 @@ class AiService {
         'create task',
       ]);
       if (title.isNotEmpty) {
-        return AiCommandResult(
+        return build(
           actions: [
             AiAction(
               type: 'add_task',
@@ -174,7 +241,7 @@ class AiService {
           ],
         );
       } else {
-        return AiCommandResult(
+        return build(
           actions: [],
           response: 'What task would you like to add?',
           layoutOrder: [
@@ -199,7 +266,7 @@ class AiService {
       int minutes = 25;
       final numMatch = RegExp(r'(\d+)\s*min').firstMatch(lower);
       if (numMatch != null) minutes = int.parse(numMatch.group(1)!);
-      return AiCommandResult(
+      return build(
         actions: [
           AiAction(type: 'start_focus', params: {'duration_minutes': minutes}),
         ],
@@ -285,7 +352,7 @@ class AiService {
               },
             ];
 
-      return AiCommandResult(
+      return build(
         actions: [
           AiAction(
             type: 'show_dynamic_card',
@@ -316,7 +383,7 @@ class AiService {
     if (_matchesAny(lower, ['add habit', 'track', 'new habit'])) {
       final name = _extractAfter(command, ['add habit', 'track', 'new habit']);
       if (name.isNotEmpty) {
-        return AiCommandResult(
+        return build(
           actions: [
             AiAction(type: 'add_habit', params: {'name': name, 'icon': ''}),
           ],
@@ -329,7 +396,7 @@ class AiService {
           ],
         );
       } else {
-        return AiCommandResult(
+        return build(
           actions: [],
           response: 'What habit would you like to build?',
           layoutOrder: [
@@ -351,7 +418,7 @@ class AiService {
         'jot down',
       ]);
       if (content.isNotEmpty) {
-        return AiCommandResult(
+        return build(
           actions: [
             AiAction(type: 'add_note', params: {'content': content}),
           ],
@@ -364,7 +431,7 @@ class AiService {
           ],
         );
       } else {
-        return AiCommandResult(
+        return build(
           actions: [],
           response: 'What do you want to note down?',
           layoutOrder: [
@@ -384,7 +451,7 @@ class AiService {
       'open task',
       'go to task',
     ])) {
-      return AiCommandResult(
+      return build(
         actions: [],
         response: 'Here are your tasks.',
         layoutOrder: [
@@ -396,7 +463,7 @@ class AiService {
       );
     }
     if (_matchesAny(lower, ['show habit', 'my habit', 'open habit'])) {
-      return AiCommandResult(
+      return build(
         actions: [],
         response: 'Here are your habits.',
         layoutOrder: [
@@ -408,7 +475,7 @@ class AiService {
       );
     }
     if (_matchesAny(lower, ['show note', 'my note', 'open note'])) {
-      return AiCommandResult(
+      return build(
         actions: [],
         response: 'Here are your notes.',
         layoutOrder: [
@@ -432,7 +499,7 @@ class AiService {
       'stuck',
     ])) {
       if (_matchesAny(lower, ['overwhelmed', 'stressed', 'stuck', 'help'])) {
-        return AiCommandResult(
+        return build(
           actions: [
             AiAction(
               type: 'show_dynamic_card',
@@ -475,7 +542,7 @@ class AiService {
         'Small steps still move you forward, $userName. Let\'s go.',
         'The compound effect of consistency is unstoppable, $userName.',
       ];
-      return AiCommandResult(
+      return build(
         actions: [],
         response: messages[DateTime.now().second % messages.length],
       );
@@ -483,7 +550,7 @@ class AiService {
 
     // ── Default: treat as a task if it was a real command ──
     if (lower.length > 5) {
-      return AiCommandResult(
+      return build(
         actions: [
           AiAction(
             type: 'add_task',
@@ -494,7 +561,7 @@ class AiService {
       );
     }
 
-    return AiCommandResult(
+    return build(
       actions: [],
       response:
           'Try: "add task buy groceries", "focus 25 min", "add habit morning run", or "note call mom"',
@@ -508,10 +575,24 @@ class AiService {
       final response = await http
           .get(Uri.parse('$_backendUrl/health'))
           .timeout(const Duration(seconds: 3));
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        _recordBackendSuccess();
+        return true;
+      }
     } catch (_) {
-      return false;
+      // ignore
     }
+    return _hasRecentBackendSuccess;
+  }
+
+  bool get _hasRecentBackendSuccess {
+    final last = _lastSuccessfulBackendResponseAt;
+    return last != null &&
+        DateTime.now().difference(last) < const Duration(seconds: 30);
+  }
+
+  void _recordBackendSuccess() {
+    _lastSuccessfulBackendResponseAt = DateTime.now();
   }
 
   // ── AI Insight Fetching ────────────────────────────────────
@@ -520,12 +601,7 @@ class AiService {
     required String userName,
     Map<String, dynamic>? stats,
   }) async {
-    // Fast fail if status check is not healthy
-    final isOnline = await checkBackendStatus();
-    if (!isOnline) {
-      debugPrint('AI Insight — skipping fetch (JARVIS offline)');
-      return _cachedInsight ?? _localInsight(userName);
-    }
+    _lastInsightFetchSucceeded = false;
 
     try {
       final response = await http
@@ -539,6 +615,8 @@ class AiService {
           ); // Hardened to 35s for unreliable network/slow LLM
 
       if (response.statusCode == 200) {
+        _recordBackendSuccess();
+        _lastInsightFetchSucceeded = true;
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final insight = data['insight'] as String;
         _cachedInsight = insight;
@@ -551,6 +629,8 @@ class AiService {
     }
   }
 
+  bool get lastInsightFetchSucceeded => _lastInsightFetchSucceeded;
+
   String get cachedInsight => _cachedInsight ?? '';
 
   Future<http.Response> _postJsonWithFallback({
@@ -562,6 +642,7 @@ class AiService {
 
     for (final path in paths) {
       try {
+        debugPrint('AI Command — trying backend path: $_backendUrl$path');
         final response = await http
             .post(
               Uri.parse('$_backendUrl$path'),
@@ -574,7 +655,10 @@ class AiService {
           return response;
         }
         lastError = Exception('Endpoint not found: $path');
-      } catch (error) {
+      } catch (error, stack) {
+        debugPrint('AI Command — backend path failed: $path');
+        debugPrint(error.toString());
+        debugPrint(stack.toString());
         lastError = error;
       }
     }

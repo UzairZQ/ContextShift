@@ -1,4 +1,7 @@
+import 'dart:ui';
+
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,9 +9,9 @@ import 'core/app_theme.dart';
 import 'core/firebase_runtime_options.dart';
 import 'core/firebase_service.dart';
 import 'firebase_options.dart';
-import 'presentation/screens/home_screen.dart';
-import 'presentation/screens/login_screen.dart';
-import 'presentation/screens/onboarding_screen.dart';
+import 'presentation/screens/home/home_screen.dart';
+import 'presentation/screens/login/login_screen.dart';
+import 'presentation/screens/onboarding/onboarding_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +23,14 @@ void main() async {
       DefaultFirebaseOptions.currentPlatform;
 
   await Firebase.initializeApp(options: firebaseOptions);
+  //for catching exceptions to the terminal in firebase
+  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+
+  //pass all async catching uncaughht exceptions async not handled by Flutter
+  PlatformDispatcher.instance.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
   runApp(const ContextShiftApp());
 }
 

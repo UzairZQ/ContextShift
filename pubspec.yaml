@@ -37,15 +37,17 @@ dependencies:
   google_fonts: ^8.0.2
   http: ^1.6.0
   lucide_icons: ^0.257.0
-  firebase_core: ^3.10.1
   cloud_firestore: ^5.6.1
   firebase_auth: ^5.4.4
   google_sign_in: ^6.2.2
   shared_preferences: ^2.5.3
+  firebase_core: ^3.15.2
+  firebase_crashlytics: ^4.3.10
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.14.4
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -53,6 +55,27 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/screenshots/icon.png"
+  adaptive_background_color: "#FF8C96"
+  background_color: "#FF8C96"
+  theme_color: "#FF8C96"
+  min_sdk_android: 21
+  web:
+    generate: true
+    image_path: "assets/screenshots/icon.png"
+    background_color: "#FF8C96"
+    theme_color: "#FF8C96"
+  windows:
+    generate: true
+    image_path: "assets/screenshots/icon.png"
+    icon_size: 48
+  macos:
+    generate: true
+    image_path: "assets/screenshots/icon.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

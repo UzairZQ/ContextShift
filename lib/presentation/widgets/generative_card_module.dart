@@ -2,7 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/app_theme.dart';
-import './task_module.dart';
+import 'tasks/widgets/add_task_sheet.dart';
 
 class GenerativeCardModule extends StatelessWidget {
   final Map<String, dynamic> cardData;
@@ -147,7 +147,7 @@ class GenerativeCardModule extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 12.0),
                 child: InkWell(
                   onTap: (taskPayload != null)
-                    ? () => TasksModule.showAddTaskSheet(
+                    ? () => AddTaskSheet.show(
                         context,
                         initialTitle: taskPayload['title'],
                         initialPriority: taskPayload['priority'],
