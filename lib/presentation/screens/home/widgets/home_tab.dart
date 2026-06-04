@@ -5,6 +5,7 @@ import 'ai_command_bar.dart';
 import 'ai_insight_card.dart';
 import 'ai_response_card.dart';
 import 'dynamic_modules.dart';
+import 'home_header.dart';
 import 'mood_checkin.dart';
 import 'stats_section.dart';
 import 'thinking_card.dart';
@@ -30,6 +31,8 @@ class HomeTab extends StatelessWidget {
   final ValueChanged<String> onSubmitCommand;
   final ValueChanged<String> onSelectMood;
   final VoidCallback onDismissResponse;
+  final VoidCallback onLogout;
+  final bool isAuthGuest;
 
   const HomeTab({
     super.key,
@@ -53,6 +56,8 @@ class HomeTab extends StatelessWidget {
     required this.onSubmitCommand,
     required this.onSelectMood,
     required this.onDismissResponse,
+    required this.onLogout,
+    required this.isAuthGuest,
   });
 
   @override
@@ -62,6 +67,13 @@ class HomeTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          HomeHeader(
+            isProcessingCommand: isProcessingCommand,
+            isJarvisOnline: isJarvisOnline,
+            onOpenDashboard: onOpenDashboard,
+            onLogout: onLogout,
+          ),
+          const SizedBox(height: 16),
           Text(
             greeting,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(

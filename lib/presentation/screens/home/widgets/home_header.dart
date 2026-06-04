@@ -11,6 +11,7 @@ class HomeHeader extends StatelessWidget {
   final bool isJarvisOnline;
   final VoidCallback onOpenDashboard;
   final VoidCallback onLogout;
+  final bool isAuthGuest;
 
   const HomeHeader({
     super.key,
@@ -18,6 +19,7 @@ class HomeHeader extends StatelessWidget {
     required this.isJarvisOnline,
     required this.onOpenDashboard,
     required this.onLogout,
+    this.isAuthGuest = false,
   });
 
   @override
@@ -56,11 +58,13 @@ class HomeHeader extends StatelessWidget {
                 icon: LucideIcons.barChart2,
                 onTap: onOpenDashboard,
               ),
-              const SizedBox(width: 8),
-              _CircleIconButton(
-                icon: LucideIcons.logOut,
-                onTap: onLogout,
-              ),
+              if (!isAuthGuest) ...[
+                const SizedBox(width: 8),
+                _CircleIconButton(
+                  icon: LucideIcons.logOut,
+                  onTap: onLogout,
+                ),
+              ],
               const SizedBox(width: 8),
               SizedBox(
                 width: 40,

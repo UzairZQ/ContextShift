@@ -12,6 +12,7 @@ import '../../widgets/habits/habit_module.dart';
 import '../../widgets/notes/notes_module.dart';
 import '../../widgets/tasks/tasks_module.dart';
 import '../ai_dashboard/ai_dashboard_screen.dart';
+import '../login/login_screen.dart';
 import 'widgets/floating_nav_bar.dart';
 import 'widgets/home_tab.dart';
 
@@ -361,6 +362,15 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  Future<void> _handleLogout() async {
+    await FirebaseService.instance.signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
   void _handleGenerativeCardAction() {
     final module = _generativeCardPayload?['action_module'] as String?;
     if (module == 'FocusTimerModule') {
@@ -395,6 +405,8 @@ class _HomeScreenState extends State<HomeScreen>
           onDismissResponse: () {
             if (mounted) setState(() => _aiResponse = null);
           },
+          onLogout: _handleLogout,
+          isAuthGuest: FirebaseService.instance.isGuest,
         ),
       1 => const TasksModule(),
       2 => const HabitModule(),
