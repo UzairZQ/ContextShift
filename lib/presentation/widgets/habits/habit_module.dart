@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
-import '../../../core/firebase_service.dart';
+import '../../../core/database/database_service.dart';
 import 'widgets/add_habit_sheet.dart';
 import 'widgets/habit_heatmap.dart';
 import 'widgets/habit_progress.dart';
@@ -22,8 +22,8 @@ class _HabitModuleState extends State<HabitModule> {
   @override
   void initState() {
     super.initState();
-    _habitsStream = FirebaseService.instance.watchHabits();
-    FirebaseService.instance.logEvent(
+    _habitsStream = DatabaseService.instance.watchHabits();
+    DatabaseService.instance.logEvent(
       eventType: 'screen_open',
       module: 'habits',
     );
@@ -141,7 +141,7 @@ class _HabitGrid extends StatelessWidget {
           return HabitTile(
             habit: h,
             isDoneToday: isDone,
-            onToggle: (val) => FirebaseService.instance
+            onToggle: (val) => DatabaseService.instance
                 .toggleHabitToday(h['id'], val),
           );
         }

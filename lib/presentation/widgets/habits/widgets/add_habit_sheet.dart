@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/app_theme.dart';
-import '../../../../core/firebase_service.dart';
+import '../../../../core/database/database_service.dart';
 import '../../../../core/responsive.dart';
 
 class AddHabitSheet extends StatefulWidget {
@@ -40,7 +40,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
     final name = widget.nameController.text.trim();
     if (name.isEmpty) return;
     widget.nameController.clear();
-    await FirebaseService.instance.addHabit(
+    await DatabaseService.instance.addHabit(
       name: name,
       icon: _selectedIcon,
     );

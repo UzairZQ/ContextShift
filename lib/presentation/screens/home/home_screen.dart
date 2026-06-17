@@ -5,14 +5,14 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/ai_service.dart';
 import '../../../core/app_theme.dart';
-import '../../../core/firebase_service.dart';
+import '../../../core/database/database_service.dart';
 import '../../../core/responsive.dart';
 import '../../widgets/focus/focus_module.dart';
 import '../../widgets/habits/habit_module.dart';
 import '../../widgets/notes/notes_module.dart';
 import '../../widgets/tasks/tasks_module.dart';
 import '../ai_dashboard/ai_dashboard_screen.dart';
-import '../login/login_screen.dart';
+import '../guest_profile/guest_profile_screen.dart';
 import 'widgets/floating_nav_bar.dart';
 import 'widgets/home_tab.dart';
 
@@ -103,7 +103,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _computeGreeting() {
     final hour = DateTime.now().hour;
-    final name = FirebaseService.instance.firstName;
+    final name = DatabaseService.instance.firstName;
     if (hour < 5) {
       _greeting = 'Still going, $name?\nRest is part of the grind.';
     } else if (hour < 12) {
@@ -117,8 +117,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _loadInitialData() async {
     final results = await Future.wait([
-      FirebaseService.instance.getTodayFocusMinutes(),
-      FirebaseService.instance.getTodayMood(),
+      DatabaseService.instance.getTodayFocusMinutes(),
+      DatabaseService.instance.getTodayMood(),
     ]);
 
     if (!mounted) return;
@@ -133,9 +133,9 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _loadAiInsight() async {
     if (mounted) setState(() => _isLoadingInsight = true);
     try {
-      final stats = await FirebaseService.instance.buildInsightStats();
+      final stats = await DatabaseService.instance.buildInsightStats();
       final insight = await AiService.instance.fetchInsight(
-        userName: FirebaseService.instance.firstName,
+        userName: DatabaseService.instance.firstName,
         stats: stats,
       );
       if (!mounted) return;
@@ -151,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen>
       if (!mounted) return;
       setState(() {
         _aiInsight =
-            'Continue your streak, ${FirebaseService.instance.firstName}!';
+            'Continue your streak, ${DatabaseService.instance.firstName}!';
         _isLoadingInsight = false;
       });
     }
@@ -167,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       final result = await AiService.instance.processCommand(
         command: command,
-        userName: FirebaseService.instance.firstName,
+        userName: DatabaseService.instance.firstName,
       );
 
       if (!mounted) return;
@@ -186,7 +186,7 @@ class _HomeScreenState extends State<HomeScreen>
         );
       }
 
-      await FirebaseService.instance.saveAiCommand(
+      await DatabaseService.instance.saveAiCommand(
         command: command,
         response: result.response,
         actions: result.actions
@@ -235,19 +235,19 @@ class _HomeScreenState extends State<HomeScreen>
   }) async {
     switch (action.type) {
       case 'add_task':
-        await FirebaseService.instance.addTask(
+        await DatabaseService.instance.addTask(
           title: action.params['title'] ?? '',
           priority: action.params['priority'] ?? 'normal',
         );
         break;
       case 'add_habit':
-        await FirebaseService.instance.addHabit(
+        await DatabaseService.instance.addHabit(
           name: action.params['name'] ?? '',
           icon: action.params['icon'] ?? '✨',
         );
         break;
       case 'add_note':
-        await FirebaseService.instance.addNote(
+        await DatabaseService.instance.addNote(
           content: action.params['content'] ?? '',
         );
         break;
@@ -315,7 +315,7 @@ class _HomeScreenState extends State<HomeScreen>
   void _switchTab(int index) {
     if (_currentIndex == index) return;
     setState(() => _currentIndex = index);
-    FirebaseService.instance.logEvent(
+    DatabaseService.instance.logEvent(
       eventType: 'tab_tap',
       module: ['home', 'tasks', 'habits', 'focus', 'notes'][index],
     );
@@ -323,7 +323,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _saveMood(String mood) async {
     if (mounted) setState(() => _todayMood = mood);
-    await FirebaseService.instance.saveMood(mood);
+    await DatabaseService.instance.saveMood(mood);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -363,11 +363,9 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _handleLogout() async {
-    await FirebaseService.instance.signOut();
     if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const GuestProfileScreen()),
     );
   }
 
@@ -406,7 +404,7 @@ class _HomeScreenState extends State<HomeScreen>
             if (mounted) setState(() => _aiResponse = null);
           },
           onLogout: _handleLogout,
-          isAuthGuest: FirebaseService.instance.isGuest,
+          isAuthGuest: DatabaseService.instance.isGuest,
         ),
       1 => const TasksModule(),
       2 => const HabitModule(),

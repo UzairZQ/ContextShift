@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
-import '../../../../core/firebase_service.dart';
+import '../../../../core/database/database_service.dart';
 import '../../../../core/responsive.dart';
 
 class StatsSection extends StatelessWidget {
@@ -18,10 +18,10 @@ class StatsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: FirebaseService.instance.watchTasks(),
+      stream: DatabaseService.instance.watchTasks(),
       builder: (context, taskSnap) {
         return StreamBuilder<List<Map<String, dynamic>>>(
-          stream: FirebaseService.instance.watchHabits(),
+          stream: DatabaseService.instance.watchHabits(),
           builder: (context, habitSnap) {
             final tasks = taskSnap.data ?? [];
             final habits = habitSnap.data ?? [];
@@ -36,7 +36,7 @@ class StatsSection extends StatelessWidget {
             }).length;
             final totalHabits = habits.length;
 
-            final streak = FirebaseService.instance.computeStreak(habits);
+            final streak = DatabaseService.instance.computeStreak(habits);
 
             return GridView.count(
               shrinkWrap: true,

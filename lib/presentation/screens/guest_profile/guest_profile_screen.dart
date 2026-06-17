@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
-import '../../../core/firebase_service.dart';
+import '../../../core/database/database_service.dart';
 import '../../../core/responsive.dart';
 import 'widgets/profile_form_panel.dart';
 
@@ -47,15 +47,16 @@ class _GuestProfileScreenState extends State<GuestProfileScreen> {
     });
 
     try {
-      await FirebaseService.instance.signInAsGuest(
+      await DatabaseService.instance.saveUserProfile(
         name: name,
         focusArea: focusArea,
         supportNeed: supportNeed,
+        isGuest: true,
       );
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Guest mode could not start right now. Please try again.';
+        _error = 'Profile could not be saved. Please try again.';
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/app_theme.dart';
-import '../../../../core/firebase_service.dart';
+import '../../../../core/database/database_service.dart';
 
 class ActivityHeatmap extends StatelessWidget {
   const ActivityHeatmap({super.key});
@@ -9,7 +9,7 @@ class ActivityHeatmap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: FirebaseService.instance.watchHabits(),
+      stream: DatabaseService.instance.watchHabits(),
       builder: (context, snapshot) {
         final habits = snapshot.data ?? [];
         final now = DateTime.now();

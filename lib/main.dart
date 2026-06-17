@@ -6,31 +6,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/app_theme.dart';
-import 'core/firebase_runtime_options.dart';
-import 'core/firebase_service.dart';
-import 'firebase_options.dart';
+import 'core/database/database_service.dart';
 import 'presentation/screens/home/home_screen.dart';
-import 'presentation/screens/login/login_screen.dart';
 import 'presentation/screens/onboarding/onboarding_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Try Dart-define environment variables first (CI / production builds).
-  // 2. Fall back to the generated DefaultFirebaseOptions (local dev).
-  final firebaseOptions =
-      FirebaseRuntimeOptions.currentPlatform ??
-      DefaultFirebaseOptions.currentPlatform;
-
-  await Firebase.initializeApp(options: firebaseOptions);
-  //for catching exceptions to the terminal in firebase
+  // Firebase Crashlytics only
+  await Firebase.initializeApp();
   FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-
-  //pass all async catching uncaughht exceptions async not handled by Flutter
   PlatformDispatcher.instance.onError = (error, stack) {
     FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
     return true;
   };
+
+  // Initialize local database
+  await DatabaseService.instance.init();
+
   runApp(const ContextShiftApp());
 }
 
@@ -57,7 +50,6 @@ class _LaunchGate extends StatefulWidget {
 
 class _LaunchGateState extends State<_LaunchGate> {
   static const _onboardingKey = 'has_seen_onboarding';
-  static const _forceOnboarding = true; // Temporary screenshot mode
   bool? _hasSeenOnboarding;
   bool _prefsUnavailable = false;
 
@@ -72,9 +64,7 @@ class _LaunchGateState extends State<_LaunchGate> {
       final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
       setState(() {
-        _hasSeenOnboarding = _forceOnboarding
-            ? false
-            : prefs.getBool(_onboardingKey) ?? false;
+        _hasSeenOnboarding = prefs.getBool(_onboardingKey) ?? false;
         _prefsUnavailable = false;
       });
     } on PlatformException catch (error) {
@@ -114,21 +104,11 @@ class _LaunchGateState extends State<_LaunchGate> {
       return const _BootSplash();
     }
 
-    return StreamBuilder(
-      stream: FirebaseService.instance.authStateChanges,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const _BootSplash();
-        }
-        if (snapshot.hasData) {
-          return const HomeScreen();
-        }
-        if (_hasSeenOnboarding == false) {
-          return OnboardingScreen(onComplete: _completeOnboarding);
-        }
-        return const LoginScreen();
-      },
-    );
+    if (_hasSeenOnboarding == false) {
+      return OnboardingScreen(onComplete: _completeOnboarding);
+    }
+
+    return const HomeScreen();
   }
 }
 

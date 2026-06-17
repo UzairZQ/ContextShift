@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/ai_service.dart';
 import '../../../core/app_theme.dart';
-import '../../../core/firebase_service.dart';
+import '../../../core/database/database_service.dart';
 import 'widgets/activity_heatmap.dart';
 import 'widgets/command_history.dart';
 import 'widgets/dash_header.dart';
@@ -29,13 +29,13 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
   }
 
   Future<void> _loadData() async {
-    final stats = await FirebaseService.instance.buildInsightStats();
+    final stats = await DatabaseService.instance.buildInsightStats();
     final results = await Future.wait([
       AiService.instance.fetchInsight(
-        userName: FirebaseService.instance.firstName,
+        userName: DatabaseService.instance.firstName,
         stats: stats,
       ),
-      FirebaseService.instance.getTodayFocusMinutes(),
+      DatabaseService.instance.getTodayFocusMinutes(),
     ]);
 
     if (!mounted) return;

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
-import '../../../../core/firebase_service.dart';
+import '../../../../core/database/database_service.dart';
 import '../../../../core/responsive.dart';
 import 'ai_pulsar.dart';
 
@@ -42,7 +42,7 @@ class HomeHeader extends StatelessWidget {
                       ),
                 ),
                 Text(
-                  '${FirebaseService.instance.firstName}\'s Sanctuary',
+                  '${DatabaseService.instance.firstName}\'s Sanctuary',
                   style: TextStyle(
                     color: AppTheme.primary,
                     fontSize: Responsive.isMobile(context) ? 10 : 12,

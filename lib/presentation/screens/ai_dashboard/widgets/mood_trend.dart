@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/app_theme.dart';
-import '../../../../core/firebase_service.dart';
+import '../../../../core/database/database_service.dart';
 
 class MoodTrend extends StatelessWidget {
   const MoodTrend({super.key});
@@ -17,7 +17,7 @@ class MoodTrend extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         StreamBuilder<List<Map<String, dynamic>>>(
-          stream: FirebaseService.instance.watchMoods(days: 7),
+          stream: DatabaseService.instance.watchMoods(days: 7),
           builder: (context, snapshot) {
             final moods = snapshot.data ?? [];
 

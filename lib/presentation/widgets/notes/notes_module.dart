@@ -3,7 +3,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
 import '../../../core/ai_service.dart';
-import '../../../core/firebase_service.dart';
+import '../../../core/database/database_service.dart';
 import 'widgets/note_card.dart';
 import 'widgets/note_input.dart';
 import 'widgets/notes_empty_state.dart';
@@ -27,7 +27,7 @@ class _NotesModuleState extends State<NotesModule> {
   Future<void> _submitNote() async {
     final content = _noteController.text.trim();
     if (content.isEmpty) return;
-    await FirebaseService.instance.addNote(content: content);
+    await DatabaseService.instance.addNote(content: content);
     if (!mounted) return;
     _noteController.clear();
     setState(() => _isAdding = false);
@@ -38,7 +38,7 @@ class _NotesModuleState extends State<NotesModule> {
     setState(() => _summarizingIds[noteId] = true);
     final summary = await AiService.instance.summarizeNote(content);
     if (summary != null) {
-      await FirebaseService.instance.updateNote(
+      await DatabaseService.instance.updateNote(
         noteId,
         content,
         summary: summary,
@@ -85,7 +85,7 @@ class _NotesModuleState extends State<NotesModule> {
           NoteInput(controller: _noteController, onSubmit: _submitNote),
         const SizedBox(height: 16),
         StreamBuilder<List<Map<String, dynamic>>>(
-          stream: FirebaseService.instance.watchNotes(),
+          stream: DatabaseService.instance.watchNotes(),
           builder: (context, snapshot) {
             if (!snapshot.hasData) return const SizedBox.shrink();
             final notes = snapshot.data!;

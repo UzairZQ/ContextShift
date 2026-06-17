@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
-import '../../../../core/firebase_service.dart';
+import '../../../../core/database/database_service.dart';
 
 class AddTaskSheet extends StatefulWidget {
   final String? initialTitle;
@@ -85,7 +85,7 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
 
-    await FirebaseService.instance.addTask(
+    await DatabaseService.instance.addTask(
       title: title,
       priority: _priority,
       subtasks: _subtasks

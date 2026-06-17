@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
-import '../../../../core/firebase_service.dart';
+import '../../../../core/database/database_service.dart';
 
 class TaskItem extends StatelessWidget {
   final Map<String, dynamic> task;
@@ -34,7 +34,7 @@ class TaskItem extends StatelessWidget {
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: GestureDetector(
-          onTap: () => FirebaseService.instance.toggleTask(task['id'], !isDone),
+          onTap: () => DatabaseService.instance.toggleTask(task['id'], !isDone),
           child: Container(
             width: 24,
             height: 24,

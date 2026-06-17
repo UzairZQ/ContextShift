@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
-import '../../../../core/firebase_service.dart';
+import '../../../../core/database/database_service.dart';
 
 class CommandHistory extends StatelessWidget {
   const CommandHistory({super.key});
@@ -18,7 +18,7 @@ class CommandHistory extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         StreamBuilder<List<Map<String, dynamic>>>(
-          stream: FirebaseService.instance.watchAiCommands(limit: 5),
+          stream: DatabaseService.instance.watchAiCommands(limit: 5),
           builder: (context, snapshot) {
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
               return const _EmptyHistory();

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
-import '../../../../core/firebase_service.dart';
+import '../../../../core/database/database_service.dart';
 
 class NoteCard extends StatelessWidget {
   final Map<String, dynamic> note;
@@ -79,7 +79,7 @@ class NoteCard extends StatelessWidget {
             top: -8,
             child: IconButton(
               onPressed: () =>
-                  FirebaseService.instance.deleteNote(note['id']),
+                  DatabaseService.instance.deleteNote(note['id']),
               icon: const Icon(
                 LucideIcons.trash2,
                 size: 14,

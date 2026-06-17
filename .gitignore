@@ -52,8 +52,16 @@ backend_fastapi/service-account-key.json
 *.key.json
 **/service-account*.json
 android/app/google-services.json
+android/key.properties
 ios/Runner/GoogleService-Info.plist
 lib/firebase_options.dart
 **/node_modules/
+
+# Graphify - analysis artifacts
+.graphify_scope/
+graphify-out/
+
+# Internal notes
 walkthrough.md
+TODO.md
 .env

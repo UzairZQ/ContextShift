@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
-import '../../../core/firebase_service.dart';
+import '../../../core/database/database_service.dart';
 import 'widgets/add_task_sheet.dart';
 import 'widgets/task_list.dart';
 import 'widgets/task_stats.dart';
@@ -33,8 +33,8 @@ class _TasksModuleState extends State<TasksModule> {
   @override
   void initState() {
     super.initState();
-    _tasksStream = FirebaseService.instance.watchTasks();
-    FirebaseService.instance.logEvent(
+    _tasksStream = DatabaseService.instance.watchTasks();
+    DatabaseService.instance.logEvent(
       eventType: 'screen_open',
       module: 'tasks',
     );

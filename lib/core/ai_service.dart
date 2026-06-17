@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'firebase_service.dart';
+import 'database/database_service.dart';
 
 /// Result model for an AI command
 class AiCommandResult {
@@ -164,7 +164,7 @@ class AiService {
 
   Future<Map<String, dynamic>> _buildContextSnapshotWithTimeout() async {
     try {
-      return await FirebaseService.instance.buildContextSnapshot().timeout(
+      return await DatabaseService.instance.buildContextSnapshot().timeout(
         const Duration(seconds: 3),
         onTimeout: () {
           debugPrint(

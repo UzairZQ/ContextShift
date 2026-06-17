@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
-import '../../../core/firebase_service.dart';
+import '../../../core/database/database_service.dart';
 import '../../../core/responsive.dart';
 import 'widgets/control_button.dart';
 import 'widgets/productivity_tip.dart';
@@ -41,7 +41,7 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
     _pulseAnim = Tween<double>(begin: 1.0, end: 1.05).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
-    FirebaseService.instance.logEvent(
+    DatabaseService.instance.logEvent(
       eventType: 'screen_open',
       module: 'focus',
     );
@@ -64,7 +64,7 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
   }
 
   Future<void> _startTimer() async {
-    _sessionId = await FirebaseService.instance.startFocusSession(
+    _sessionId = await DatabaseService.instance.startFocusSession(
       durationMinutes: _selectedMinutes,
     );
     if (mounted) setState(() => _isRunning = true);
@@ -95,7 +95,7 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
   Future<void> _completeSession() async {
     _timer?.cancel();
     if (_sessionId != null) {
-      await FirebaseService.instance.completeFocusSession(_sessionId!);
+      await DatabaseService.instance.completeFocusSession(_sessionId!);
     }
     if (!mounted) return;
     setState(() {
