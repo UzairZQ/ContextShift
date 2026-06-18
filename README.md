@@ -2,7 +2,7 @@
 
 ContextShift is a cross-platform Flutter productivity app built around a simple idea: your workspace should adapt to your current mental context instead of forcing you into a static dashboard.
 
-The product combines task management, habits, focus sessions, notes, mood check-ins, and an AI layer called JARVIS. JARVIS can interpret commands, generate adaptive cards, and personalize responses using the user’s recent activity and profile context.
+The product combines task management, habits, focus sessions, notes, mood check-ins, and an on-device AI layer called JARVIS. JARVIS can interpret commands, generate adaptive cards, and personalize responses using your recent activity and profile context — all running locally with no server or cloud dependencies.
 
 ## Product Goal
 
@@ -12,13 +12,14 @@ ContextShift is designed to become a:
 
 - Re-entry workspace for people coming back after distraction or overload
 - Context-aware daily operating system for tasks, habits, notes, and focus
-- Lightweight AI copilot that can reshape the interface around the user’s current intent
+- Lightweight AI copilot that can reshape the interface around your current intent
 
-The current version is intentionally moving away from account friction and generic dashboards toward a more helpful experience:
+The app is fully offline-first with no account requirement:
 
-- First-run onboarding introduces the product before login
-- Users can continue as guests without creating an account
-- JARVIS stays usable even when the AI backend is offline by falling back to local command parsing
+- No sign-up or login needed — guest-only with a device-local identity
+- Everything is stored in a local SQLite database
+- AI runs on-device via Google Gemma models (no API keys or internet needed for inference)
+- Firebase is used only for optional Crashlytics crash reporting
 
 ## What We Have Built So Far
 
@@ -32,9 +33,8 @@ The current version is intentionally moving away from account friction and gener
 ### Onboarding and access flow
 
 - Multi-screen animated onboarding for first launch
-- Email/password registration and sign-in
-- Google sign-in
-- Guest mode using Firebase anonymous authentication
+- Optional Gemma model download screen (E2B free tier or E4B paid tier)
+- Guest-only flow using UUID-based device identity
 - Guest profile capture for name, focus area, and support needs
 
 ### Productivity modules
@@ -48,14 +48,14 @@ The current version is intentionally moving away from account friction and gener
 ### AI layer
 
 - JARVIS command bar on the home screen
-- Backend-powered command parsing through FastAPI
-- Local fallback parser when backend is offline
+- Keyword-based local command parsing (instant, no model needed)
+- On-device Gemma NLU fallback when the model is loaded
 - Adaptive card generation for planning, advice, and routines
-- AI insight generation for dashboard summaries
+- Local insight generation for dashboard summaries
 
 ## Screenshots
 
-The images are available in `assets/screenshots/` and cover the app’s onboarding, login, home dashboard, AI insight, focus mode, and notes flows.
+The images are available in `assets/screenshots/` and cover the app's onboarding, login, home dashboard, AI insight, focus mode, and notes flows.
 
 <div>
   <img src="assets/screenshots/1.png" alt="Onboarding 1" width="320" />
@@ -88,68 +88,60 @@ The images are available in `assets/screenshots/` and cover the app’s onboardi
 
 ### Personalization and behavior context
 
-- Firebase-backed storage scoped by `userId`
+- Local SQLite database scoped by device UUID
 - Behavior event logging for key interactions
 - Context snapshot assembly before AI requests
 - User profile context, mood, top tasks, missing habits, recent notes, recent commands, and recent events attached to JARVIS requests
 
 ## Architecture
 
-The project is split into three main layers.
+### Flutter app
 
-### 1. Flutter app
+The Flutter application is the sole client and contains:
 
-The Flutter application is the primary client and contains:
-
-- App bootstrap and launch gating in [lib/main.dart](/Users/uzair99/Development/context_shift/lib/main.dart)
-- Screens for onboarding, login, register, guest profile, and home
+- App bootstrap and launch gating in [lib/main.dart](lib/main.dart)
+- Screens for onboarding, guest profile, model download, and home
 - Modular UI widgets for tasks, habits, notes, focus, AI dashboard, and generative cards
-- Service classes for Firebase and AI communication
+- Service classes for local database and on-device AI
 
 The home screen is built as a modular workspace rather than one large monolithic page. The app can reorder modules and change responses based on AI output.
 
-### 2. Firebase layer
+### Data layer (local SQLite)
 
-Firebase is used as the user data and authentication backbone.
+All data is stored locally using [Drift](https://drift.simonbinder.eu/) SQLite ORM:
 
-Current Firebase responsibilities:
+| Table | Purpose |
+|-------|---------|
+| `ProfileTable` | User profile (name, focus area, support need, model tier) |
+| `UserPreferencesTable` | Device preferences (response style, onboarding state, model tier) |
+| `TaskTable` | Tasks with priority, due dates, subtasks |
+| `HabitTable` | Habits with emoji icons, daily completion history |
+| `FocusSessionTable` | Focus timer sessions |
+| `NoteTable` | Notes with content, tags, summaries |
+| `MoodEntryTable` | Mood check-ins |
+| `AiCommandTable` | AI command history |
+| `BehaviorEventTable` | Analytics events |
+| `ConversationTable` | Chat conversations |
+| `MessageTable` | Individual chat messages |
 
-- Authentication
-  - Email/password auth
-  - Google sign-in
-  - Anonymous guest auth
-- Firestore storage
-  - `tasks`
-  - `habits`
-  - `focus_sessions`
-  - `notes`
-  - `mood_entries`
-  - `ai_commands`
-  - `behavior_events`
-  - `profiles`
+The main data access layer lives in [lib/core/database/database_service.dart](lib/core/database/database_service.dart).
 
-The main data access layer lives in [lib/core/firebase_service.dart](/Users/uzair99/Development/context_shift/lib/core/firebase_service.dart).
+### On-device AI models
 
-### 3. AI backend
+AI runs locally using [FlutterGemma](https://pub.dev/packages/flutter_gemma) with two model tiers:
 
-The AI backend lives in [backend_fastapi/main.py](/Users/uzair99/Development/context_shift/backend_fastapi/main.py).
+- **E2B** (free, 2.4 GB): Up to 2048 tokens, requires 4 GB RAM
+- **E4B** (paid, 4.3 GB): Up to 4096 tokens, requires 8 GB RAM, unlocks advanced features
 
-It provides:
+Model files are downloaded from HuggingFace with progress tracking, pause/resume, and storage checks. Feature gates controlled by [FeatureManager](lib/core/services/feature_manager.dart).
 
-- `GET /health`
-- `POST /command`
-- `POST /ai-command`
-- `POST /ai-insight`
-- `POST /summarize`
+### AI command processing (two-stage)
 
-Responsibilities of the backend:
+1. **Keyword pattern matching** — instant parsing for common commands (add task, start focus, take note, etc.). No model needed.
+2. **Gemma NLU fallback** — if the keyword parser doesn't match and the on-device model is loaded, the command is sent to Gemma for structured JSON action extraction.
+3. **Default fallback** — unrecognized input with >5 characters creates a task with the full text.
 
-- Accept command and insight requests from Flutter
-- Forward prompts to Gemini through LangChain
-- Return structured JSON for UI actions and adaptive cards
-- Use user context passed from the app to personalize responses
-
-There is also a small Node server in [backend_node/index.js](/Users/uzair99/Development/context_shift/backend_node/index.js) intended as a real-time relay layer for layout broadcasting, although the main product flow currently depends on the Flutter app plus the FastAPI backend.
+Insights are generated locally based on time of day and recent activity patterns.
 
 ## Technical Stack
 
@@ -161,170 +153,72 @@ There is also a small Node server in [backend_node/index.js](/Users/uzair99/Deve
 - `google_fonts`
 - `lucide_icons`
 
-### Backend
+### Local data
 
-- Python
-- FastAPI
-- Uvicorn
-- LangChain
-- Google Gemini via `langchain-google-genai`
-- `python-dotenv`
+- Drift (SQLite ORM)
+- `sqlite3_flutter_libs`
+- `shared_preferences`
 
-### Data and auth
+### On-device AI
 
-- Firebase Core
-- Firebase Auth
-- Cloud Firestore
-- Google Sign-In
+- `flutter_gemma` (Google Gemma models)
+- `genui`
+
+### Services
+
+- Firebase Core + Crashlytics (crash reporting only)
+- `path_provider`
+- `uuid`
 
 ### Utilities
 
 - `http`
-- `shared_preferences`
+- `path`
 
 ## Important Files
 
-- [lib/main.dart](/Users/uzair99/Development/context_shift/lib/main.dart)
-  - App bootstrap, Firebase initialization, onboarding gate
-- [lib/core/firebase_service.dart](/Users/uzair99/Development/context_shift/lib/core/firebase_service.dart)
-  - Auth, Firestore operations, user context assembly
-- [lib/core/ai_service.dart](/Users/uzair99/Development/context_shift/lib/core/ai_service.dart)
-  - Backend communication, health checks, local fallback logic
-- [lib/presentation/screens/home_screen.dart](/Users/uzair99/Development/context_shift/lib/presentation/screens/home_screen.dart)
-  - Main workspace, bottom navigation, AI bar, insight card
-- [lib/presentation/screens/onboarding_screen.dart](/Users/uzair99/Development/context_shift/lib/presentation/screens/onboarding_screen.dart)
-  - First-run onboarding flow
-- [lib/presentation/screens/guest_profile_screen.dart](/Users/uzair99/Development/context_shift/lib/presentation/screens/guest_profile_screen.dart)
-  - Guest-mode profile capture
-- [backend_fastapi/main.py](/Users/uzair99/Development/context_shift/backend_fastapi/main.py)
-  - JARVIS backend
-- [firestore.rules](/Users/uzair99/Development/context_shift/firestore.rules)
-  - Firestore security rules
+- [lib/main.dart](lib/main.dart) — App bootstrap, database initialization, model gate, onboarding gate
+- [lib/core/database/database_service.dart](lib/core/database/database_service.dart) — Drift database service with full CRUD, reactive streams, context snapshot builder
+- [lib/core/database/schema.dart](lib/core/database/schema.dart) — Drift table definitions (11 tables)
+- [lib/core/ai_service.dart](lib/core/ai_service.dart) — Local command parsing, keyword matching, Gemma NLU fallback, insight generation
+- [lib/core/local_llm/gemma_service.dart](lib/core/local_llm/gemma_service.dart) — FlutterGemma wrapper (init, load, generate, streaming)
+- [lib/core/local_llm/model_downloader.dart](lib/core/local_llm/model_downloader.dart) — HuggingFace model download with progress and resume
+- [lib/core/local_llm/model_tier.dart](lib/core/local_llm/model_tier.dart) — Model tier definitions (E2B, E4B)
+- [lib/core/services/feature_manager.dart](lib/core/services/feature_manager.dart) — Feature gating based on model tier
+- [lib/presentation/screens/home_screen.dart](lib/presentation/screens/home_screen.dart) — Main workspace, bottom navigation, AI bar, insight card
+- [lib/presentation/screens/onboarding_screen.dart](lib/presentation/screens/onboarding_screen.dart) — First-run onboarding flow
 
 ## How JARVIS Works
 
-### Online mode
+1. The app builds a context snapshot from the local database (profile, mood, recent tasks, habits, notes, events)
+2. You type a command in the JARVIS bar
+3. `AiService` processes it locally:
+   - First tries keyword/pattern matching (instant, no model)
+   - If no match and Gemma is loaded, sends to on-device Gemma for NLU parsing
+   - Falls back to creating a task with the full text
+4. The AI response adapts the UI (adds tasks, starts focus, shows insights, generates cards)
 
-When the backend is running:
-
-1. Flutter builds a context snapshot from Firestore and the current user profile
-2. The app sends the user command plus context to FastAPI
-3. FastAPI sends the prompt to Gemini
-4. Gemini returns structured JSON actions
-5. Flutter applies those actions to the UI and Firestore
-
-### Offline mode
-
-When the backend is unavailable:
-
-1. The health check fails
-2. The command bar remains available
-3. `AiService` falls back to a local intent parser
-4. The app still supports common commands like adding tasks, habits, notes, or starting focus
-
-This makes the product more resilient and prevents the AI layer from blocking the entire app.
-
-## Current JARVIS Setup
-
-The Flutter app expects the AI backend at:
-
-- `http://localhost:8000` on macOS, iOS simulator, Windows, and Linux
-- `http://10.0.2.2:8000` on Android emulator
-
-The backend reads its API key from:
-
-- `backend_fastapi/.env`
-
-Expected variable:
-
-```env
-GOOGLE_API_KEY=your_key_here
-```
+No network requests, no backend server, no API keys needed for day-to-day use.
 
 ## Running the Project
-
-### Flutter app
 
 ```bash
 flutter pub get
 flutter run
 ```
 
-### FastAPI JARVIS backend
+The app works immediately with no backend, no Firebase configuration, and no API keys. Optional model download happens during onboarding.
 
-From the project root:
+## Model Setup
 
-```bash
-cd backend_fastapi
-venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8000
-```
+During onboarding, you'll be prompted to download the E2B model (free, 2.4 GB). This enables on-device NLU for richer command parsing. The E4B model (paid, 4.3 GB) unlocks advanced features:
 
-Health check:
+- Unlimited chat history
+- Custom personality
+- Weekly reviews
+- Advanced insights
 
-```bash
-curl http://127.0.0.1:8000/health
-```
-
-Expected result:
-
-```json
-{"status":"ok","service":"ContextShift AI Engine"}
-```
-
-### VS Code Python setup
-
-This project already includes VS Code Python settings in [.vscode/settings.json](/Users/uzair99/Development/context_shift/.vscode/settings.json) that point to:
-
-- interpreter: `${workspaceFolder}/backend_fastapi/venv/bin/python`
-- env file: `${workspaceFolder}/backend_fastapi/.env`
-
-If JARVIS appears offline in development, make sure you are actually running the backend with that interpreter and not with a different global Python environment such as Conda.
-
-## Firebase Notes
-
-For the full auth and guest flow to work correctly, Firebase must be configured with:
-
-- Email/Password auth enabled
-- Google sign-in enabled if used
-- Anonymous auth enabled for guest mode
-- Firestore rules deployed from [firestore.rules](/Users/uzair99/Development/context_shift/firestore.rules)
-
-The new `profiles` collection is part of the current product architecture and must be allowed by Firestore rules.
-
-## Known State
-
-What is working now:
-
-- Onboarding flow
-- Guest mode UI
-- Dynamic sanctuary naming
-- Animated bottom navigation transitions
-- JARVIS local fallback mode
-- Context-enriched AI requests
-- Safer task and habit bottom sheets
-- AI dashboard overflow fixes
-
-What still depends on environment/setup:
-
-- JARVIS online mode requires the FastAPI server to be running
-- Gemini-backed generation requires a valid API key with available quota
-- Firebase guest mode requires anonymous auth to be enabled
-- Profile persistence requires deployed Firestore rules
-
-## Troubleshooting JARVIS
-
-If JARVIS looks offline or inconsistent, check these in order:
-
-1. Is the FastAPI backend running on `127.0.0.1:8000`?
-2. Does `curl http://127.0.0.1:8000/health` return `200 OK`?
-3. Are you using the backend virtualenv at `backend_fastapi/venv/bin/python`?
-4. Does `backend_fastapi/.env` contain a valid `GOOGLE_API_KEY`?
-5. Does your Gemini project actually have quota available?
-
-Important distinction:
-
-- If `/health` fails, JARVIS is offline at the backend level
-- If `/health` works but model calls fail with `429 RESOURCE_EXHAUSTED`, the backend is online but the Gemini quota is exhausted
+Both models require an arm64 device (Android) or iOS 16+ / macOS. Desktop platforms won't load Gemma and fall back to pattern-only parsing.
 
 ## Product Direction
 
@@ -344,15 +238,15 @@ That product direction already matches the current architecture well:
 - mood input
 - AI-driven layout changes
 - user-context-aware prompting
+- fully local and private
 
 ## Status Summary
 
-ContextShift today is a functional adaptive productivity app with:
+ContextShift today is a fully offline-first adaptive productivity app with:
 
 - a polished onboarding flow
-- guest and account-based entry
-- Firebase-backed personalization
-- a live AI backend plus offline fallback
+- guest-only local identity (no accounts)
+- local SQLite database with reactive streams
+- on-device AI with free and paid model tiers
 - modular adaptive UI foundations
-
-The next big step is not adding random features. It is sharpening the product around one real user pain point and making JARVIS feel consistently helpful in that situation.
+- zero server or cloud dependencies
