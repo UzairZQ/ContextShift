@@ -114,7 +114,7 @@ class _StatCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, size: 14, color: color),
+                Icon(icon, size: 24, color: color),
                 const Spacer(),
                 SizedBox(
                   width: 28,

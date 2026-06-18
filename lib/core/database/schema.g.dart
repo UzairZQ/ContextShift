@@ -41,6 +41,61 @@ class $ProfileTableTable extends ProfileTable
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _firstNameMeta = const VerificationMeta(
+    'firstName',
+  );
+  @override
+  late final GeneratedColumn<String> firstName = GeneratedColumn<String>(
+    'first_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastNameMeta = const VerificationMeta(
+    'lastName',
+  );
+  @override
+  late final GeneratedColumn<String> lastName = GeneratedColumn<String>(
+    'last_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _focusRoleMeta = const VerificationMeta(
+    'focusRole',
+  );
+  @override
+  late final GeneratedColumn<String> focusRole = GeneratedColumn<String>(
+    'focus_role',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _interestsMeta = const VerificationMeta(
+    'interests',
+  );
+  @override
+  late final GeneratedColumn<String> interests = GeneratedColumn<String>(
+    'interests',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _windDownTimeMeta = const VerificationMeta(
+    'windDownTime',
+  );
+  @override
+  late final GeneratedColumn<String> windDownTime = GeneratedColumn<String>(
+    'wind_down_time',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _focusAreaMeta = const VerificationMeta(
     'focusArea',
   );
@@ -105,6 +160,11 @@ class $ProfileTableTable extends ProfileTable
     id,
     userId,
     name,
+    firstName,
+    lastName,
+    focusRole,
+    interests,
+    windDownTime,
     focusArea,
     supportNeed,
     isGuest,
@@ -141,6 +201,41 @@ class $ProfileTableTable extends ProfileTable
       );
     } else if (isInserting) {
       context.missing(_nameMeta);
+    }
+    if (data.containsKey('first_name')) {
+      context.handle(
+        _firstNameMeta,
+        firstName.isAcceptableOrUnknown(data['first_name']!, _firstNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_firstNameMeta);
+    }
+    if (data.containsKey('last_name')) {
+      context.handle(
+        _lastNameMeta,
+        lastName.isAcceptableOrUnknown(data['last_name']!, _lastNameMeta),
+      );
+    }
+    if (data.containsKey('focus_role')) {
+      context.handle(
+        _focusRoleMeta,
+        focusRole.isAcceptableOrUnknown(data['focus_role']!, _focusRoleMeta),
+      );
+    }
+    if (data.containsKey('interests')) {
+      context.handle(
+        _interestsMeta,
+        interests.isAcceptableOrUnknown(data['interests']!, _interestsMeta),
+      );
+    }
+    if (data.containsKey('wind_down_time')) {
+      context.handle(
+        _windDownTimeMeta,
+        windDownTime.isAcceptableOrUnknown(
+          data['wind_down_time']!,
+          _windDownTimeMeta,
+        ),
+      );
     }
     if (data.containsKey('focus_area')) {
       context.handle(
@@ -198,6 +293,26 @@ class $ProfileTableTable extends ProfileTable
         DriftSqlType.string,
         data['${effectivePrefix}name'],
       )!,
+      firstName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}first_name'],
+      )!,
+      lastName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_name'],
+      ),
+      focusRole: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}focus_role'],
+      ),
+      interests: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}interests'],
+      ),
+      windDownTime: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}wind_down_time'],
+      ),
       focusArea: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}focus_area'],
@@ -232,6 +347,11 @@ class ProfileTableData extends DataClass
   final int id;
   final String userId;
   final String name;
+  final String firstName;
+  final String? lastName;
+  final String? focusRole;
+  final String? interests;
+  final String? windDownTime;
   final String? focusArea;
   final String? supportNeed;
   final bool isGuest;
@@ -241,6 +361,11 @@ class ProfileTableData extends DataClass
     required this.id,
     required this.userId,
     required this.name,
+    required this.firstName,
+    this.lastName,
+    this.focusRole,
+    this.interests,
+    this.windDownTime,
     this.focusArea,
     this.supportNeed,
     required this.isGuest,
@@ -253,6 +378,19 @@ class ProfileTableData extends DataClass
     map['id'] = Variable<int>(id);
     map['user_id'] = Variable<String>(userId);
     map['name'] = Variable<String>(name);
+    map['first_name'] = Variable<String>(firstName);
+    if (!nullToAbsent || lastName != null) {
+      map['last_name'] = Variable<String>(lastName);
+    }
+    if (!nullToAbsent || focusRole != null) {
+      map['focus_role'] = Variable<String>(focusRole);
+    }
+    if (!nullToAbsent || interests != null) {
+      map['interests'] = Variable<String>(interests);
+    }
+    if (!nullToAbsent || windDownTime != null) {
+      map['wind_down_time'] = Variable<String>(windDownTime);
+    }
     if (!nullToAbsent || focusArea != null) {
       map['focus_area'] = Variable<String>(focusArea);
     }
@@ -272,6 +410,19 @@ class ProfileTableData extends DataClass
       id: Value(id),
       userId: Value(userId),
       name: Value(name),
+      firstName: Value(firstName),
+      lastName: lastName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastName),
+      focusRole: focusRole == null && nullToAbsent
+          ? const Value.absent()
+          : Value(focusRole),
+      interests: interests == null && nullToAbsent
+          ? const Value.absent()
+          : Value(interests),
+      windDownTime: windDownTime == null && nullToAbsent
+          ? const Value.absent()
+          : Value(windDownTime),
       focusArea: focusArea == null && nullToAbsent
           ? const Value.absent()
           : Value(focusArea),
@@ -295,6 +446,11 @@ class ProfileTableData extends DataClass
       id: serializer.fromJson<int>(json['id']),
       userId: serializer.fromJson<String>(json['userId']),
       name: serializer.fromJson<String>(json['name']),
+      firstName: serializer.fromJson<String>(json['firstName']),
+      lastName: serializer.fromJson<String?>(json['lastName']),
+      focusRole: serializer.fromJson<String?>(json['focusRole']),
+      interests: serializer.fromJson<String?>(json['interests']),
+      windDownTime: serializer.fromJson<String?>(json['windDownTime']),
       focusArea: serializer.fromJson<String?>(json['focusArea']),
       supportNeed: serializer.fromJson<String?>(json['supportNeed']),
       isGuest: serializer.fromJson<bool>(json['isGuest']),
@@ -309,6 +465,11 @@ class ProfileTableData extends DataClass
       'id': serializer.toJson<int>(id),
       'userId': serializer.toJson<String>(userId),
       'name': serializer.toJson<String>(name),
+      'firstName': serializer.toJson<String>(firstName),
+      'lastName': serializer.toJson<String?>(lastName),
+      'focusRole': serializer.toJson<String?>(focusRole),
+      'interests': serializer.toJson<String?>(interests),
+      'windDownTime': serializer.toJson<String?>(windDownTime),
       'focusArea': serializer.toJson<String?>(focusArea),
       'supportNeed': serializer.toJson<String?>(supportNeed),
       'isGuest': serializer.toJson<bool>(isGuest),
@@ -321,6 +482,11 @@ class ProfileTableData extends DataClass
     int? id,
     String? userId,
     String? name,
+    String? firstName,
+    Value<String?> lastName = const Value.absent(),
+    Value<String?> focusRole = const Value.absent(),
+    Value<String?> interests = const Value.absent(),
+    Value<String?> windDownTime = const Value.absent(),
     Value<String?> focusArea = const Value.absent(),
     Value<String?> supportNeed = const Value.absent(),
     bool? isGuest,
@@ -330,6 +496,11 @@ class ProfileTableData extends DataClass
     id: id ?? this.id,
     userId: userId ?? this.userId,
     name: name ?? this.name,
+    firstName: firstName ?? this.firstName,
+    lastName: lastName.present ? lastName.value : this.lastName,
+    focusRole: focusRole.present ? focusRole.value : this.focusRole,
+    interests: interests.present ? interests.value : this.interests,
+    windDownTime: windDownTime.present ? windDownTime.value : this.windDownTime,
     focusArea: focusArea.present ? focusArea.value : this.focusArea,
     supportNeed: supportNeed.present ? supportNeed.value : this.supportNeed,
     isGuest: isGuest ?? this.isGuest,
@@ -341,6 +512,13 @@ class ProfileTableData extends DataClass
       id: data.id.present ? data.id.value : this.id,
       userId: data.userId.present ? data.userId.value : this.userId,
       name: data.name.present ? data.name.value : this.name,
+      firstName: data.firstName.present ? data.firstName.value : this.firstName,
+      lastName: data.lastName.present ? data.lastName.value : this.lastName,
+      focusRole: data.focusRole.present ? data.focusRole.value : this.focusRole,
+      interests: data.interests.present ? data.interests.value : this.interests,
+      windDownTime: data.windDownTime.present
+          ? data.windDownTime.value
+          : this.windDownTime,
       focusArea: data.focusArea.present ? data.focusArea.value : this.focusArea,
       supportNeed: data.supportNeed.present
           ? data.supportNeed.value
@@ -357,6 +535,11 @@ class ProfileTableData extends DataClass
           ..write('id: $id, ')
           ..write('userId: $userId, ')
           ..write('name: $name, ')
+          ..write('firstName: $firstName, ')
+          ..write('lastName: $lastName, ')
+          ..write('focusRole: $focusRole, ')
+          ..write('interests: $interests, ')
+          ..write('windDownTime: $windDownTime, ')
           ..write('focusArea: $focusArea, ')
           ..write('supportNeed: $supportNeed, ')
           ..write('isGuest: $isGuest, ')
@@ -371,6 +554,11 @@ class ProfileTableData extends DataClass
     id,
     userId,
     name,
+    firstName,
+    lastName,
+    focusRole,
+    interests,
+    windDownTime,
     focusArea,
     supportNeed,
     isGuest,
@@ -384,6 +572,11 @@ class ProfileTableData extends DataClass
           other.id == this.id &&
           other.userId == this.userId &&
           other.name == this.name &&
+          other.firstName == this.firstName &&
+          other.lastName == this.lastName &&
+          other.focusRole == this.focusRole &&
+          other.interests == this.interests &&
+          other.windDownTime == this.windDownTime &&
           other.focusArea == this.focusArea &&
           other.supportNeed == this.supportNeed &&
           other.isGuest == this.isGuest &&
@@ -395,6 +588,11 @@ class ProfileTableCompanion extends UpdateCompanion<ProfileTableData> {
   final Value<int> id;
   final Value<String> userId;
   final Value<String> name;
+  final Value<String> firstName;
+  final Value<String?> lastName;
+  final Value<String?> focusRole;
+  final Value<String?> interests;
+  final Value<String?> windDownTime;
   final Value<String?> focusArea;
   final Value<String?> supportNeed;
   final Value<bool> isGuest;
@@ -404,6 +602,11 @@ class ProfileTableCompanion extends UpdateCompanion<ProfileTableData> {
     this.id = const Value.absent(),
     this.userId = const Value.absent(),
     this.name = const Value.absent(),
+    this.firstName = const Value.absent(),
+    this.lastName = const Value.absent(),
+    this.focusRole = const Value.absent(),
+    this.interests = const Value.absent(),
+    this.windDownTime = const Value.absent(),
     this.focusArea = const Value.absent(),
     this.supportNeed = const Value.absent(),
     this.isGuest = const Value.absent(),
@@ -414,6 +617,11 @@ class ProfileTableCompanion extends UpdateCompanion<ProfileTableData> {
     this.id = const Value.absent(),
     required String userId,
     required String name,
+    required String firstName,
+    this.lastName = const Value.absent(),
+    this.focusRole = const Value.absent(),
+    this.interests = const Value.absent(),
+    this.windDownTime = const Value.absent(),
     this.focusArea = const Value.absent(),
     this.supportNeed = const Value.absent(),
     this.isGuest = const Value.absent(),
@@ -421,11 +629,17 @@ class ProfileTableCompanion extends UpdateCompanion<ProfileTableData> {
     required DateTime updatedAt,
   }) : userId = Value(userId),
        name = Value(name),
+       firstName = Value(firstName),
        updatedAt = Value(updatedAt);
   static Insertable<ProfileTableData> custom({
     Expression<int>? id,
     Expression<String>? userId,
     Expression<String>? name,
+    Expression<String>? firstName,
+    Expression<String>? lastName,
+    Expression<String>? focusRole,
+    Expression<String>? interests,
+    Expression<String>? windDownTime,
     Expression<String>? focusArea,
     Expression<String>? supportNeed,
     Expression<bool>? isGuest,
@@ -436,6 +650,11 @@ class ProfileTableCompanion extends UpdateCompanion<ProfileTableData> {
       if (id != null) 'id': id,
       if (userId != null) 'user_id': userId,
       if (name != null) 'name': name,
+      if (firstName != null) 'first_name': firstName,
+      if (lastName != null) 'last_name': lastName,
+      if (focusRole != null) 'focus_role': focusRole,
+      if (interests != null) 'interests': interests,
+      if (windDownTime != null) 'wind_down_time': windDownTime,
       if (focusArea != null) 'focus_area': focusArea,
       if (supportNeed != null) 'support_need': supportNeed,
       if (isGuest != null) 'is_guest': isGuest,
@@ -448,6 +667,11 @@ class ProfileTableCompanion extends UpdateCompanion<ProfileTableData> {
     Value<int>? id,
     Value<String>? userId,
     Value<String>? name,
+    Value<String>? firstName,
+    Value<String?>? lastName,
+    Value<String?>? focusRole,
+    Value<String?>? interests,
+    Value<String?>? windDownTime,
     Value<String?>? focusArea,
     Value<String?>? supportNeed,
     Value<bool>? isGuest,
@@ -458,6 +682,11 @@ class ProfileTableCompanion extends UpdateCompanion<ProfileTableData> {
       id: id ?? this.id,
       userId: userId ?? this.userId,
       name: name ?? this.name,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      focusRole: focusRole ?? this.focusRole,
+      interests: interests ?? this.interests,
+      windDownTime: windDownTime ?? this.windDownTime,
       focusArea: focusArea ?? this.focusArea,
       supportNeed: supportNeed ?? this.supportNeed,
       isGuest: isGuest ?? this.isGuest,
@@ -477,6 +706,21 @@ class ProfileTableCompanion extends UpdateCompanion<ProfileTableData> {
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
+    }
+    if (firstName.present) {
+      map['first_name'] = Variable<String>(firstName.value);
+    }
+    if (lastName.present) {
+      map['last_name'] = Variable<String>(lastName.value);
+    }
+    if (focusRole.present) {
+      map['focus_role'] = Variable<String>(focusRole.value);
+    }
+    if (interests.present) {
+      map['interests'] = Variable<String>(interests.value);
+    }
+    if (windDownTime.present) {
+      map['wind_down_time'] = Variable<String>(windDownTime.value);
     }
     if (focusArea.present) {
       map['focus_area'] = Variable<String>(focusArea.value);
@@ -502,6 +746,11 @@ class ProfileTableCompanion extends UpdateCompanion<ProfileTableData> {
           ..write('id: $id, ')
           ..write('userId: $userId, ')
           ..write('name: $name, ')
+          ..write('firstName: $firstName, ')
+          ..write('lastName: $lastName, ')
+          ..write('focusRole: $focusRole, ')
+          ..write('interests: $interests, ')
+          ..write('windDownTime: $windDownTime, ')
           ..write('focusArea: $focusArea, ')
           ..write('supportNeed: $supportNeed, ')
           ..write('isGuest: $isGuest, ')
@@ -4856,6 +5105,11 @@ typedef $$ProfileTableTableCreateCompanionBuilder =
       Value<int> id,
       required String userId,
       required String name,
+      required String firstName,
+      Value<String?> lastName,
+      Value<String?> focusRole,
+      Value<String?> interests,
+      Value<String?> windDownTime,
       Value<String?> focusArea,
       Value<String?> supportNeed,
       Value<bool> isGuest,
@@ -4867,6 +5121,11 @@ typedef $$ProfileTableTableUpdateCompanionBuilder =
       Value<int> id,
       Value<String> userId,
       Value<String> name,
+      Value<String> firstName,
+      Value<String?> lastName,
+      Value<String?> focusRole,
+      Value<String?> interests,
+      Value<String?> windDownTime,
       Value<String?> focusArea,
       Value<String?> supportNeed,
       Value<bool> isGuest,
@@ -4895,6 +5154,31 @@ class $$ProfileTableTableFilterComposer
 
   ColumnFilters<String> get name => $composableBuilder(
     column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get firstName => $composableBuilder(
+    column: $table.firstName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastName => $composableBuilder(
+    column: $table.lastName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get focusRole => $composableBuilder(
+    column: $table.focusRole,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get interests => $composableBuilder(
+    column: $table.interests,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get windDownTime => $composableBuilder(
+    column: $table.windDownTime,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4948,6 +5232,31 @@ class $$ProfileTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get firstName => $composableBuilder(
+    column: $table.firstName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastName => $composableBuilder(
+    column: $table.lastName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get focusRole => $composableBuilder(
+    column: $table.focusRole,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get interests => $composableBuilder(
+    column: $table.interests,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get windDownTime => $composableBuilder(
+    column: $table.windDownTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get focusArea => $composableBuilder(
     column: $table.focusArea,
     builder: (column) => ColumnOrderings(column),
@@ -4991,6 +5300,23 @@ class $$ProfileTableTableAnnotationComposer
 
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get firstName =>
+      $composableBuilder(column: $table.firstName, builder: (column) => column);
+
+  GeneratedColumn<String> get lastName =>
+      $composableBuilder(column: $table.lastName, builder: (column) => column);
+
+  GeneratedColumn<String> get focusRole =>
+      $composableBuilder(column: $table.focusRole, builder: (column) => column);
+
+  GeneratedColumn<String> get interests =>
+      $composableBuilder(column: $table.interests, builder: (column) => column);
+
+  GeneratedColumn<String> get windDownTime => $composableBuilder(
+    column: $table.windDownTime,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get focusArea =>
       $composableBuilder(column: $table.focusArea, builder: (column) => column);
@@ -5044,6 +5370,11 @@ class $$ProfileTableTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<String> userId = const Value.absent(),
                 Value<String> name = const Value.absent(),
+                Value<String> firstName = const Value.absent(),
+                Value<String?> lastName = const Value.absent(),
+                Value<String?> focusRole = const Value.absent(),
+                Value<String?> interests = const Value.absent(),
+                Value<String?> windDownTime = const Value.absent(),
                 Value<String?> focusArea = const Value.absent(),
                 Value<String?> supportNeed = const Value.absent(),
                 Value<bool> isGuest = const Value.absent(),
@@ -5053,6 +5384,11 @@ class $$ProfileTableTableTableManager
                 id: id,
                 userId: userId,
                 name: name,
+                firstName: firstName,
+                lastName: lastName,
+                focusRole: focusRole,
+                interests: interests,
+                windDownTime: windDownTime,
                 focusArea: focusArea,
                 supportNeed: supportNeed,
                 isGuest: isGuest,
@@ -5064,6 +5400,11 @@ class $$ProfileTableTableTableManager
                 Value<int> id = const Value.absent(),
                 required String userId,
                 required String name,
+                required String firstName,
+                Value<String?> lastName = const Value.absent(),
+                Value<String?> focusRole = const Value.absent(),
+                Value<String?> interests = const Value.absent(),
+                Value<String?> windDownTime = const Value.absent(),
                 Value<String?> focusArea = const Value.absent(),
                 Value<String?> supportNeed = const Value.absent(),
                 Value<bool> isGuest = const Value.absent(),
@@ -5073,6 +5414,11 @@ class $$ProfileTableTableTableManager
                 id: id,
                 userId: userId,
                 name: name,
+                firstName: firstName,
+                lastName: lastName,
+                focusRole: focusRole,
+                interests: interests,
+                windDownTime: windDownTime,
                 focusArea: focusArea,
                 supportNeed: supportNeed,
                 isGuest: isGuest,

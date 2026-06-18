@@ -1,8 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+
 import '../../core/app_spacing.dart';
 import '../../core/app_theme.dart';
+import '../../core/genui/safe_renderer.dart';
+import '../../core/genui/widget_catalog.dart';
 import 'tasks/widgets/add_task_sheet.dart';
 
 class GenerativeCardModule extends StatelessWidget {
@@ -17,8 +20,29 @@ class GenerativeCardModule extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    WidgetCatalog.instance.init();
+    final renderer = SafeRenderer(catalog: WidgetCatalog.instance);
+
+    // Check if this is raw A2UI JSON (has "widget" key)
+    if (cardData.containsKey('widget') || cardData.containsKey('a2ui')) {
+      final jsonSource = cardData['a2ui'] as String? ??
+          _mapToJsonString(cardData);
+      final result = renderer.render(jsonSource, context);
+      if (result.isSuccess) {
+        return result.widget!;
+      }
+      return SafeRenderer.buildFallbackWidget(
+        result.errorMessage ?? 'Could not render this content.',
+      );
+    }
+
+    // ── Legacy card format (backward compatible) ──
+    return _buildLegacyCard(context);
+  }
+
+  Widget _buildLegacyCard(BuildContext context) {
     final title = cardData['title'] as String? ?? 'Intelligence';
-    final type = cardData['type'] as String? ?? 'advice'; // workout | planner | advice
+    final type = cardData['type'] as String? ?? 'advice';
     final description = cardData['description'] as String? ?? '';
     final listItems = (cardData['list_items'] as List<dynamic>?) ?? [];
     final actionLabel = cardData['action_label'] as String?;
@@ -46,7 +70,7 @@ class GenerativeCardModule extends StatelessWidget {
           offset: Offset(0, 20 * (1 - value)),
           child: Opacity(
             opacity: value,
-              child: ClipRRect(
+            child: ClipRRect(
               borderRadius: BorderRadius.circular(Spacing.xxl),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
@@ -78,7 +102,6 @@ class GenerativeCardModule extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Row(
             children: [
               Container(
@@ -92,18 +115,21 @@ class GenerativeCardModule extends StatelessWidget {
               const SizedBox(width: Spacing.md),
               Expanded(
                 child: Text(
-                    title,
-                    style: const TextStyle(
-                      color: AppTheme.onSurface,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                    ),
+                  title,
+                  style: const TextStyle(
+                    color: AppTheme.onSurface,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
                   ),
+                ),
               ),
               if (type == 'planner' || type == 'workout')
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: Spacing.xs),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.sm,
+                    vertical: Spacing.xs,
+                  ),
                   decoration: BoxDecoration(
                     color: themeColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(Spacing.sm),
@@ -121,12 +147,10 @@ class GenerativeCardModule extends StatelessWidget {
             ],
           ),
           const SizedBox(height: Spacing.lg),
-          
-          // Description
           if (description.isNotEmpty) ...[
             Text(
               description,
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppTheme.onSurfaceVariant,
                 fontSize: 14,
                 height: 1.5,
@@ -134,16 +158,15 @@ class GenerativeCardModule extends StatelessWidget {
             ),
             const SizedBox(height: Spacing.xl),
           ],
-
-          // List Items
           if (listItems.isNotEmpty)
             ...listItems.map((item) {
-              final String text = (item is Map) ? (item['text'] ?? '') : item.toString();
+              final String text = (item is Map)
+                  ? (item['text'] ?? '')
+                  : item.toString();
               final Map<String, dynamic>? taskPayload =
                   (item is Map && item['task_payload'] is Map)
                       ? Map<String, dynamic>.from(item['task_payload'] as Map)
                       : null;
-              
               return Semantics(
                 label: text,
                 button: taskPayload != null,
@@ -151,12 +174,12 @@ class GenerativeCardModule extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: Spacing.md),
                   child: InkWell(
                     onTap: (taskPayload != null)
-                      ? () => AddTaskSheet.show(
-                          context,
-                          initialTitle: taskPayload['title'],
-                          initialPriority: taskPayload['priority'],
-                        )
-                      : null,
+                        ? () => AddTaskSheet.show(
+                              context,
+                              initialTitle: taskPayload['title'],
+                              initialPriority: taskPayload['priority'],
+                            )
+                        : null,
                     borderRadius: BorderRadius.circular(Spacing.md),
                     child: Container(
                       padding: const EdgeInsets.all(Spacing.md),
@@ -164,9 +187,10 @@ class GenerativeCardModule extends StatelessWidget {
                         color: AppTheme.surfaceHigh,
                         borderRadius: BorderRadius.circular(Spacing.md),
                         border: Border.all(
-                          color: taskPayload != null 
-                            ? themeColor.withValues(alpha: 0.15) 
-                            : AppTheme.onSurfaceVariant.withValues(alpha: 0.1)
+                          color: taskPayload != null
+                              ? themeColor.withValues(alpha: 0.15)
+                              : AppTheme.onSurfaceVariant
+                                  .withValues(alpha: 0.1),
                         ),
                       ),
                       child: Row(
@@ -175,8 +199,12 @@ class GenerativeCardModule extends StatelessWidget {
                           Padding(
                             padding: const EdgeInsets.only(top: 2.0),
                             child: Icon(
-                              taskPayload != null ? LucideIcons.plusCircle : LucideIcons.checkCircle2,
-                              color: taskPayload != null ? themeColor : themeColor.withValues(alpha: 0.4),
+                              taskPayload != null
+                                  ? LucideIcons.plusCircle
+                                  : LucideIcons.checkCircle2,
+                              color: taskPayload != null
+                                  ? themeColor
+                                  : themeColor.withValues(alpha: 0.4),
                               size: 16,
                             ),
                           ),
@@ -188,7 +216,9 @@ class GenerativeCardModule extends StatelessWidget {
                                 color: AppTheme.onSurface,
                                 fontSize: 14,
                                 height: 1.4,
-                                fontWeight: taskPayload != null ? FontWeight.w600 : FontWeight.normal,
+                                fontWeight: taskPayload != null
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
                               ),
                             ),
                           ),
@@ -199,10 +229,7 @@ class GenerativeCardModule extends StatelessWidget {
                 ),
               );
             }),
-          
           if (listItems.isNotEmpty) const SizedBox(height: Spacing.sm),
-
-          // Action Button (Optional footer action)
           if (actionLabel != null && actionLabel.isNotEmpty) ...[
             const SizedBox(height: Spacing.sm),
             SizedBox(
@@ -236,5 +263,41 @@ class GenerativeCardModule extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _mapToJsonString(Map<String, dynamic> map) {
+    final buf = StringBuffer();
+    _writeJson(buf, map);
+    return buf.toString();
+  }
+
+  void _writeJson(StringBuffer buf, dynamic value) {
+    if (value == null) {
+      buf.write('null');
+    } else if (value is String) {
+      buf.write('"');
+      buf.write(value.replaceAll('"', '\\"').replaceAll('\n', '\\n'));
+      buf.write('"');
+    } else if (value is num || value is bool) {
+      buf.write(value.toString());
+    } else if (value is Map) {
+      buf.write('{');
+      bool first = true;
+      for (final entry in value.entries) {
+        if (!first) buf.write(',');
+        first = false;
+        _writeJson(buf, entry.key.toString());
+        buf.write(':');
+        _writeJson(buf, entry.value);
+      }
+      buf.write('}');
+    } else if (value is List) {
+      buf.write('[');
+      for (int i = 0; i < value.length; i++) {
+        if (i > 0) buf.write(',');
+        _writeJson(buf, value[i]);
+      }
+      buf.write(']');
+    }
   }
 }

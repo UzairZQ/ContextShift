@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+import '../../../core/app_spacing.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
 import 'widgets/add_task_sheet.dart';
@@ -51,7 +52,7 @@ class _TasksModuleState extends State<TasksModule> {
       decoration: AppTheme.cardDecoration(
         color: AppTheme.surfaceContainer.withValues(alpha: 0.6),
       ),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(Spacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

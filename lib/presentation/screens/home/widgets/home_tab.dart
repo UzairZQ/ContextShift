@@ -27,11 +27,13 @@ class HomeTab extends StatelessWidget {
   final String layoutRefresher;
   final Map<String, dynamic>? generativeCardPayload;
   final VoidCallback onOpenDashboard;
+  final VoidCallback onOpenProfile;
+  final VoidCallback onOpenChat;
+  final ValueChanged<String>? onSeeAll;
   final VoidCallback onGenerativeCardAction;
   final ValueChanged<String> onSubmitCommand;
   final ValueChanged<String> onSelectMood;
   final VoidCallback onDismissResponse;
-  final VoidCallback onLogout;
   final bool isAuthGuest;
 
   const HomeTab({
@@ -52,11 +54,13 @@ class HomeTab extends StatelessWidget {
     required this.layoutRefresher,
     required this.generativeCardPayload,
     required this.onOpenDashboard,
+    required this.onOpenProfile,
+    required this.onOpenChat,
+    this.onSeeAll,
     required this.onGenerativeCardAction,
     required this.onSubmitCommand,
     required this.onSelectMood,
     required this.onDismissResponse,
-    required this.onLogout,
     required this.isAuthGuest,
   });
 
@@ -71,7 +75,7 @@ class HomeTab extends StatelessWidget {
             isProcessingCommand: isProcessingCommand,
             isJarvisOnline: isJarvisOnline,
             onOpenDashboard: onOpenDashboard,
-            onLogout: onLogout,
+            onOpenProfile: onOpenProfile,
           ),
           const SizedBox(height: 16),
           Text(
@@ -89,6 +93,7 @@ class HomeTab extends StatelessWidget {
             hasCheckedStatus: hasCheckedJarvisStatus,
             offlineHint: offlineHint,
             onSubmit: onSubmitCommand,
+            onTap: onOpenChat,
           ),
           const SizedBox(height: 16),
           if (aiResponse != null)
@@ -103,17 +108,19 @@ class HomeTab extends StatelessWidget {
             layoutRefresher: layoutRefresher,
             generativeCardPayload: generativeCardPayload,
             onGenerativeCardAction: onGenerativeCardAction,
+            onSeeAll: onSeeAll,
           ),
           MoodCheckIn(selectedMood: todayMood, onSelect: onSelectMood),
           const SizedBox(height: 16),
           StatsSection(focusMinutesToday: focusMinutesToday),
+          const SizedBox(height: 16),
           AiInsightCard(
             insight: aiInsight,
             isLoading: isLoadingInsight,
             onTap: onOpenDashboard,
           ),
           SizedBox(
-            height: MediaQuery.of(context).padding.bottom + 65,
+            height: MediaQuery.of(context).padding.bottom + 16,
           ),
         ],
       ),

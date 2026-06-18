@@ -386,19 +386,29 @@ Check existing screens (`lib/features/`) and theme config (`lib/core/theme/`) be
 
 ## Backlog / Tasks
 
-### Phase 0 — Migration & Foundation (DO FIRST)
-- [ ] **Data migration plan** — design how existing Firestore data (tasks, habits, notes, focus sessions, mood entries, profiles) maps to Drift tables. Write a `MigrationGuide.md`.
-- [ ] **Firebase removal strategy** — decide: keep Firebase for auth+CRUD with Drift only for LLM context, or fully rip out Firebase. If keeping, define the boundary.
-- [ ] **Drift schema expansion** — decide whether to migrate all current Firestore collections (tasks, habits, notes, focus_sessions) to Drift, or keep them hybrid. If migrating, add those tables to `schema.dart`.
-- [ ] **Backup/restore** — design SQLite backup to iCloud/Google Drive or local file export. Add to backlog if not MVP.
-- [ ] **Device compatibility matrix** — test LiteRT-LM on target devices. Document minimum RAM (4GB for E2B, 8GB for E4B), Android version, iOS version.
+### ✅ Phase 0 — Migration & Foundation (DONE)
+- [x] **Data migration** — Firebase → Drift complete. All collections (tasks, habits, notes, focus sessions, mood entries, profile, preferences, conversations, behavior events) live in SQLite. No formal MigrationGuide.md needed — migration is done and working.
+- [x] **Firebase removal** — Firebase gutted. Only `firebase_crashlytics` remains for opt-in crash reporting. Everything else is Drift (local SQLite). Firebase auth replaced by local device ID.
+- [x] **Drift schema expansion** — schema.dart contains all tables: ProfileTable, UserPreferencesTable, TaskTable, HabitTable, FocusSessionTable, NoteTable, MoodEntryTable, AiCommandTable, BehaviorEventTable, ConversationTable, MessageTable. Schema v2 with migration.
+- [ ] **Backup/restore** — pushed to later phase. No valuable user data yet.
 
-### Phase 1 — Model & LLM Layer
-- [ ] **Model download UX design** — wireframe the full flow: storage check → download screen with progress/percentage → pause/resume → error/retry → success → model loaded confirmation. Handle edge cases (low storage, interrupt, slow network).
-- [ ] **Model downloader edge cases** — implement network loss recovery, partial download resume, storage insufficient handling, model file integrity check.
-- [ ] **GemmaService error handling** — define fallback behavior for model init failure, inference timeout (target: <2s per generation), OOM crashes.
-- [ ] **Model tier gating** — wire `FeatureManager` to check purchase entitlement before allowing E4B download. Free users get E2B only.
-- [ ] **Performance benchmarking** — establish targets: inference latency, peak memory, token/s throughput. Document results for E2B vs E4B on reference devices.
+### ✅ Phase 1 — Model & LLM Layer (DONE)
+- [x] **Model download UX** — `ModelDownloadScreen` built with all states: idle, checking storage, downloading (progress % + speed + ETA), paused, completed, failed (with error detail + retry). Pause/resume/cancel/retry all wired.
+- [x] **Model downloader edge cases** — `ModelDownloader` with pause, resume (resumes from checkpoint), cancel, progress stream. Network recovery handled by `download`/`resume` stream. Storage check before download.
+- [x] **GemmaService error handling** — graceful init failure (non-fatal, caught in main.dart try/catch). App continues without AI if model unavailable.
+- [x] **Model tier gating** — `FeatureManager` with `isE2bAvailable` / `isE4bAvailable`. Download banner gates behind available tier. Premium purchase wiring pending (Phase 4).
+
+### Known Compatibility (from testing)
+| Device | SoC | RAM | E2B (2.4GB) | E4B (4.3GB) |
+|--------|-----|-----|-------------|-------------|
+| Xiaomi 13 | Snapdragon 8 Gen 2 | 8GB | ✅ Smooth | ❌ Crashes phone — needs restart |
+| **Assumed Android min** | SD8 Gen 1+ | 8GB+ | ✅ Should work | ❌ Avoid |
+| **Assumed E4B target** | SD8 Gen 3+ | **12GB+ (risky)** / **16GB (safe)** | — | ✅ |
+| **iOS** | A15+ (assumed) | — | ⏳ Needs testing | ⏳ Needs testing |
+
+### Open: Performance & Compatibility
+- [ ] **Device compatibility matrix** — validate Android assumptions on more devices (Pixel, Samsung, OnePlus). iOS testing deferred (no device available).
+- [ ] **Performance benchmarking** — measure inference latency, peak memory, tokens/s for E2B on reference Android device. Establish <2s generation target.
 
 ### Phase 2 — GenUI Layer
 - [ ] **Catalog safety constraints** — define security boundaries: disallow `WebView`, `PlatformView`, file I/O, network calls from generated A2UI JSON. Sandbox the rendering.

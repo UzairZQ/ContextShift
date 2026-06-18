@@ -133,23 +133,41 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            children: [
-              const Spacer(flex: 2),
-              _buildIcon(),
-              const SizedBox(height: 32),
-              _buildTitle(),
-              const SizedBox(height: 12),
-              _buildSubtitle(),
-              const SizedBox(height: 40),
-              _buildProgressArea(),
-              const Spacer(flex: 2),
-              _buildBottomButtons(),
-              const SizedBox(height: 24),
-            ],
-          ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(LucideIcons.arrowLeft, color: AppTheme.onSurface),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const Spacer(),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    const Spacer(flex: 2),
+                    _buildIcon(),
+                    const SizedBox(height: 32),
+                    _buildTitle(),
+                    const SizedBox(height: 12),
+                    _buildSubtitle(),
+                    const SizedBox(height: 40),
+                    _buildProgressArea(),
+                    const Spacer(flex: 2),
+                    _buildBottomButtons(),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -11,6 +11,7 @@ class AiCommandBar extends StatefulWidget {
   final bool hasCheckedStatus;
   final String offlineHint;
   final ValueChanged<String> onSubmit;
+  final VoidCallback? onTap;
 
   const AiCommandBar({
     super.key,
@@ -20,6 +21,7 @@ class AiCommandBar extends StatefulWidget {
     required this.hasCheckedStatus,
     required this.offlineHint,
     required this.onSubmit,
+    this.onTap,
   });
 
   @override
@@ -74,19 +76,23 @@ class _AiCommandBarState extends State<AiCommandBar> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: EdgeInsets.only(top: Spacing.xl),
-      padding: EdgeInsets.symmetric(horizontal: Spacing.xl, vertical: 4),
-      decoration: AppTheme.glassmorphism(
-        tint: AppTheme.surfaceHighest,
-        borderRadius: 999,
-      ),
-      child: TextField(
-        controller: widget.controller,
-        enabled: true,
-        textInputAction: TextInputAction.send,
-        style: const TextStyle(color: AppTheme.onSurface),
-        decoration: InputDecoration(
+    return Hero(
+      tag: 'jarvis_bar',
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          margin: EdgeInsets.only(top: Spacing.xl),
+          padding: EdgeInsets.symmetric(horizontal: Spacing.xl, vertical: 4),
+          decoration: AppTheme.glassmorphism(
+            tint: AppTheme.surfaceHighest,
+            borderRadius: 999,
+          ),
+          child: TextField(
+            controller: widget.controller,
+            enabled: true,
+            textInputAction: TextInputAction.send,
+            style: const TextStyle(color: AppTheme.onSurface),
+            decoration: InputDecoration(
           icon: Icon(
             _leadingIcon,
             color: _leadingColor,
@@ -124,6 +130,8 @@ class _AiCommandBarState extends State<AiCommandBar> {
                 ),
         ),
         onSubmitted: (_) => _handleSend(),
+          ),
+        ),
       ),
     );
   }

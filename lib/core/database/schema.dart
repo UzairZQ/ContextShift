@@ -8,6 +8,11 @@ class ProfileTable extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get userId => text().unique()();
   TextColumn get name => text()();
+  TextColumn get firstName => text()();
+  TextColumn? get lastName => text().nullable()();
+  TextColumn? get focusRole => text().nullable()();
+  TextColumn? get interests => text().nullable()();
+  TextColumn? get windDownTime => text().nullable()();
   TextColumn? get focusArea => text().nullable()();
   TextColumn? get supportNeed => text().nullable()();
   BoolColumn get isGuest => boolean().withDefault(const Constant(false))();
@@ -158,5 +163,29 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration {
+    return MigrationStrategy(
+      onCreate: (m) => m.createAll(),
+      onUpgrade: (m, from, to) async {
+        if (from == 1) {
+          await m.addColumn(profileTable, profileTable.firstName);
+          await m.addColumn(profileTable, profileTable.lastName);
+          await m.addColumn(profileTable, profileTable.focusRole);
+          await m.addColumn(profileTable, profileTable.interests);
+          await m.addColumn(profileTable, profileTable.windDownTime);
+
+          // Migrate existing data: copy name→firstName if firstName is empty
+          await customStatement(
+            'UPDATE profile_table SET first_name = name WHERE first_name IS NULL OR first_name = \'\'',
+          );
+          await customStatement(
+            'UPDATE profile_table SET focus_role = focus_area WHERE focus_role IS NULL AND focus_area IS NOT NULL',
+          );
+        }
+      },
+    );
+  }
 }

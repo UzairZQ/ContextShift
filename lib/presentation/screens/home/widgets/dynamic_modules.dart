@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
+import '../../../../core/app_spacing.dart';
+import '../../../../core/app_theme.dart';
 import '../../../widgets/focus/focus_module.dart';
 import '../../../widgets/habits/habit_module.dart';
 import '../../../widgets/notes/notes_module.dart';
@@ -11,6 +14,7 @@ class DynamicModules extends StatelessWidget {
   final String layoutRefresher;
   final Map<String, dynamic>? generativeCardPayload;
   final VoidCallback? onGenerativeCardAction;
+  final ValueChanged<String>? onSeeAll;
 
   const DynamicModules({
     super.key,
@@ -18,6 +22,7 @@ class DynamicModules extends StatelessWidget {
     required this.layoutRefresher,
     required this.generativeCardPayload,
     required this.onGenerativeCardAction,
+    this.onSeeAll,
   });
 
   @override
@@ -41,7 +46,7 @@ class DynamicModules extends StatelessWidget {
         children: moduleOrder
             .map(
               (name) => Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
+                padding: const EdgeInsets.only(bottom: 16),
                 child: _buildModule(name),
               ),
             )
@@ -51,25 +56,89 @@ class DynamicModules extends StatelessWidget {
   }
 
   Widget _buildModule(String name) {
+    final Widget module;
     switch (name) {
       case 'GenerativeCardModule':
         if (generativeCardPayload != null) {
-          return GenerativeCardModule(
+          module = GenerativeCardModule(
             cardData: generativeCardPayload!,
             onAction: onGenerativeCardAction,
           );
+        } else {
+          return const SizedBox.shrink();
         }
-        return const SizedBox.shrink();
       case 'FocusTimerModule':
-        return const FocusTimerModule();
+        module = const FocusTimerModule();
       case 'TasksModule':
-        return const TasksModule();
+        module = const TasksModule();
       case 'HabitModule':
-        return const HabitModule();
+        module = const HabitModule();
       case 'NotesModule':
-        return const NotesModule();
+        module = const NotesModule();
       default:
         return const SizedBox.shrink();
     }
+
+    final seeAllCallback = onSeeAll != null ? () => onSeeAll!(name) : null;
+    return _ModuleSection(module: module, onSeeAll: seeAllCallback);
+  }
+}
+
+class _ModuleSection extends StatelessWidget {
+  final Widget module;
+  final VoidCallback? onSeeAll;
+
+  const _ModuleSection({
+    required this.module,
+    this.onSeeAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        module,
+        if (onSeeAll != null)
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.only(top: Spacing.xs),
+              child: GestureDetector(
+                onTap: onSeeAll,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.md,
+                    vertical: Spacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceHigh.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'See all',
+                        style: TextStyle(
+                          color: AppTheme.primary.withValues(alpha: 0.8),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(width: 2),
+                      Icon(
+                        LucideIcons.chevronRight,
+                        size: 12,
+                        color: AppTheme.primary.withValues(alpha: 0.8),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }

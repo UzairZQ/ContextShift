@@ -10,7 +10,7 @@ class FloatingNavBar extends StatelessWidget {
     _NavItem(LucideIcons.checkSquare, 'Tasks'),
     _NavItem(LucideIcons.activity, 'Habits'),
     _NavItem(LucideIcons.timer, 'Focus'),
-    _NavItem(LucideIcons.stickyNote, 'Notes'),
+    _NavItem(LucideIcons.messageSquare, 'Chat'),
   ];
 
   final int currentIndex;
@@ -30,7 +30,7 @@ class FloatingNavBar extends StatelessWidget {
         margin: EdgeInsets.only(
           left: Spacing.xxl,
           right: Spacing.xxl,
-          bottom: 5,
+          bottom: 4,
         ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: AppTheme.glassmorphism(

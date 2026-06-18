@@ -8,15 +8,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core/app_theme.dart';
 import 'core/database/database_service.dart';
 import 'core/local_llm/gemma_service.dart';
+import 'firebase_options.dart';
 import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/onboarding/onboarding_screen.dart';
+import 'presentation/screens/onboarding/profile_setup_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Firebase Crashlytics only
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
     PlatformDispatcher.instance.onError = (error, stack) {
       FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
@@ -63,67 +67,72 @@ class _LaunchGate extends StatefulWidget {
   State<_LaunchGate> createState() => _LaunchGateState();
 }
 
+enum _SetupStep { loading, onboarding, profile, home }
+
 class _LaunchGateState extends State<_LaunchGate> {
   static const _onboardingKey = 'has_seen_onboarding';
-  bool? _hasSeenOnboarding;
-  bool _prefsUnavailable = false;
+  _SetupStep _step = _SetupStep.loading;
 
   @override
   void initState() {
     super.initState();
-    _loadOnboardingState();
+    _determineStep();
   }
 
-  Future<void> _loadOnboardingState() async {
+  Future<void> _determineStep() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      // Reset onboarding for testing — remove this override later
+      await prefs.setBool(_onboardingKey, false);
+      final hasSeenOnboarding = prefs.getBool(_onboardingKey) ?? false;
+
+      if (!hasSeenOnboarding) {
+        if (!mounted) return;
+        setState(() => _step = _SetupStep.onboarding);
+        return;
+      }
+
+      final needsProfile = !DatabaseService.instance.hasProfileData;
       if (!mounted) return;
-      setState(() {
-        _hasSeenOnboarding = prefs.getBool(_onboardingKey) ?? false;
-        _prefsUnavailable = false;
-      });
+      setState(() => _step = needsProfile ? _SetupStep.profile : _SetupStep.home);
     } on PlatformException catch (error) {
-      debugPrint(
-        'SharedPreferences unavailable, continuing without persistence: $error',
-      );
+      debugPrint('SharedPreferences error: $error');
       if (!mounted) return;
-      setState(() {
-        _hasSeenOnboarding = false;
-        _prefsUnavailable = true;
-      });
+      setState(() => _step = _SetupStep.onboarding);
     }
   }
 
   Future<void> _completeOnboarding() async {
-    if (_prefsUnavailable) {
-      if (!mounted) return;
-      setState(() => _hasSeenOnboarding = true);
-      return;
-    }
-
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_onboardingKey, true);
     } on PlatformException catch (error) {
-      debugPrint('SharedPreferences save failed, continuing in-memory: $error');
-      _prefsUnavailable = true;
+      debugPrint('SharedPreferences save failed: $error');
     }
 
     if (!mounted) return;
-    setState(() => _hasSeenOnboarding = true);
+    setState(() {
+      final needsProfile = !DatabaseService.instance.hasProfileData;
+      _step = needsProfile ? _SetupStep.profile : _SetupStep.home;
+    });
+  }
+
+  void _completeProfile() {
+    setState(() => _step = _SetupStep.home);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_hasSeenOnboarding == null) {
-      return const _BootSplash();
+    switch (_step) {
+      case _SetupStep.loading:
+        return const _BootSplash();
+      case _SetupStep.onboarding:
+        return OnboardingScreen(onComplete: _completeOnboarding);
+      case _SetupStep.profile:
+        return ProfileSetupScreen(onComplete: _completeProfile);
+      case _SetupStep.home:
+        return const HomeScreen();
     }
-
-    if (_hasSeenOnboarding == false) {
-      return OnboardingScreen(onComplete: _completeOnboarding);
-    }
-
-    return const HomeScreen();
   }
 }
 

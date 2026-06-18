@@ -11,7 +11,7 @@ class HomeHeader extends StatelessWidget {
   final bool isProcessingCommand;
   final bool isJarvisOnline;
   final VoidCallback onOpenDashboard;
-  final VoidCallback onLogout;
+  final VoidCallback onOpenProfile;
   final bool isAuthGuest;
 
   const HomeHeader({
@@ -19,7 +19,7 @@ class HomeHeader extends StatelessWidget {
     required this.isProcessingCommand,
     required this.isJarvisOnline,
     required this.onOpenDashboard,
-    required this.onLogout,
+    required this.onOpenProfile,
     this.isAuthGuest = false,
   });
 
@@ -60,14 +60,12 @@ class HomeHeader extends StatelessWidget {
                 onTap: onOpenDashboard,
                 tooltip: 'Dashboard',
               ),
-              if (!isAuthGuest) ...[
-                SizedBox(width: Spacing.sm),
-                _CircleIconButton(
-                  icon: LucideIcons.logOut,
-                  onTap: onLogout,
-                  tooltip: 'Log out',
-                ),
-              ],
+              SizedBox(width: Spacing.sm),
+              _CircleIconButton(
+                icon: LucideIcons.settings,
+                onTap: onOpenProfile,
+                tooltip: 'Settings',
+              ),
               SizedBox(width: Spacing.sm),
               SizedBox(
                 width: 40,

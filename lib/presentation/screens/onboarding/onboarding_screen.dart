@@ -21,25 +21,32 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   static const List<OnboardingPageData> _pages = [
     OnboardingPageData(
-      title: 'Your space should\nwake up with you',
+      title: 'Your AI lives on\nyour phone',
       body:
-          'ContextShift reshapes your workspace around your energy, priorities, and mental state instead of trapping you in a static dashboard.',
+          'JARVIS runs on-device, not in the cloud. No servers, no subscriptions, no one listening in. Your AI, your rules — private by design.',
       icon: LucideIcons.sparkles,
       accent: AppTheme.primary,
     ),
     OnboardingPageData(
-      title: 'JARVIS turns chaos\ninto the next move',
+      title: 'No internet?\nNo problem.',
       body:
-          'Capture a messy thought, a vague plan, or a moment of overwhelm and let the app convert it into tasks, habits, notes, and focus prompts.',
-      icon: LucideIcons.bot,
+          'Planes, tunnels, the middle of nowhere — JARVIS doesn\'t care. Every task, note, and insight lives on your device without needing a signal.',
+      icon: LucideIcons.wifiOff,
       accent: AppTheme.warning,
     ),
     OnboardingPageData(
-      title: 'Start lightweight,\nkeep the door open',
+      title: 'Your data stays\nyours',
       body:
-          'Sign in for sync, or continue as a guest and build your flow first. The product should earn the account step, not demand it.',
-      icon: LucideIcons.rocket,
+          'No cloud upload, no account trap, no data mining. Everything stays in your pocket and nowhere else. The product should earn your trust, not demand it.',
+      icon: LucideIcons.shield,
       accent: AppTheme.success,
+    ),
+    OnboardingPageData(
+      title: 'Your space,\nyour rules',
+      body:
+          'A workspace that bends around your energy and priorities instead of trapping you in a static dashboard. Capture the chaos, build momentum, and let JARVIS help you move.',
+      icon: LucideIcons.layoutDashboard,
+      accent: AppTheme.tertiary,
     ),
   ];
 
@@ -147,7 +154,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             ),
                             child: Text(
                               _currentPage == _pages.length - 1
-                                  ? 'Continue'
+                                  ? 'Let\'s go'
                                   : 'Next',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,

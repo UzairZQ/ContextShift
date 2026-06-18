@@ -86,20 +86,37 @@ class DatabaseService {
     return name.split(' ').first;
   }
 
+  String? get lastName => _cachedProfile?.lastName;
+
+  String? get focusRole => _cachedProfile?.focusRole;
+
+  String? get windDownTime => _cachedProfile?.windDownTime;
+
   ProfileTableData? _cachedProfile;
 
   Future<void> saveUserProfile({
     String? name,
+    String? firstName,
+    String? lastName,
+    String? focusRole,
+    List<String>? interests,
+    String? windDownTime,
     String? focusArea,
     String? supportNeed,
     bool? isGuest,
   }) async {
     final uid = _deviceId;
+    final finalName = (name ?? _cachedProfile?.name ?? 'Traveler').trim();
 
     await _db.into(_db.profileTable).insert(
           ProfileTableCompanion.insert(
             userId: uid,
-            name: (name ?? _cachedProfile?.name ?? 'Traveler').trim(),
+            name: finalName,
+            firstName: firstName ?? _cachedProfile?.firstName ?? finalName.split(' ').first,
+            lastName: Value(lastName?.trim()),
+            focusRole: Value(focusRole?.trim()),
+            interests: Value(interests != null ? jsonEncode(interests) : null),
+            windDownTime: Value(windDownTime?.trim()),
             focusArea: Value(focusArea?.trim()),
             supportNeed: Value(supportNeed?.trim()),
             isGuest: Value(isGuest ?? _cachedProfile?.isGuest ?? false),
@@ -113,6 +130,24 @@ class DatabaseService {
         .getSingleOrNull();
 
     debugPrint('DatabaseService: saved profile for $uid');
+  }
+
+  List<String> get profileInterests {
+    final raw = _cachedProfile?.interests;
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      return (jsonDecode(raw) as List).cast<String>();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  bool get hasProfileData {
+    final p = _cachedProfile;
+    if (p == null) return false;
+    return p.firstName.isNotEmpty &&
+        (p.focusRole?.isNotEmpty ?? false) &&
+        (p.interests?.isNotEmpty ?? false);
   }
 
   // ── Behavior Events ──────────────────────────────────────────
@@ -648,6 +683,94 @@ class DatabaseService {
       'actions': jsonDecode(cmd.actions) as List<dynamic>? ?? [],
       'timestamp': cmd.timestamp,
     };
+  }
+
+  // ── Conversations (Jarvis chat) ─────────────────────────────
+
+  Future<List<ConversationTableData>> getAllConversations() async {
+    return (_db.select(_db.conversationTable)
+          ..where((t) => t.userId.equals(_deviceId))
+          ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)]))
+        .get();
+  }
+
+  Future<ConversationTableData> createConversation({
+    required String title,
+    String? modelTier,
+  }) async {
+    final now = DateTime.now();
+    final id = await _db.into(_db.conversationTable).insert(
+          ConversationTableCompanion.insert(
+            userId: _deviceId,
+            title: title,
+            modelTier: Value(modelTier),
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    final conv = await (_db.select(_db.conversationTable)
+          ..where((t) => t.id.equals(id)))
+        .getSingle();
+    return conv;
+  }
+
+  Future<void> renameConversation(int id, String title) async {
+    await (_db.update(_db.conversationTable)
+          ..where((t) => t.id.equals(id))).write(
+        ConversationTableCompanion(
+          title: Value(title),
+          updatedAt: Value(DateTime.now()),
+        ));
+  }
+
+  Future<void> deleteConversation(int id) async {
+    await (_db.delete(_db.messageTable)
+          ..where((t) => t.conversationId.equals(id)))
+        .go();
+    await (_db.delete(_db.conversationTable)
+          ..where((t) => t.id.equals(id)))
+        .go();
+  }
+
+  Stream<List<MessageTableData>> watchMessages(int conversationId) {
+    return (_db.select(_db.messageTable)
+          ..where((t) => t.conversationId.equals(conversationId))
+          ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+        .watch();
+  }
+
+  Future<List<MessageTableData>> getMessages(int conversationId) async {
+    return (_db.select(_db.messageTable)
+          ..where((t) => t.conversationId.equals(conversationId))
+          ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+        .get();
+  }
+
+  Future<MessageTableData> addMessage({
+    required int conversationId,
+    required String role,
+    required String content,
+    String? widgetJson,
+  }) async {
+    final id = await _db.into(_db.messageTable).insert(
+          MessageTableCompanion.insert(
+            conversationId: conversationId,
+            role: role,
+            content: content,
+            widgetJson: Value(widgetJson),
+            createdAt: DateTime.now(),
+          ),
+        );
+    // Touch conversation updatedAt
+    await (_db.update(_db.conversationTable)
+          ..where((t) => t.id.equals(conversationId))).write(
+        ConversationTableCompanion(
+          updatedAt: Value(DateTime.now()),
+        ));
+    final msg = await (_db.select(_db.messageTable)
+          ..where((t) => t.id.equals(id)))
+        .getSingle();
+    return msg;
   }
 
   // ── Streak Calculation ───────────────────────────────────────

@@ -16,7 +16,8 @@ import '../../widgets/habits/habit_module.dart';
 import '../../widgets/notes/notes_module.dart';
 import '../../widgets/tasks/tasks_module.dart';
 import '../ai_dashboard/ai_dashboard_screen.dart';
-import '../guest_profile/guest_profile_screen.dart';
+import '../chat/chat_screen.dart';
+import '../settings/settings_screen.dart';
 import 'widgets/floating_nav_bar.dart';
 import 'widgets/home_tab.dart';
 
@@ -124,11 +125,31 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _processCommand(String command) async {
     if (command.trim().isEmpty) return;
     _commandController.clear();
-    if (mounted) setState(() => _isProcessingCommand = true);
-    bool navigatedByAction = false;
-    Map<String, dynamic>? nextGenerativeCardPayload;
 
     try {
+      // If no model is available, route to download screen
+      if (!FeatureManager.instance.isE2bAvailable &&
+          !FeatureManager.instance.isE4bAvailable) {
+        if (!mounted) return;
+        _openModelDownload();
+        return;
+      }
+
+      // Route chat queries to the ChatScreen with hero animation
+      if (!AiService.instance.isCommandQuery(command)) {
+        if (!mounted) return;
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ChatScreen(initialMessage: command),
+          ),
+        );
+        return;
+      }
+
+      if (mounted) setState(() => _isProcessingCommand = true);
+      bool navigatedByAction = false;
+      Map<String, dynamic>? nextGenerativeCardPayload;
+
       final result = await AiService.instance.processCommand(
         command: command,
         userName: DatabaseService.instance.firstName,
@@ -226,7 +247,7 @@ class _HomeScreenState extends State<HomeScreen>
           'tasks': 1,
           'habits': 2,
           'focus': 3,
-          'notes': 4,
+          'chat': 4,
         };
         final tab = action.params['tab'] as String?;
         if (tab != null && tabMap.containsKey(tab)) {
@@ -277,7 +298,7 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() => _currentIndex = index);
     DatabaseService.instance.logEvent(
       eventType: 'tab_tap',
-      module: ['home', 'tasks', 'habits', 'focus', 'notes'][index],
+      module: ['home', 'tasks', 'habits', 'focus', 'chat'][index],
     );
   }
 
@@ -322,10 +343,20 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Future<void> _handleLogout() async {
-    if (!mounted) return;
+  void _openProfile() {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const GuestProfileScreen()),
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+  }
+
+  void _openChat() {
+    final text = _commandController.text.trim();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          initialMessage: text.isNotEmpty ? text : null,
+        ),
+      ),
     );
   }
 
@@ -335,6 +366,26 @@ class _HomeScreenState extends State<HomeScreen>
       _switchTab(3);
     } else if (module == 'TasksModule') {
       _switchTab(1);
+    }
+  }
+
+  void _handleSeeAll(String moduleName) {
+    switch (moduleName) {
+      case 'TasksModule':
+        _switchTab(1);
+      case 'HabitModule':
+        _switchTab(2);
+      case 'FocusTimerModule':
+        _switchTab(3);
+      case 'NotesModule':
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => _FullScreenModule(
+              title: 'Quick Notes',
+              child: const NotesModule(),
+            ),
+          ),
+        );
     }
   }
 
@@ -359,20 +410,22 @@ class _HomeScreenState extends State<HomeScreen>
             layoutRefresher: _layoutRefresher,
             generativeCardPayload: _generativeCardPayload,
             onOpenDashboard: _openDashboard,
+            onOpenProfile: _openProfile,
+            onOpenChat: _openChat,
+            onSeeAll: _handleSeeAll,
             onGenerativeCardAction: _handleGenerativeCardAction,
             onSubmitCommand: _processCommand,
             onSelectMood: _saveMood,
             onDismissResponse: () {
             if (mounted) setState(() => _aiResponse = null);
           },
-          onLogout: _handleLogout,
           isAuthGuest: DatabaseService.instance.isGuest,
         ),
       ),
       1 => const TasksModule(),
       2 => const HabitModule(),
       3 => const FocusTimerModule(),
-      4 => const NotesModule(),
+      4 => const ChatScreen(conversationId: null),
       _ => const SizedBox.shrink(),
     };
   }
@@ -433,6 +486,15 @@ class _HomeScreenState extends State<HomeScreen>
                     duration: const Duration(milliseconds: 320),
                     switchInCurve: Curves.easeOutCubic,
                     switchOutCurve: Curves.easeInCubic,
+                    layoutBuilder: (currentChild, previousChildren) {
+                      return Stack(
+                        alignment: Alignment.topCenter,
+                        children: <Widget>[
+                          ?currentChild,
+                          ...previousChildren,
+                        ],
+                      );
+                    },
                     transitionBuilder: (child, animation) {
                       final offset = Tween<Offset>(
                         begin: const Offset(0.04, 0),
@@ -475,6 +537,71 @@ class _HomeScreenState extends State<HomeScreen>
               FeatureManager.instance.setE2bDownloaded(true);
             });
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _FullScreenModule extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  const _FullScreenModule({
+    required this.title,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [AppTheme.background, AppTheme.surfaceLow],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: EdgeInsets.only(
+                  left: Spacing.xs,
+                  right: Spacing.lg,
+                  top: Spacing.sm,
+                  bottom: Spacing.sm,
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(LucideIcons.arrowLeft,
+                          color: AppTheme.onSurface),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    const SizedBox(width: Spacing.sm),
+                    Text(
+                      title,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: Responsive.horizontalPadding(context),
+                  ),
+                  child: child,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

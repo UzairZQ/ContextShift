@@ -521,6 +521,56 @@ class AiService {
     return null;
   }
 
+  /// Quick classifier — returns true if the input matches a known command pattern.
+  /// Used to decide: process inline vs route to ChatScreen.
+  bool isCommandQuery(String input) {
+    final lower = input.toLowerCase().trim();
+    if (lower.length < 3) return false;
+    return _matchesAny(lower, [
+      'add task',
+      'todo',
+      'remind me',
+      'create task',
+      'focus',
+      'study',
+      'deep work',
+      'pomodoro',
+      'concentrate',
+      'work session',
+      'workout',
+      'exercise',
+      'routine',
+      'plan',
+      'planner',
+      'advice',
+      'add habit',
+      'track',
+      'new habit',
+      'note',
+      'remember',
+      'write down',
+      'jot down',
+      'show task',
+      'my task',
+      'open task',
+      'go to task',
+      'show habit',
+      'my habit',
+      'open habit',
+      'show note',
+      'my note',
+      'open note',
+      'motivat',
+      'inspir',
+      'pep talk',
+      'encourage',
+      'overwhelmed',
+      'stressed',
+      'help',
+      'stuck',
+    ]);
+  }
+
   // ── Helpers ────────────────────────────────────────────────
 
   bool _matchesAny(String input, List<String> patterns) {
