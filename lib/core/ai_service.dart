@@ -1,8 +1,6 @@
-import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
-import 'database/database_service.dart';
+import 'local_llm/gemma_service.dart';
 
 /// Result model for an AI command
 class AiCommandResult {
@@ -54,36 +52,12 @@ class AiAction {
   }
 }
 
-/// Singleton AI service — offline-first with backend fallback
+/// Singleton AI service — fully offline (keyword parser + on-device Gemma)
 class AiService {
   AiService._();
   static final AiService instance = AiService._();
 
-  static const String _configuredBackendUrl = String.fromEnvironment(
-    'AI_BACKEND_URL',
-    defaultValue: '',
-  );
   String? _cachedInsight;
-  bool _lastInsightFetchSucceeded = false;
-  DateTime? _lastSuccessfulBackendResponseAt;
-
-  String get _backendUrl {
-    if (_configuredBackendUrl.isNotEmpty) {
-      return _configuredBackendUrl;
-    }
-    if (kIsWeb) return 'http://localhost:8000';
-    switch (defaultTargetPlatform) {
-      case TargetPlatform.android:
-        return 'http://10.0.2.2:8000';
-      case TargetPlatform.iOS:
-      case TargetPlatform.macOS:
-      case TargetPlatform.windows:
-      case TargetPlatform.linux:
-        return 'http://localhost:8000';
-      default:
-        return 'http://localhost:8000';
-    }
-  }
 
   // ── AI Command Processing ─────────────────────────────────
 
@@ -91,110 +65,17 @@ class AiService {
     required String command,
     required String userName,
     Map<String, dynamic>? context,
-  }) {
-    return _performCommand(
-      command: command,
-      userName: userName,
-      context: context,
-    ).timeout(
-      const Duration(seconds: 15),
-      onTimeout: () {
-        debugPrint(
-          'AI Command — overall command timeout, using local fallback',
-        );
-        return _processLocally(command, userName, true);
-      },
-    );
-  }
-
-  Future<AiCommandResult> _performCommand({
-    required String command,
-    required String userName,
-    Map<String, dynamic>? context,
   }) async {
-    debugPrint('AI Command — starting command: "$command"');
-    try {
-      final isBackendOnline = await checkBackendStatus();
-      debugPrint('AI Command — backend status: $isBackendOnline');
-      if (!isBackendOnline) {
-        debugPrint(
-          'AI Command — backend offline, using local fallback immediately',
-        );
-        return _processLocally(command, userName, true);
-      }
-
-      final Map<String, dynamic> finalContext = Map.from(context ?? {});
-      final backgroundData = await _buildContextSnapshotWithTimeout();
-      finalContext['background_data'] = backgroundData;
-
-      final payload = jsonEncode({
-        'command': command,
-        'user_name': userName,
-        'context': finalContext,
-      });
-
-      final response = await _postJsonWithFallback(
-        paths: const ['/command', '/ai-command'],
-        body: payload,
-        timeout: const Duration(seconds: 10),
-      );
-      debugPrint('AI Command — backend returned status ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        _recordBackendSuccess();
-        final parsed = AiCommandResult.fromJson(
-          jsonDecode(response.body) as Map<String, dynamic>,
-          fromBackend: true,
-        );
-        if (_shouldUseLocalFallback(parsed)) {
-          debugPrint(
-            'AI Command — backend returned fallback copy, using local parser',
-          );
-          return _processLocally(command, userName, false, fromBackend: true);
-        }
-        return parsed;
-      }
-      throw Exception('Backend returned ${response.statusCode}');
-    } catch (e, stack) {
-      debugPrint('AI Command — backend unavailable, using local fallback: $e');
-      debugPrint(stack.toString());
-      return _processLocally(command, userName, e is TimeoutException);
-    }
+    debugPrint('AI Command — processing locally: "$command"');
+    return _processLocally(command, userName, false);
   }
 
-  Future<Map<String, dynamic>> _buildContextSnapshotWithTimeout() async {
-    try {
-      return await DatabaseService.instance.buildContextSnapshot().timeout(
-        const Duration(seconds: 3),
-        onTimeout: () {
-          debugPrint(
-            'AI Command — context snapshot timeout, using empty context',
-          );
-          return <String, dynamic>{};
-        },
-      );
-    } catch (e, stack) {
-      debugPrint('AI Command — context snapshot error: $e');
-      debugPrint(stack.toString());
-      return {};
-    }
-  }
-
-  bool _shouldUseLocalFallback(AiCommandResult result) {
-    if (result.actions.isNotEmpty) return false;
-
-    final lower = result.response.toLowerCase();
-    return lower.contains('timed out') ||
-        lower.contains('trouble processing') ||
-        lower.contains('help locally');
-  }
-
-  AiCommandResult _processLocally(
+  Future<AiCommandResult> _processLocally(
     String command,
     String userName,
     bool isTimeout, {
     bool fromBackend = false,
-  }) {
+  }) async {
     AiCommandResult build({
       required List<AiAction> actions,
       required String response,
@@ -548,6 +429,44 @@ class AiService {
       );
     }
 
+    // ── GemmaService fallback (on-device AI) ──
+    if (GemmaService.instance.isModelLoaded) {
+      try {
+        debugPrint('[AiService] Trying GemmaService for: "$command"');
+        final gemmaResponse = await GemmaService.instance.generate(
+          'You are JARVIS, the AI brain of ContextShift. '
+          'Parse this user command and return valid JSON with actions and a short response.\n'
+          'Actions can be: add_task, add_habit, add_note, start_focus.\n'
+          'User command: "$command"\n'
+          'User name: $userName\n'
+          'Return JSON: {"actions": [{"type": "...", "params": {...}}], "response": "..."}',
+          maxTokens: 256,
+          timeout: const Duration(seconds: 10),
+        );
+
+        // Try to parse as JSON
+        final start = gemmaResponse.indexOf('{');
+        final end = gemmaResponse.lastIndexOf('}');
+        if (start != -1 && end != -1 && end > start) {
+          final jsonStr = gemmaResponse.substring(start, end + 1);
+          final parsed = jsonDecode(jsonStr) as Map<String, dynamic>;
+          debugPrint('[AiService] GemmaService returned: $parsed');
+          return build(
+            actions: (parsed['actions'] as List<dynamic>?)
+                    ?.map((a) =>
+                        AiAction.fromJson(a as Map<String, dynamic>))
+                    .toList() ??
+                [],
+            response: parsed['response'] as String? ??
+                'Done!',
+          );
+        }
+      } catch (e, stack) {
+        debugPrint('[AiService] GemmaService fallback failed: $e');
+        debugPrint('[AiService]   Stack: $stack');
+      }
+    }
+
     // ── Default: treat as a task if it was a real command ──
     if (lower.length > 5) {
       return build(
@@ -568,103 +487,19 @@ class AiService {
     );
   }
 
-  // ── Health Check ──────────────────────────────────────────
-
-  Future<bool> checkBackendStatus() async {
-    try {
-      final response = await http
-          .get(Uri.parse('$_backendUrl/health'))
-          .timeout(const Duration(seconds: 3));
-      if (response.statusCode == 200) {
-        _recordBackendSuccess();
-        return true;
-      }
-    } catch (_) {
-      // ignore
-    }
-    return _hasRecentBackendSuccess;
-  }
-
-  bool get _hasRecentBackendSuccess {
-    final last = _lastSuccessfulBackendResponseAt;
-    return last != null &&
-        DateTime.now().difference(last) < const Duration(seconds: 30);
-  }
-
-  void _recordBackendSuccess() {
-    _lastSuccessfulBackendResponseAt = DateTime.now();
-  }
-
-  // ── AI Insight Fetching ────────────────────────────────────
+  // ── AI Insight (fully offline) ─────────────────────────────
 
   Future<String> fetchInsight({
     required String userName,
     Map<String, dynamic>? stats,
   }) async {
-    _lastInsightFetchSucceeded = false;
-
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$_backendUrl/ai-insight'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'user_name': userName, 'stats': stats ?? {}}),
-          )
-          .timeout(
-            const Duration(seconds: 35),
-          ); // Hardened to 35s for unreliable network/slow LLM
-
-      if (response.statusCode == 200) {
-        _recordBackendSuccess();
-        _lastInsightFetchSucceeded = true;
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final insight = data['insight'] as String;
-        _cachedInsight = insight;
-        return insight;
-      }
-      throw Exception('Status ${response.statusCode}');
-    } catch (e) {
-      debugPrint('AI Insight fetch error: $e');
-      return _cachedInsight ?? _localInsight(userName);
-    }
+    _cachedInsight ??= _localInsight(userName);
+    return _cachedInsight!;
   }
 
-  bool get lastInsightFetchSucceeded => _lastInsightFetchSucceeded;
+  bool get lastInsightFetchSucceeded => true;
 
   String get cachedInsight => _cachedInsight ?? '';
-
-  Future<http.Response> _postJsonWithFallback({
-    required List<String> paths,
-    required String body,
-    required Duration timeout,
-  }) async {
-    Object? lastError;
-
-    for (final path in paths) {
-      try {
-        debugPrint('AI Command — trying backend path: $_backendUrl$path');
-        final response = await http
-            .post(
-              Uri.parse('$_backendUrl$path'),
-              headers: {'Content-Type': 'application/json'},
-              body: body,
-            )
-            .timeout(timeout);
-
-        if (response.statusCode != 404) {
-          return response;
-        }
-        lastError = Exception('Endpoint not found: $path');
-      } catch (error, stack) {
-        debugPrint('AI Command — backend path failed: $path');
-        debugPrint(error.toString());
-        debugPrint(stack.toString());
-        lastError = error;
-      }
-    }
-
-    throw lastError ?? Exception('Unable to reach AI backend');
-  }
 
   String _localInsight(String userName) {
     final hour = DateTime.now().hour;
@@ -679,26 +514,11 @@ class AiService {
     }
   }
 
-  // ── Note Summarization ─────────────────────────────────────
+  // ── Note Summarization (no-op stub, GemmaService can be wired later) ──
 
   Future<String?> summarizeNote(String content) async {
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$_backendUrl/summarize'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'content': content}),
-          )
-          .timeout(const Duration(seconds: 30));
-      if (response.statusCode == 200) {
-        return (jsonDecode(response.body) as Map<String, dynamic>)['summary']
-            as String?;
-      }
-      return null;
-    } catch (e) {
-      debugPrint('Summarize error: $e');
-      return null;
-    }
+    debugPrint('[AiService] summarizeNote: no backend — returning null');
+    return null;
   }
 
   // ── Helpers ────────────────────────────────────────────────

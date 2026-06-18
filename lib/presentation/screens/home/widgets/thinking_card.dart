@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
 
 class ThinkingCard extends StatelessWidget {
@@ -8,38 +9,41 @@ class ThinkingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: AppTheme.glassmorphism(
-        tint: AppTheme.primary.withValues(alpha: 0.1),
-        borderRadius: 20,
-      ),
-      child: Row(
-        children: [
-          const ThinkingPulse(),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'JARVIS is working on it...',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: AppTheme.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                Text(
-                  'Building a generative command module based on your prompt.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
-                      ),
-                ),
-              ],
+    return Semantics(
+      label: 'JARVIS is processing your request',
+      child: Container(
+        margin: EdgeInsets.only(bottom: Spacing.lg),
+        padding: EdgeInsets.all(Spacing.xl),
+        decoration: AppTheme.glassmorphism(
+          tint: AppTheme.primary.withValues(alpha: 0.1),
+          borderRadius: 20,
+        ),
+        child: Row(
+          children: [
+            const ThinkingPulse(),
+            SizedBox(width: Spacing.lg),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'JARVIS is working on it...',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: AppTheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  Text(
+                    'Building a generative command module based on your prompt.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
+                        ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -61,7 +65,7 @@ class _ThinkingPulseState extends State<ThinkingPulse>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: Motion.pulse,
     )..repeat(reverse: true);
   }
 

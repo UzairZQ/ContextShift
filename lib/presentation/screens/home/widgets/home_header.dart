@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
 import '../../../../core/database/database_service.dart';
 import '../../../../core/responsive.dart';
@@ -25,7 +26,7 @@ class HomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 24, bottom: 8),
+      padding: EdgeInsets.only(top: Spacing.xxl, bottom: Spacing.sm),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -57,15 +58,17 @@ class HomeHeader extends StatelessWidget {
               _CircleIconButton(
                 icon: LucideIcons.barChart2,
                 onTap: onOpenDashboard,
+                tooltip: 'Dashboard',
               ),
               if (!isAuthGuest) ...[
-                const SizedBox(width: 8),
+                SizedBox(width: Spacing.sm),
                 _CircleIconButton(
                   icon: LucideIcons.logOut,
                   onTap: onLogout,
+                  tooltip: 'Log out',
                 ),
               ],
-              const SizedBox(width: 8),
+              SizedBox(width: Spacing.sm),
               SizedBox(
                 width: 40,
                 height: 40,
@@ -85,24 +88,31 @@ class HomeHeader extends StatelessWidget {
 class _CircleIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
+  final String tooltip;
 
-  const _CircleIconButton({required this.icon, required this.onTap});
+  const _CircleIconButton({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: AppTheme.surfaceHigh,
-        ),
-        child: Icon(
-          icon,
-          size: 16,
-          color: AppTheme.onSurfaceVariant,
+    return Semantics(
+      label: tooltip,
+      child: Tooltip(
+        message: tooltip,
+        child: IconButton(
+          onPressed: onTap,
+          icon: Icon(icon, size: 18, color: AppTheme.onSurfaceVariant),
+          style: IconButton.styleFrom(
+            backgroundColor: AppTheme.surfaceHigh,
+            shape: const CircleBorder(),
+            minimumSize: const Size(HitTarget.icon, HitTarget.icon),
+            fixedSize: const Size(HitTarget.icon, HitTarget.icon),
+          ),
+          splashRadius: 24,
+          padding: EdgeInsets.zero,
         ),
       ),
     );

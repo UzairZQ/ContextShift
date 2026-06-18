@@ -4,9 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/ai_service.dart';
+import '../../../core/app_spacing.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
+import '../../../core/local_llm/model_tier.dart';
 import '../../../core/responsive.dart';
+import '../../../core/services/feature_manager.dart';
+import '../../../features/onboarding/widgets/model_download_screen.dart';
 import '../../widgets/focus/focus_module.dart';
 import '../../widgets/habits/habit_module.dart';
 import '../../widgets/notes/notes_module.dart';
@@ -25,13 +29,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with TickerProviderStateMixin {
-  static const List<String> _offlineMessages = [
-    'JARVIS is ready in offline mode. Local fallback can still help.',
-    'No backend signal right now, but local command mode still works.',
-    'JARVIS cloud is out of orbit. Offline command mode is available.',
-    'Backend is meditating. You can still use the local assistant.',
-  ];
-
   static const List<String> _defaultModuleOrder = [
     'TasksModule',
     'HabitModule',
@@ -50,13 +47,9 @@ class _HomeScreenState extends State<HomeScreen>
   Map<String, dynamic>? _generativeCardPayload;
   List<String> _moduleOrder = _defaultModuleOrder;
   String _layoutRefresher = '';
-  bool _isJarvisOnline = false;
-  bool _hasCheckedJarvisStatus = false;
-  String _currentOfflineHint = '';
 
   final TextEditingController _commandController = TextEditingController();
   late final AnimationController _responseAnimController;
-  Timer? _heartbeatTimer;
 
   @override
   void initState() {
@@ -65,40 +58,15 @@ class _HomeScreenState extends State<HomeScreen>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-    _currentOfflineHint = _offlineMessages.first;
     _computeGreeting();
     _loadInitialData();
-    _startHeartbeat();
   }
 
   @override
   void dispose() {
-    _heartbeatTimer?.cancel();
     _responseAnimController.dispose();
     _commandController.dispose();
     super.dispose();
-  }
-
-  void _startHeartbeat() {
-    _refreshJarvisStatus();
-    _heartbeatTimer = Timer.periodic(
-      const Duration(seconds: 10),
-      (_) => _refreshJarvisStatus(),
-    );
-  }
-
-  Future<void> _refreshJarvisStatus() async {
-    final isOnline = await AiService.instance.checkBackendStatus();
-    if (!mounted) return;
-
-    setState(() {
-      _isJarvisOnline = isOnline;
-      _hasCheckedJarvisStatus = true;
-      if (!isOnline) {
-        _currentOfflineHint =
-            _offlineMessages[DateTime.now().millisecond % _offlineMessages.length];
-      }
-    });
   }
 
   void _computeGreeting() {
@@ -142,10 +110,6 @@ class _HomeScreenState extends State<HomeScreen>
       setState(() {
         _aiInsight = insight;
         _isLoadingInsight = false;
-        if (AiService.instance.lastInsightFetchSucceeded) {
-          _isJarvisOnline = true;
-          _hasCheckedJarvisStatus = true;
-        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -171,10 +135,6 @@ class _HomeScreenState extends State<HomeScreen>
       );
 
       if (!mounted) return;
-      setState(() {
-        _isJarvisOnline = result.fromBackend;
-        _hasCheckedJarvisStatus = true;
-      });
 
       for (final action in result.actions) {
         await _executeAction(
@@ -380,32 +340,35 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildBody() {
     return switch (_currentIndex) {
-      0 => HomeTab(
-          greeting: _greeting,
-          commandController: _commandController,
-          isJarvisOnline: _isJarvisOnline,
-          hasCheckedJarvisStatus: _hasCheckedJarvisStatus,
-          isProcessingCommand: _isProcessingCommand,
-          offlineHint: _currentOfflineHint,
-          aiResponse: _aiResponse,
-          responseAnimation: _responseAnimController,
-          isLoadingInsight: _isLoadingInsight,
-          aiInsight: _aiInsight,
-          focusMinutesToday: _focusMinutesToday,
-          todayMood: _todayMood,
-          moduleOrder: _moduleOrder,
-          layoutRefresher: _layoutRefresher,
-          generativeCardPayload: _generativeCardPayload,
-          onOpenDashboard: _openDashboard,
-          onGenerativeCardAction: _handleGenerativeCardAction,
-          onSubmitCommand: _processCommand,
-          onSelectMood: _saveMood,
-          onDismissResponse: () {
+      0 => RefreshIndicator(
+          onRefresh: _loadInitialData,
+          child: HomeTab(
+            greeting: _greeting,
+            commandController: _commandController,
+            isJarvisOnline: true,
+            hasCheckedJarvisStatus: true,
+            isProcessingCommand: _isProcessingCommand,
+            offlineHint: '',
+            aiResponse: _aiResponse,
+            responseAnimation: _responseAnimController,
+            isLoadingInsight: _isLoadingInsight,
+            aiInsight: _aiInsight,
+            focusMinutesToday: _focusMinutesToday,
+            todayMood: _todayMood,
+            moduleOrder: _moduleOrder,
+            layoutRefresher: _layoutRefresher,
+            generativeCardPayload: _generativeCardPayload,
+            onOpenDashboard: _openDashboard,
+            onGenerativeCardAction: _handleGenerativeCardAction,
+            onSubmitCommand: _processCommand,
+            onSelectMood: _saveMood,
+            onDismissResponse: () {
             if (mounted) setState(() => _aiResponse = null);
           },
           onLogout: _handleLogout,
           isAuthGuest: DatabaseService.instance.isGuest,
         ),
+      ),
       1 => const TasksModule(),
       2 => const HabitModule(),
       3 => const FocusTimerModule(),
@@ -417,47 +380,102 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => throw const FormatException(
-          'Testing Firebase Crashlytics',
-        ),
-        child: const Icon(Icons.car_crash_sharp),
-      ),
-      body: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: Responsive.horizontalPadding(context),
-          ),
-          child: ResponsiveWrapper(
-            maxWidth: 1000,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 320),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) {
-                final offset = Tween<Offset>(
-                  begin: const Offset(0.04, 0),
-                  end: Offset.zero,
-                ).animate(animation);
-
-                return FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(position: offset, child: child),
-                );
-              },
-              child: KeyedSubtree(
-                key: ValueKey(_currentIndex),
-                child: _buildBody(),
+      body: Column(
+        children: [
+          if (!FeatureManager.instance.isE2bAvailable &&
+              !FeatureManager.instance.isE4bAvailable)
+            GestureDetector(
+              onTap: _openModelDownload,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Spacing.lg,
+                  vertical: Spacing.sm,
+                ),
+                color: AppTheme.warning.withValues(alpha: 0.15),
+                child: Row(
+                  children: [
+                    const Icon(
+                      LucideIcons.downloadCloud,
+                      size: 16,
+                      color: AppTheme.warning,
+                    ),
+                    const SizedBox(width: Spacing.sm),
+                    const Expanded(
+                      child: Text(
+                        'Download AI model for JARVIS features',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppTheme.warning,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      LucideIcons.chevronRight,
+                      size: 16,
+                      color: AppTheme.warning,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          Expanded(
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: Responsive.horizontalPadding(context),
+                ),
+                child: ResponsiveWrapper(
+                  maxWidth: 1000,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 320),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, animation) {
+                      final offset = Tween<Offset>(
+                        begin: const Offset(0.04, 0),
+                        end: Offset.zero,
+                      ).animate(animation);
+                      return FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(position: offset, child: child),
+                      );
+                    },
+                    child: KeyedSubtree(
+                      key: ValueKey(_currentIndex),
+                      child: _buildBody(),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
       extendBody: true,
       bottomNavigationBar: FloatingNavBar(
         currentIndex: _currentIndex,
         onTap: _switchTab,
+      ),
+    );
+  }
+
+  void _openModelDownload() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ModelDownloadScreen(
+          model: ModelDefinition.e2b,
+          isOnboarding: false,
+          onComplete: () {
+            Navigator.pop(context);
+            setState(() {
+              FeatureManager.instance.setE2bDownloaded(true);
+            });
+          },
+        ),
       ),
     );
   }

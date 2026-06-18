@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
 import '../../../../core/database/database_service.dart';
 import '../../../../core/responsive.dart';
@@ -42,8 +43,8 @@ class StatsSection extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               crossAxisCount: Responsive.isMobile(context) ? 2 : 4,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
+              crossAxisSpacing: Spacing.md,
+              mainAxisSpacing: Spacing.md,
               childAspectRatio:
                   Responsive.isMobile(context) ? 1.38 : 1.55,
               children: [
@@ -52,7 +53,7 @@ class StatsSection extends StatelessWidget {
                   label: 'Tasks Done',
                   icon: LucideIcons.checkSquare,
                   progress: totalTasks > 0 ? tasksDone / totalTasks : 0,
-                  color: Colors.blue,
+                  color: AppTheme.tertiary,
                 ),
                 _StatCard(
                   value: '$habitsDone/$totalHabits',
@@ -102,46 +103,49 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: AppTheme.cardDecoration(color: AppTheme.surfaceContainer),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 14, color: color),
-              const Spacer(),
-              SizedBox(
-                width: 28,
-                height: 28,
-                child: CircularProgressIndicator(
-                  value: progress.clamp(0, 1),
-                  strokeWidth: 3,
-                  backgroundColor: color.withValues(alpha: 0.1),
-                  valueColor: AlwaysStoppedAnimation(color),
+    return Semantics(
+      label: '$label: $value',
+      child: Container(
+        padding: Spacing.cardPadding,
+        decoration: AppTheme.cardDecoration(color: AppTheme.surfaceContainer),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 14, color: color),
+                const Spacer(),
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    value: progress.clamp(0, 1),
+                    strokeWidth: 3,
+                    backgroundColor: color.withValues(alpha: 0.1),
+                    valueColor: AlwaysStoppedAnimation(color),
+                  ),
                 ),
+              ],
+            ),
+            const Spacer(),
+            Text(
+              value,
+              style: const TextStyle(
+                color: AppTheme.onSurface,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
               ),
-            ],
-          ),
-          const Spacer(),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppTheme.onSurface,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
             ),
-          ),
-          Text(
-            label,
-            style: TextStyle(
-              color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
-              fontSize: 11,
+            Text(
+              label,
+              style: TextStyle(
+                color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
+                fontSize: 11,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

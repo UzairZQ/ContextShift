@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
 
 class AiCommandBar extends StatefulWidget {
@@ -74,8 +75,8 @@ class _AiCommandBarState extends State<AiCommandBar> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(top: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      margin: EdgeInsets.only(top: Spacing.xl),
+      padding: EdgeInsets.symmetric(horizontal: Spacing.xl, vertical: 4),
       decoration: AppTheme.glassmorphism(
         tint: AppTheme.surfaceHighest,
         borderRadius: 999,
@@ -96,7 +97,7 @@ class _AiCommandBarState extends State<AiCommandBar> {
           border: InputBorder.none,
           suffixIcon: widget.isProcessing
               ? const Padding(
-                  padding: EdgeInsets.all(12),
+                  padding: EdgeInsets.all(Spacing.md),
                   child: SizedBox(
                     width: 18,
                     height: 18,
@@ -106,18 +107,23 @@ class _AiCommandBarState extends State<AiCommandBar> {
                     ),
                   ),
                 )
-              : IconButton(
-                  onPressed: _handleSend,
-                  icon: Icon(
-                    widget.isOnline ? LucideIcons.send : LucideIcons.wifiOff,
-                    color: widget.isOnline
-                        ? AppTheme.primary
-                        : AppTheme.warning.withValues(alpha: 0.9),
-                    size: 18,
+              : Semantics(
+                  label: 'Send command',
+                  child: IconButton(
+                    onPressed: _handleSend,
+                    icon: Icon(
+                      widget.isOnline
+                          ? LucideIcons.send
+                          : LucideIcons.wifiOff,
+                      color: widget.isOnline
+                          ? AppTheme.primary
+                          : AppTheme.warning.withValues(alpha: 0.9),
+                      size: 18,
+                    ),
                   ),
                 ),
         ),
-        onSubmitted: widget.onSubmit,
+        onSubmitted: (_) => _handleSend(),
       ),
     );
   }

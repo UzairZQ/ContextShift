@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
 
 class FloatingNavBar extends StatelessWidget {
@@ -26,7 +27,11 @@ class FloatingNavBar extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        margin: const EdgeInsets.only(left: 24, right: 24, bottom: 16),
+        margin: EdgeInsets.only(
+          left: Spacing.xxl,
+          right: Spacing.xxl,
+          bottom: Spacing.lg,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: AppTheme.glassmorphism(
           tint: AppTheme.surfaceHighest,
@@ -40,27 +45,52 @@ class FloatingNavBar extends StatelessWidget {
             final i = entry.key;
             final item = entry.value;
             final isActive = currentIndex == i;
-            return GestureDetector(
-              onTap: () => onTap(i),
-              behavior: HitTestBehavior.opaque,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
+            return Semantics(
+              label: item.label,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minWidth: HitTarget.navItem,
                 ),
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? AppTheme.primary.withValues(alpha: 0.15)
-                      : Colors.transparent,
+                child: InkWell(
+                  onTap: () => onTap(i),
                   borderRadius: BorderRadius.circular(999),
-                ),
-                child: Icon(
-                  item.icon,
-                  size: 24,
-                  color: isActive
-                      ? AppTheme.primary
-                      : AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  child: AnimatedContainer(
+                    duration: Motion.fast,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: Spacing.lg,
+                      vertical: Spacing.sm,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? AppTheme.primary.withValues(alpha: 0.15)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          item.icon,
+                          size: 24,
+                          color: isActive
+                              ? AppTheme.primary
+                              : AppTheme.onSurfaceVariant
+                                  .withValues(alpha: 0.6),
+                        ),
+                        SizedBox(height: Spacing.xs),
+                        Text(
+                          item.label,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isActive
+                                ? AppTheme.primary
+                                : AppTheme.onSurfaceVariant
+                                    .withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             );

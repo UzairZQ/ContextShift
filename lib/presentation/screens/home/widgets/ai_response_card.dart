@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
+import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
 
 class AiResponseCard extends StatelessWidget {
@@ -17,35 +18,56 @@ class AiResponseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: animation,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppTheme.primary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.primary.withValues(alpha: 0.2)),
-        ),
-        child: Row(
-          children: [
-            const Icon(LucideIcons.sparkles, color: AppTheme.primary, size: 18),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(color: AppTheme.onSurface, fontSize: 14),
-              ),
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(0, 0.04),
+        end: Offset.zero,
+      ).animate(animation),
+      child: FadeTransition(
+        opacity: animation,
+        child: Semantics(
+          label: 'AI Response',
+          child: Container(
+            margin: EdgeInsets.only(bottom: Spacing.lg),
+            padding: Spacing.cardPadding,
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                  color: AppTheme.primary.withValues(alpha: 0.2)),
             ),
-            GestureDetector(
-              onTap: onDismiss,
-              child: const Icon(
-                LucideIcons.x,
-                size: 14,
-                color: AppTheme.onSurfaceVariant,
-              ),
+            child: Row(
+              children: [
+                const Icon(LucideIcons.sparkles,
+                    color: AppTheme.primary, size: 18),
+                SizedBox(width: Spacing.md),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: const TextStyle(
+                        color: AppTheme.onSurface, fontSize: 14),
+                  ),
+                ),
+                Semantics(
+                  label: 'Dismiss response',
+                  child: IconButton(
+                    onPressed: onDismiss,
+                    icon: const Icon(
+                      LucideIcons.x,
+                      size: 14,
+                      color: AppTheme.onSurfaceVariant,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: HitTarget.icon,
+                      minHeight: HitTarget.icon,
+                    ),
+                    padding: EdgeInsets.zero,
+                    splashRadius: 24,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

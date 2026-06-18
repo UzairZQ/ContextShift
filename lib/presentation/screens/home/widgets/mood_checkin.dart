@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
 
 class MoodCheckIn extends StatelessWidget {
@@ -17,7 +18,7 @@ class MoodCheckIn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: Spacing.cardPadding,
       decoration: AppTheme.cardDecoration(color: AppTheme.surfaceContainer),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -28,7 +29,7 @@ class MoodCheckIn extends StatelessWidget {
                 : 'How are you feeling?',
             style: Theme.of(context).textTheme.labelMedium,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: Spacing.md),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: _moods.map((mood) => _MoodButton(
@@ -44,6 +45,14 @@ class MoodCheckIn extends StatelessWidget {
 }
 
 class _MoodButton extends StatelessWidget {
+  static const Map<String, String> _semanticLabels = {
+    '😴': 'Mood: very low',
+    '😐': 'Mood: low',
+    '🙂': 'Mood: neutral',
+    '😊': 'Mood: good',
+    '🔥': 'Mood: great',
+  };
+
   final String emoji;
   final bool isSelected;
   final VoidCallback onTap;
@@ -56,25 +65,37 @@ class _MoodButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppTheme.primary.withValues(alpha: 0.15)
-              : Colors.transparent,
+    return Semantics(
+      label: _semanticLabels[emoji] ?? 'Mood option',
+      button: true,
+      selected: isSelected,
+      child: SizedBox(
+        width: HitTarget.min,
+        height: HitTarget.min,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? AppTheme.primary.withValues(alpha: 0.4)
-                : Colors.transparent,
+          child: AnimatedContainer(
+            duration: Motion.fast,
+            padding: const EdgeInsets.all(Spacing.sm),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppTheme.primary.withValues(alpha: 0.15)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isSelected
+                    ? AppTheme.primary.withValues(alpha: 0.4)
+                    : Colors.transparent,
+              ),
+            ),
+            child: Center(
+              child: Text(
+                emoji,
+                style: TextStyle(fontSize: isSelected ? 28 : 24),
+              ),
+            ),
           ),
-        ),
-        child: Text(
-          emoji,
-          style: TextStyle(fontSize: isSelected ? 28 : 24),
         ),
       ),
     );

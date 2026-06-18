@@ -22,7 +22,7 @@ if (file("google-services.json").exists()) {
 
 android {
     namespace = "com.example.context_shift"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 34
     ndkVersion = flutter.ndkVersion
 
     signingConfigs {
@@ -48,10 +48,13 @@ android {
         applicationId = "com.uzairZQ.context_shift"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        ndk {
+            abiFilters "arm64-v8a"
+        }
     }
 
     buildTypes {
