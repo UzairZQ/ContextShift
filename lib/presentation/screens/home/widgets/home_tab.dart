@@ -113,7 +113,7 @@ class HomeTab extends StatelessWidget {
             onTap: onOpenDashboard,
           ),
           SizedBox(
-            height: MediaQuery.of(context).padding.bottom + 80,
+            height: MediaQuery.of(context).padding.bottom + 65,
           ),
         ],
       ),
