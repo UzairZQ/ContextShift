@@ -104,7 +104,6 @@ class HomeTab extends StatelessWidget {
             generativeCardPayload: generativeCardPayload,
             onGenerativeCardAction: onGenerativeCardAction,
           ),
-          const SizedBox(height: 16),
           MoodCheckIn(selectedMood: todayMood, onSelect: onSelectMood),
           const SizedBox(height: 16),
           StatsSection(focusMinutesToday: focusMinutesToday),
