@@ -1,6 +1,6 @@
 # ContextShift TODO
 
-## Core Architecture you 
+## Core Architecture you ope
 
 ### Goal
 Replace the FastAPI Python backend with on-device Gemma 4 via `flutter_gemma`. Build a chat UI with **Jarvis** (AI friend) using **GenUI** for dynamic, prompt-driven UI. Feed local user data from **Drift (SQLite)** (recent chats, preferences, app state) as context to make Jarvis personalized. Fully offline — no Firebase, no server, no GDPR issues. Monetize via $14.99 one-time purchase gating the E4B model + premium features.
@@ -195,15 +195,6 @@ MoodEntries
 - **Token efficient** — curated context, not a dump. Jarvis uses function calling to request more on demand
 - **OTA prompt updates** — ship prompt asset in updates, or optionally fetch a single URL on app launch
 
-### Model Delivery — Play Feature Delivery (E2B) + Custom Download (E4B)
-- E2B and E4B are **not bundled** in the APK — delivered as on-demand asset packs
-- **E2B**: Uses **Play Feature Delivery** (on-demand asset pack) — Google Play manages the download with native progress UI, pause/resume, defer-to-WiFi. No custom downloader needed. The asset pack ships as part of the app listing on Play Store but is installed on demand.
-- **Flow**: Install from Play Store → App opens → Google Play installs E2B asset pack (managed download dialog) → Model ready → Initialize app
-- **E4B**: Custom download via `FlutterGemma.installModel()` after RevenueCat purchase confirmation. Cannot use Play Feature Delivery since it's gated behind payment.
-- E2B download is free and required before using the app (gated behind first-launch onboarding)
-- E4B download only triggers after RevenueCat confirms purchase — no purchase, no download
-- Benefits: small APK size, no Play Store 150MB APK limit, native Google Play download UX with zero custom code for E2B
-
 ### Files
 - `lib/core/database/database.dart` — Drift database definition (tables, DAOs, migrations)
 - `lib/core/database/schema.dart` — all table definitions (UserPreferences, Conversations, Messages, MoodEntries)
@@ -384,7 +375,7 @@ Check existing screens (`lib/features/`) and theme config (`lib/core/theme/`) be
 
 ### Open questions / research needed
 - Launch at $14.99 or $29.99?
-- ~~Bundle E2B in APK vs download on first launch?~~ ✅ **Decided: download on first launch**
+- Bundle E2B in APK vs download on first launch?
 - `genui` is experimental alpha — monitor API stability
 - iOS target: start Android-only or both at once?
 - Which purchase SDK? RevenueCat vs in-app purchases directly?
@@ -396,18 +387,11 @@ Check existing screens (`lib/features/`) and theme config (`lib/core/theme/`) be
 ## Backlog / Tasks
 
 ### Phase 0 — Migration & Foundation (DO FIRST)
-- [x] **Data migration plan** — written in `phase0implementation.md`
-- [x] **Firebase removal strategy** — decided: fully rip out Firebase except Crashlytics. Auth, Firestore, Google Sign-In removed.
-- [x] **Drift schema expansion** — 11 tables added to `lib/core/database/schema.dart` covering all existing entities + new (UserPreferences, Conversation, Message)
-- [x] **DatabaseService** — singleton created, mirrors FirebaseService API exactly, all 17+ UI files swapped
-- [x] **Firebase files deleted** — `firebase_service.dart`, `firebase_runtime_options.dart`, `firebase_options.dart`, login/register screens removed
-- [x] **`flutter analyze` clean** — 0 errors
+- [ ] **Data migration plan** — design how existing Firestore data (tasks, habits, notes, focus sessions, mood entries, profiles) maps to Drift tables. Write a `MigrationGuide.md`.
+- [ ] **Firebase removal strategy** — decide: keep Firebase for auth+CRUD with Drift only for LLM context, or fully rip out Firebase. If keeping, define the boundary.
+- [ ] **Drift schema expansion** — decide whether to migrate all current Firestore collections (tasks, habits, notes, focus_sessions) to Drift, or keep them hybrid. If migrating, add those tables to `schema.dart`.
 - [ ] **Backup/restore** — design SQLite backup to iCloud/Google Drive or local file export. Add to backlog if not MVP.
 - [ ] **Device compatibility matrix** — test LiteRT-LM on target devices. Document minimum RAM (4GB for E2B, 8GB for E4B), Android version, iOS version.
-
-### Phase 0 — Backlog (deferred)
-- [ ] **Backup/restore** — design SQLite backup to iCloud/Google Drive or local file export. Not critical for MVP.
-- [ ] **Device compatibility matrix** — test LiteRT-LM on target devices. Document minimum RAM (4GB for E2B, 8GB for E4B), Android version, iOS version. Needed before Phase 1 model download.
 
 ### Phase 1 — Model & LLM Layer
 - [ ] **Model download UX design** — wireframe the full flow: storage check → download screen with progress/percentage → pause/resume → error/retry → success → model loaded confirmation. Handle edge cases (low storage, interrupt, slow network).
@@ -457,49 +441,9 @@ Check existing screens (`lib/features/`) and theme config (`lib/core/theme/`) be
 - [ ] **Crash reporting** — add opt-in crash reporting (Sentinel or similar) that respects offline-only privacy. Do not send any user data.
 - [ ] **Usage analytics (privacy-first)** — count model loads, inference runs, feature usage — all stored locally in Drift, never sent anywhere. Optionally export in a future sync feature.
 
-## Extracted Backend Logic (FastAPI + Node) — Reusable for On-Device
-
-### JARVIS Command System Prompt (from `backend_fastapi/main.py:105-129`)
-The existing cloud prompt defines the AI's behavior contract. Adopt for on-device Gemma prompt asset:
-- **Actions**: `add_task`, `add_habit`, `add_note`, `start_focus`, `show_dynamic_card`
-- **Layout engine**: reorders modules dynamically (`FocusTimerModule`, `TasksModule`, `HabitModule`, `NotesModule`) + inserts `GenerativeCardModule` at position 0 when `show_dynamic_card` is used
-- **Response format**: returns JSON with `actions[]`, `response`, `greeting_update`, `layout_order[]`
-- **Personalization rules**: uses profile, mood, top tasks, missing habits, recent notes, recent commands, recent behavior events
-- **Key rule**: "timer/focus/pomodoro" → FocusTimerModule first; "plan/routine/workout/advice" → show_dynamic_card + GenerativeCardModule first
-
-### Insight Generation Prompt (from `backend_fastapi/main.py:132-145`)
-Rules for generating behavioral insights from local Drift data:
-- Under 2 sentences, reference actual numbers
-- Detect real patterns: streak risk, peak productivity window, habit drop-off, focus drop, task pile-up
-- Return JSON: `{"insight": "...", "insight_type": "streak|warning|tip|pattern|milestone"}`
-
-### Note Summarization Prompt (from `backend_fastapi/main.py:260`)
-- "Summarize this thought in exactly ONE short, punchy sentence. Focus on the core intent. Avoid 'The user wants...' style."
-
-### Model Fallback Chain (from `backend_fastapi/main.py:27-31,64-83`)
-- Priority order: `gemini-2.0-flash` → `gemini-2.0-flash-001` → `gemini-2.0-flash-lite`
-- 8-second timeout per model before trying next
-- On `RESOURCE_EXHAUSTED` / 429: skip to next model, don't crash
-- Final fallback: return graceful "JARVIS timed out / quota reached" response with default layout order
-- **Relevance**: on-device, if E2B fails to load, fall back to local regex parser (Tier 0); if E4B not purchased, use E2B
-
-### Bulletproof JSON Parsing (from `backend_fastapi/main.py:171-184`)
-- Find first `{` and last `}` in LLM response
-- Strip markdown code fences (` ```json ` / ` ``` `)
-- Handle nested JSON correctly (rfind for closing brace)
-- **Relevance**: on-device Gemma output needs same parsing robustness
-
-### Socket.IO Layout Relay (from `backend_node/index.js:27-33`)
-- FastAPI → Node → Flutter real-time layout updates
-- `/api/layout-update` receives layout config and broadcasts via WebSocket
-- **Relevance**: obsolete with on-device — replace with local state management (ChangeNotifier / BLoC event when GenUI generates new layout)
-
-### Static Model Listing (from `backend_fastapi/list_models.py`)
-- Utility script that lists all Gemini models supporting `generateContent` — useful as reference for model name selection during flutter_gemma setup.
-
 ### Investigate & Decide
 - [ ] **Sync strategy** — is local-only acceptable for MVP? If sync is needed later, research: Drift sync via custom server, or hybrid approach (Firestore for sync + Drift for LLM context).
-- [x] **E2B bundling** — decided: download on first launch. Not bundled in APK. E2B downloads free after install; E4B downloads only after purchase check. Cached locally, re-download only on corruption.
+- [ ] **E2B bundling** — decide: bundle E2B in APK (~2.4GB increase) or download on first launch (bad UX, but smaller install). Research Android App Bundle + Play Feature Delivery for on-demand model delivery.
 - [ ] **Android vs iOS first** — decide launch platform. Android has better LiteRT-LM support. iOS may need higher deployment target (16.0+). Consider Android-only launch, then iOS.
 - [ ] **Purchase SDK** — RevenueCat vs vanilla BillingClient/StoreKit2. RevenueCat saves time but adds dependency. Decide based on complexity tolerance.
 - [ ] **OTA prompt delivery** — bundle only (simple, always works) vs CDN fetch with bundle fallback (flexible, needs network at least once).
