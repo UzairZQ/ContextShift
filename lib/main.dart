@@ -8,8 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core/app_theme.dart';
 import 'core/database/database_service.dart';
 import 'core/local_llm/gemma_service.dart';
-import 'core/local_llm/model_tier.dart';
-import 'features/onboarding/widgets/model_download_screen.dart';
 import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/onboarding/onboarding_screen.dart';
 
@@ -67,10 +65,8 @@ class _LaunchGate extends StatefulWidget {
 
 class _LaunchGateState extends State<_LaunchGate> {
   static const _onboardingKey = 'has_seen_onboarding';
-  static const _modelDownloadedKey = 'e2b_model_downloaded';
   bool? _hasSeenOnboarding;
   bool _prefsUnavailable = false;
-  bool _modelDownloaded = false;
 
   @override
   void initState() {
@@ -84,7 +80,6 @@ class _LaunchGateState extends State<_LaunchGate> {
       if (!mounted) return;
       setState(() {
         _hasSeenOnboarding = prefs.getBool(_onboardingKey) ?? false;
-        _modelDownloaded = prefs.getBool(_modelDownloadedKey) ?? false;
         _prefsUnavailable = false;
       });
     } on PlatformException catch (error) {
@@ -95,7 +90,6 @@ class _LaunchGateState extends State<_LaunchGate> {
       setState(() {
         _hasSeenOnboarding = false;
         _prefsUnavailable = true;
-        _modelDownloaded = false;
       });
     }
   }
@@ -119,17 +113,6 @@ class _LaunchGateState extends State<_LaunchGate> {
     setState(() => _hasSeenOnboarding = true);
   }
 
-  Future<void> _onModelDownloaded() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_modelDownloadedKey, true);
-    } catch (e) {
-      debugPrint('[LaunchGate] Failed to save model downloaded flag: $e');
-    }
-    if (!mounted) return;
-    setState(() => _modelDownloaded = true);
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_hasSeenOnboarding == null) {
@@ -138,15 +121,6 @@ class _LaunchGateState extends State<_LaunchGate> {
 
     if (_hasSeenOnboarding == false) {
       return OnboardingScreen(onComplete: _completeOnboarding);
-    }
-
-    if (!_modelDownloaded && !_prefsUnavailable) {
-      return ModelDownloadScreen(
-        model: ModelDefinition.e2b,
-        isOnboarding: true,
-        onComplete: _onModelDownloaded,
-        onSkip: _onModelDownloaded,
-      );
     }
 
     return const HomeScreen();

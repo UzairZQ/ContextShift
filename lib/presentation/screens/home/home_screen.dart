@@ -380,49 +380,49 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
-        children: [
-          if (!FeatureManager.instance.isE2bAvailable &&
-              !FeatureManager.instance.isE4bAvailable)
-            GestureDetector(
-              onTap: _openModelDownload,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: Spacing.lg,
-                  vertical: Spacing.sm,
-                ),
-                color: AppTheme.warning.withValues(alpha: 0.15),
-                child: Row(
-                  children: [
-                    const Icon(
-                      LucideIcons.downloadCloud,
-                      size: 16,
-                      color: AppTheme.warning,
-                    ),
-                    const SizedBox(width: Spacing.sm),
-                    const Expanded(
-                      child: Text(
-                        'Download AI model for JARVIS features',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppTheme.warning,
-                          fontWeight: FontWeight.w500,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            if (!FeatureManager.instance.isE2bAvailable &&
+                !FeatureManager.instance.isE4bAvailable)
+              GestureDetector(
+                onTap: _openModelDownload,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.lg,
+                    vertical: Spacing.sm,
+                  ),
+                  color: AppTheme.warning.withValues(alpha: 0.15),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        LucideIcons.downloadCloud,
+                        size: 16,
+                        color: AppTheme.warning,
+                      ),
+                      const SizedBox(width: Spacing.sm),
+                      const Expanded(
+                        child: Text(
+                          'Download AI model for JARVIS features',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.warning,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
-                    ),
-                    const Icon(
-                      LucideIcons.chevronRight,
-                      size: 16,
-                      color: AppTheme.warning,
-                    ),
-                  ],
+                      const Icon(
+                        LucideIcons.chevronRight,
+                        size: 16,
+                        color: AppTheme.warning,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          Expanded(
-            child: SafeArea(
-              bottom: false,
+            Expanded(
               child: Padding(
                 padding: EdgeInsets.symmetric(
                   horizontal: Responsive.horizontalPadding(context),
@@ -451,8 +451,8 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       extendBody: true,
       bottomNavigationBar: FloatingNavBar(
