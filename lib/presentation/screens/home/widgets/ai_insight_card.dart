@@ -25,7 +25,7 @@ class AiInsightCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         child: Container(
           width: double.infinity,
-          padding: EdgeInsets.all(Spacing.xl),
+          padding: EdgeInsets.all(Spacing.lg),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
