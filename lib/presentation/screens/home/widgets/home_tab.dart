@@ -105,16 +105,18 @@ class HomeTab extends StatelessWidget {
             onGenerativeCardAction: onGenerativeCardAction,
           ),
           const SizedBox(height: 16),
+          MoodCheckIn(selectedMood: todayMood, onSelect: onSelectMood),
+          const SizedBox(height: 16),
+          StatsSection(focusMinutesToday: focusMinutesToday),
+          const SizedBox(height: 16),
           AiInsightCard(
             insight: aiInsight,
             isLoading: isLoadingInsight,
             onTap: onOpenDashboard,
           ),
-          const SizedBox(height: 16),
-          MoodCheckIn(selectedMood: todayMood, onSelect: onSelectMood),
-          const SizedBox(height: 16),
-          StatsSection(focusMinutesToday: focusMinutesToday),
-          const SizedBox(height: 120),
+          SizedBox(
+            height: MediaQuery.of(context).padding.bottom + 80,
+          ),
         ],
       ),
     );
