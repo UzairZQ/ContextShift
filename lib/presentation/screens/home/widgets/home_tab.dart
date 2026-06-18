@@ -107,7 +107,6 @@ class HomeTab extends StatelessWidget {
           MoodCheckIn(selectedMood: todayMood, onSelect: onSelectMood),
           const SizedBox(height: 16),
           StatsSection(focusMinutesToday: focusMinutesToday),
-          const SizedBox(height: 16),
           AiInsightCard(
             insight: aiInsight,
             isLoading: isLoadingInsight,
