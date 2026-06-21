@@ -386,12 +386,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _openEmptyChat() async {
     debugPrint('[HomeScreen] Opening empty JARVIS chat from floating button');
-    await _pushChat(startNewOnOpen: true);
+    await _pushChat(startNewOnOpen: true, enableInputHero: false);
   }
 
   Future<void> _pushChat({
     String? initialMessage,
     bool startNewOnOpen = false,
+    bool enableInputHero = true,
   }) {
     return Navigator.of(context).push<void>(
       PageRouteBuilder<void>(
@@ -401,6 +402,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           return ChatScreen(
             initialMessage: initialMessage,
             startNewOnOpen: startNewOnOpen,
+            enableInputHero: enableInputHero,
           );
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {

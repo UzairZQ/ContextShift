@@ -26,12 +26,14 @@ class ChatScreen extends StatefulWidget {
   final String? initialMessage;
   final int? conversationId;
   final bool startNewOnOpen;
+  final bool enableInputHero;
 
   const ChatScreen({
     super.key,
     this.initialMessage,
     this.conversationId,
     this.startNewOnOpen = false,
+    this.enableInputHero = true,
   });
 
   @override
@@ -43,8 +45,9 @@ enum _JarvisIntent { chat, action, genui }
 class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
-  late final JarvisGenUiRuntime _genUiRuntime;
+  JarvisGenUiRuntime? _genUiRuntime;
   bool _isProcessing = false;
+  late final bool _forceComposer;
 
   int? _activeConversationId;
   List<ConversationTableData> _conversations = [];
@@ -55,7 +58,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _genUiRuntime = JarvisGenUiRuntime();
+    _forceComposer = widget.startNewOnOpen;
     _activeConversationId = widget.conversationId;
     _genUiActionSub = GenUiActionBus.instance.actions.listen(
       _handleGenUiAction,
@@ -73,8 +76,12 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollController.dispose();
     _messagesSub?.cancel();
     _genUiActionSub?.cancel();
-    _genUiRuntime.dispose();
+    _genUiRuntime?.dispose();
     super.dispose();
+  }
+
+  JarvisGenUiRuntime get _genUiRuntimeInstance {
+    return _genUiRuntime ??= JarvisGenUiRuntime();
   }
 
   Future<void> _handleGenUiAction(WidgetAction action) async {
@@ -113,13 +120,11 @@ class _ChatScreenState extends State<ChatScreen> {
       if (!mounted) return;
       setState(() => _conversations = convs);
 
-      if (widget.startNewOnOpen && _activeConversationId == null) {
-        await _startNewConversation();
-        return;
-      }
-
       final isNewPrompt = widget.initialMessage?.trim().isNotEmpty ?? false;
-      if (!isNewPrompt && _activeConversationId == null && convs.isNotEmpty) {
+      if (!isNewPrompt &&
+          !_forceComposer &&
+          _activeConversationId == null &&
+          convs.isNotEmpty) {
         _activeConversationId = convs.first.id;
         _watchMessages();
       }
@@ -265,7 +270,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ? _encodeWidgetPayload(result)
                 : jsonEncode(execution.generatedCard);
           case _JarvisIntent.genui:
-            final generation = await _genUiRuntime.generate(
+            final generation = await _genUiRuntimeInstance.generate(
               userMessage: message,
               conversationId: _activeConversationId,
               timeout: const Duration(seconds: 45),
@@ -460,7 +465,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final showBackButton = Navigator.of(context).canPop();
-    final hasActiveConv = _activeConversationId != null;
+    final hasActiveConv = _activeConversationId != null || _forceComposer;
 
     return Container(
       decoration: const BoxDecoration(
@@ -716,7 +721,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
 
-    return widget.conversationId == null
+    return widget.enableInputHero
         ? Hero(
             tag: 'jarvis_bar',
             createRectTween: (begin, end) =>
