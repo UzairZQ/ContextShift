@@ -325,17 +325,18 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     debugPrint(
-      '[ChatScreen] Model not loaded before chat. '
-      'Loading ${model.modelId} for messageLength=${message.length}',
+      '[ChatScreen] Chat blocked because model is downloaded but not loaded. '
+      'model=${model.modelId}, messageLength=${message.length}',
     );
-    await GemmaService.instance
-        .loadModel(model)
-        .timeout(
-          const Duration(seconds: 60),
-          onTimeout: () => throw TimeoutException(
-            'Timed out while loading ${model.displayName}.',
-          ),
-        );
+    throw GemmaException(
+      code: GemmaErrorCode.modelNotLoaded,
+      message:
+          'JARVIS is downloaded, but the local model is not active yet. '
+          'Restart the app once so it can activate safely.',
+      detail:
+          'Model ID: ${model.modelId}. '
+          'GemmaService.isInitialized=${GemmaService.instance.isInitialized}',
+    );
   }
 
   String _diagnosticId() {

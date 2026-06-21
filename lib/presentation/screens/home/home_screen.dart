@@ -120,6 +120,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (command.trim().isEmpty) return;
 
     try {
+      final localSmallTalk = _localSmallTalkResponse(command);
+      if (localSmallTalk != null) {
+        _commandController.clear();
+        if (!mounted) return;
+        setState(() {
+          _aiResponse = localSmallTalk;
+          _generativeCardPayload = null;
+        });
+        _responseAnimController.forward(from: 0);
+        _showResponseSnackBar(localSmallTalk);
+        Future.delayed(const Duration(seconds: 5), () {
+          if (mounted) setState(() => _aiResponse = null);
+        });
+        return;
+      }
+
       // If no model is available, route to download screen
       if (!FeatureManager.instance.isE2bAvailable &&
           !FeatureManager.instance.isE4bAvailable) {
@@ -130,6 +146,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       // Route chat queries to the ChatScreen with hero animation
       if (!AiService.instance.isCommandQuery(command)) {
+        if (!GemmaService.instance.isModelLoaded) {
+          _commandController.clear();
+          if (!mounted) return;
+          const message =
+              'JARVIS is downloaded, but the local model is not active yet. '
+              'Please restart the app once, then try again.';
+          setState(() => _aiResponse = message);
+          _responseAnimController.forward(from: 0);
+          _showResponseSnackBar(message);
+          debugPrint(
+            '[HomeScreen] Chat blocked: model downloaded but not loaded. '
+            'activeModel=${GemmaService.instance.activeModelDef?.modelId}',
+          );
+          return;
+        }
         if (!mounted) return;
         await _pushChat(initialMessage: command);
         _commandController.clear();
@@ -200,6 +231,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     } finally {
       if (mounted) setState(() => _isProcessingCommand = false);
     }
+  }
+
+  String? _localSmallTalkResponse(String message) {
+    final cleaned = message
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    const greetings = {
+      'hi',
+      'hello',
+      'hey',
+      'yo',
+      'hi jarvis',
+      'hello jarvis',
+      'hey jarvis',
+      'how are you',
+      'hi how are you',
+      'hello how are you',
+      'hey how are you',
+      'how are you jarvis',
+    };
+    if (!greetings.contains(cleaned)) return null;
+    final name = DatabaseService.instance.firstName;
+    return "I'm here, $name. JARVIS is ready for planning, focus, tasks, and check-ins.";
   }
 
   Future<void> _executeAction(
@@ -396,7 +452,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           isJarvisOnline: GemmaService.instance.isModelLoaded,
           hasCheckedJarvisStatus: true,
           isProcessingCommand: _isProcessingCommand,
-          offlineHint: '',
+          offlineHint:
+              FeatureManager.instance.isE2bAvailable ||
+                  FeatureManager.instance.isE4bAvailable
+              ? 'Restart to activate JARVIS'
+              : 'Download JARVIS to chat',
           aiResponse: _aiResponse,
           responseAnimation: _responseAnimController,
           isLoadingInsight: _isLoadingInsight,
