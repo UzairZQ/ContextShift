@@ -209,11 +209,7 @@ class _ChatScreenState extends State<ChatScreen> {
       String response;
       String? widgetJson;
 
-      final localSmallTalk = _localSmallTalkResponse(message);
-      if (localSmallTalk != null) {
-        response = localSmallTalk;
-        widgetJson = null;
-      } else if (isDirectCommand) {
+      if (isDirectCommand) {
         final result = await AiService.instance.processCommand(
           command: message,
           userName: DatabaseService.instance.firstName,
@@ -288,31 +284,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  String? _localSmallTalkResponse(String message) {
-    final cleaned = message
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-    const greetings = {
-      'hi',
-      'hello',
-      'hey',
-      'yo',
-      'hi jarvis',
-      'hello jarvis',
-      'hey jarvis',
-      'how are you',
-      'hi how are you',
-      'hello how are you',
-      'hey how are you',
-      'how are you jarvis',
-    };
-    if (!greetings.contains(cleaned)) return null;
-    final name = DatabaseService.instance.firstName;
-    return "I'm here, $name. Ready when you are. Tell me what you want to clear, plan, or focus on next.";
-  }
-
   Future<void> _ensureJarvisReadyForChat(String message) async {
     if (GemmaService.instance.isModelLoaded) return;
 
@@ -325,18 +296,17 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     debugPrint(
-      '[ChatScreen] Chat blocked because model is downloaded but not loaded. '
+      '[ChatScreen] Loading downloaded model before chat. '
       'model=${model.modelId}, messageLength=${message.length}',
     );
-    throw GemmaException(
-      code: GemmaErrorCode.modelNotLoaded,
-      message:
-          'JARVIS is downloaded, but the local model is not active yet. '
-          'Restart the app once so it can activate safely.',
-      detail:
-          'Model ID: ${model.modelId}. '
-          'GemmaService.isInitialized=${GemmaService.instance.isInitialized}',
-    );
+    await GemmaService.instance
+        .loadModel(model)
+        .timeout(
+          const Duration(seconds: 60),
+          onTimeout: () => throw TimeoutException(
+            'Timed out while loading ${model.displayName}.',
+          ),
+        );
   }
 
   String _diagnosticId() {

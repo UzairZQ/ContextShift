@@ -26,7 +26,8 @@ class GemmaException implements Exception {
   });
 
   @override
-  String toString() => 'GemmaException[$code]: $message${detail != null ? '\n  Detail: $detail' : ''}';
+  String toString() =>
+      'GemmaException[$code]: $message${detail != null ? '\n  Detail: $detail' : ''}';
 }
 
 class GemmaService {
@@ -76,7 +77,9 @@ class GemmaService {
     }
 
     if (_modelLoaded && _activeModelTier == model.tier) {
-      debugPrint('[GemmaService] Model already loaded: ${model.displayName}, skipping');
+      debugPrint(
+        '[GemmaService] Model already loaded: ${model.displayName}, skipping',
+      );
       return;
     }
 
@@ -90,17 +93,24 @@ class GemmaService {
       if (!isInstalled) {
         throw GemmaException(
           code: GemmaErrorCode.modelNotInstalled,
-          message: 'Model ${model.displayName} is not installed. Download it first.',
+          message:
+              'Model ${model.displayName} is not installed. Download it first.',
           detail: 'Model ID: ${model.modelId}',
         );
       }
 
       debugPrint('[GemmaService] Creating inference model...');
+      debugPrint(
+        '[GemmaService] Native getActiveModel start: '
+        'backend=gpu, model=${model.modelId}, maxTokens=${model.maxTokens}',
+      );
       _model = await FlutterGemma.getActiveModel(
         maxTokens: model.maxTokens,
         preferredBackend: PreferredBackend.gpu,
       );
+      debugPrint('[GemmaService] Native getActiveModel complete');
 
+      debugPrint('[GemmaService] Creating chat session...');
       _chat = InferenceChat(
         sessionCreator: () => _model!.createSession(),
         maxTokens: model.maxTokens,
@@ -108,13 +118,17 @@ class GemmaService {
         modelType: model.modelType,
       );
 
+      debugPrint('[GemmaService] Initializing chat session...');
       await _chat!.initSession();
+      debugPrint('[GemmaService] Chat session initialized');
 
       _activeModelTier = model.tier;
       _activeModelDef = model;
       _modelLoaded = true;
 
-      debugPrint('[GemmaService] Model loaded successfully: ${model.displayName}');
+      debugPrint(
+        '[GemmaService] Model loaded successfully: ${model.displayName}',
+      );
     } catch (e, stack) {
       debugPrint('[GemmaService] Failed to load model: $e');
       debugPrint('[GemmaService]   Stack: $stack');
@@ -126,7 +140,8 @@ class GemmaService {
       if (errMsg.contains('oom') || errMsg.contains('out of memory')) {
         throw GemmaException(
           code: GemmaErrorCode.oomError,
-          message: 'Model ${model.displayName} requires ${model.minRamFormatted} RAM. '
+          message:
+              'Model ${model.displayName} requires ${model.minRamFormatted} RAM. '
               'Your device may not have enough memory.',
           detail: e.toString(),
         );
@@ -140,13 +155,16 @@ class GemmaService {
     }
   }
 
-  Future<String> generate(String prompt, {
+  Future<String> generate(
+    String prompt, {
     int maxTokens = 512,
     double temperature = 0.1,
     Duration timeout = const Duration(seconds: 15),
   }) async {
     debugPrint('[GemmaService] Generate called');
-    debugPrint('[GemmaService]   Prompt: "${prompt.length > 100 ? '${prompt.substring(0, 100)}...' : prompt}"');
+    debugPrint(
+      '[GemmaService]   Prompt: "${prompt.length > 100 ? '${prompt.substring(0, 100)}...' : prompt}"',
+    );
     debugPrint('[GemmaService]   Max tokens: $maxTokens');
     debugPrint('[GemmaService]   Temperature: $temperature');
 
@@ -165,11 +183,15 @@ class GemmaService {
 
       if (response is TextResponse) {
         final result = response.token;
-        debugPrint('[GemmaService] Generated response (${result.length} chars)');
+        debugPrint(
+          '[GemmaService] Generated response (${result.length} chars)',
+        );
         return result;
       }
 
-      debugPrint('[GemmaService] Unexpected response type: ${response.runtimeType}');
+      debugPrint(
+        '[GemmaService] Unexpected response type: ${response.runtimeType}',
+      );
       return '';
     } on TimeoutException {
       debugPrint('[GemmaService] Generation timed out after $timeout');
@@ -185,7 +207,8 @@ class GemmaService {
       if (errMsg.contains('oom') || errMsg.contains('out of memory')) {
         throw GemmaException(
           code: GemmaErrorCode.oomError,
-          message: 'Out of memory during inference. Try a shorter prompt or restart the app.',
+          message:
+              'Out of memory during inference. Try a shorter prompt or restart the app.',
           detail: e.toString(),
         );
       }
@@ -194,7 +217,8 @@ class GemmaService {
     }
   }
 
-  Stream<String> generateStream(String prompt, {
+  Stream<String> generateStream(
+    String prompt, {
     int maxTokens = 512,
     double temperature = 0.1,
   }) async* {
