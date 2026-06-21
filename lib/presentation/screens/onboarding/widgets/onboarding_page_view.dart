@@ -121,10 +121,10 @@ class _DepthIconCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CinematicFloat(
-      travel: const Offset(0, -9),
-      scaleDelta: 0.018,
+      travel: const Offset(0, -7),
+      scaleDelta: 0.01,
       child: PointerTilt(
-        maxTilt: 0.075,
+        maxTilt: 0.055,
         child: SizedBox(
           width: 126,
           height: 112,
@@ -204,14 +204,14 @@ class _DepthIconCard extends StatelessWidget {
                 child: Icon(page.icon, size: 40, color: Colors.white),
               ),
               Positioned(
-                left: 76,
-                top: 74,
+                left: 70,
+                top: 68,
                 child: CinematicPulse(
-                  minScale: 0.82,
-                  maxScale: 1.18,
+                  minScale: 0.9,
+                  maxScale: 1.08,
                   child: Container(
-                    width: 20,
-                    height: 20,
+                    width: 18,
+                    height: 18,
                     decoration: BoxDecoration(
                       color: page.accent,
                       shape: BoxShape.circle,

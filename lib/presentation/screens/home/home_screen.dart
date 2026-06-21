@@ -489,24 +489,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       );
                     },
                     transitionBuilder: (child, animation) {
-                      final curved = CurvedAnimation(
+                      final movement = CurvedAnimation(
                         parent: animation,
                         curve: Curves.easeOutBack,
+                        reverseCurve: Curves.easeInCubic,
+                      );
+                      final opacity = CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
                         reverseCurve: Curves.easeInCubic,
                       );
                       final offset = Tween<Offset>(
                         begin: const Offset(0.08, 0.02),
                         end: Offset.zero,
-                      ).animate(curved);
+                      ).animate(movement);
                       return FadeTransition(
-                        opacity: curved,
+                        opacity: opacity,
                         child: SlideTransition(
                           position: offset,
                           child: ScaleTransition(
                             scale: Tween<double>(
                               begin: 0.96,
                               end: 1,
-                            ).animate(curved),
+                            ).animate(movement),
                             child: child,
                           ),
                         ),
