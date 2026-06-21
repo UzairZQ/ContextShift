@@ -386,7 +386,32 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _openEmptyChat() async {
     debugPrint('[HomeScreen] Opening empty JARVIS chat from floating button');
-    await _pushChat(startNewOnOpen: true, enableInputHero: false);
+    try {
+      debugPrint('[HomeScreen] Pushing stable ChatScreen route...');
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          settings: const RouteSettings(name: 'jarvis_chat_fab'),
+          builder: (_) {
+            debugPrint('[HomeScreen] Building stable ChatScreen route');
+            return const ChatScreen(
+              startNewOnOpen: true,
+              enableInputHero: false,
+            );
+          },
+        ),
+      );
+      debugPrint('[HomeScreen] Stable ChatScreen route closed');
+    } catch (error, stackTrace) {
+      debugPrint('[HomeScreen] Failed to open stable chat route: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chat screen could not open. Check debug logs.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _pushChat({

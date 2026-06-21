@@ -48,6 +48,7 @@ class _ChatScreenState extends State<ChatScreen> {
   JarvisGenUiRuntime? _genUiRuntime;
   bool _isProcessing = false;
   late final bool _forceComposer;
+  bool _loggedFirstBuild = false;
 
   int? _activeConversationId;
   List<ConversationTableData> _conversations = [];
@@ -58,13 +59,22 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    debugPrint(
+      '[ChatScreen] initState start. '
+      'initialMessage=${widget.initialMessage?.trim().isNotEmpty == true}, '
+      'conversationId=${widget.conversationId}, '
+      'startNewOnOpen=${widget.startNewOnOpen}, '
+      'enableInputHero=${widget.enableInputHero}',
+    );
     _forceComposer = widget.startNewOnOpen;
     _activeConversationId = widget.conversationId;
     _genUiActionSub = GenUiActionBus.instance.actions.listen(
       _handleGenUiAction,
     );
     _loadConversations().then((_) {
+      debugPrint('[ChatScreen] Initial conversation load complete');
       if (widget.initialMessage != null && widget.initialMessage!.isNotEmpty) {
+        debugPrint('[ChatScreen] Sending initial message after load');
         _sendMessage(widget.initialMessage!);
       }
     });
@@ -116,7 +126,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _loadConversations() async {
     try {
+      debugPrint('[ChatScreen] Loading conversations...');
       final convs = await DatabaseService.instance.getAllConversations();
+      debugPrint('[ChatScreen] Loaded ${convs.length} conversations');
       if (!mounted) return;
       setState(() => _conversations = convs);
 
@@ -139,13 +151,23 @@ class _ChatScreenState extends State<ChatScreen> {
   void _watchMessages() {
     _messagesSub?.cancel();
     if (_activeConversationId == null) return;
+    debugPrint('[ChatScreen] Watching messages for $_activeConversationId');
     _messagesSub = DatabaseService.instance
         .watchMessages(_activeConversationId!)
-        .listen((msgs) {
-          if (!mounted) return;
-          setState(() => _messages = msgs);
-          _scrollToBottom();
-        });
+        .listen(
+          (msgs) {
+            if (!mounted) return;
+            debugPrint(
+              '[ChatScreen] Message stream update: ${msgs.length} messages',
+            );
+            setState(() => _messages = msgs);
+            _scrollToBottom();
+          },
+          onError: (error, stackTrace) {
+            debugPrint('[ChatScreen] Message stream failed: $error');
+            debugPrintStack(stackTrace: stackTrace);
+          },
+        );
   }
 
   void _scrollToBottom() {
@@ -467,30 +489,45 @@ class _ChatScreenState extends State<ChatScreen> {
     final showBackButton = Navigator.of(context).canPop();
     final hasActiveConv = _activeConversationId != null || _forceComposer;
 
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [AppTheme.background, AppTheme.surfaceLow],
+    if (!_loggedFirstBuild) {
+      _loggedFirstBuild = true;
+      debugPrint(
+        '[ChatScreen] First build. '
+        'showBackButton=$showBackButton, hasActiveConv=$hasActiveConv, '
+        'activeConversationId=$_activeConversationId, forceComposer=$_forceComposer',
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      resizeToAvoidBottomInset: true,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [AppTheme.background, AppTheme.surfaceLow],
+          ),
         ),
-      ),
-      child: SafeArea(
-        top: !showBackButton,
-        bottom: false,
-        child: Column(
-          children: [
-            if (showBackButton)
-              _buildHeader(context, hasActiveConv)
-            else
-              SizedBox(height: MediaQuery.of(context).padding.top + Spacing.lg),
-            Expanded(
-              child: hasActiveConv
-                  ? _buildChatView(context)
-                  : _buildConversationList(context),
-            ),
-            if (hasActiveConv) _buildInputBar(context),
-          ],
+        child: SafeArea(
+          top: !showBackButton,
+          bottom: false,
+          child: Column(
+            children: [
+              if (showBackButton)
+                _buildHeader(context, hasActiveConv)
+              else
+                SizedBox(
+                  height: MediaQuery.of(context).padding.top + Spacing.lg,
+                ),
+              Expanded(
+                child: hasActiveConv
+                    ? _buildChatView(context)
+                    : _buildConversationList(context),
+              ),
+              if (hasActiveConv) _buildInputBar(context),
+            ],
+          ),
         ),
       ),
     );

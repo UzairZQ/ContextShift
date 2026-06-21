@@ -24,6 +24,22 @@ void main() {
         debugPrint('[FlutterError] ${details.exceptionAsString()}');
         debugPrintStack(stackTrace: details.stack);
       };
+      ErrorWidget.builder = (details) {
+        debugPrint('[ErrorWidget] ${details.exceptionAsString()}');
+        debugPrintStack(stackTrace: details.stack);
+        return Material(
+          color: AppTheme.background,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'ContextShift UI error:\n${details.exceptionAsString()}',
+                style: const TextStyle(color: AppTheme.error, fontSize: 13),
+              ),
+            ),
+          ),
+        );
+      };
       PlatformDispatcher.instance.onError = (error, stack) {
         debugPrint('[UncaughtError] $error');
         debugPrintStack(stackTrace: stack);
