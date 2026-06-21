@@ -21,26 +21,17 @@ class _AiPulsarState extends State<AiPulsar>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
-    );
-    if (widget.isAnalyzing) {
-      _controller.repeat();
-    }
+      duration: _durationFor(widget.isAnalyzing),
+    )..repeat();
   }
 
   @override
   void didUpdateWidget(AiPulsar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isAnalyzing != oldWidget.isAnalyzing) {
-      _controller.duration = widget.isAnalyzing
-          ? const Duration(milliseconds: 500)
-          : const Duration(seconds: 2);
-      if (widget.isAnalyzing) {
-        _controller.repeat();
-      } else {
-        _controller.stop();
-        _controller.value = 0;
-      }
+    if (widget.isAnalyzing != oldWidget.isAnalyzing ||
+        widget.isOnline != oldWidget.isOnline) {
+      _controller.duration = _durationFor(widget.isAnalyzing);
+      _controller.repeat();
     }
   }
 
@@ -52,50 +43,63 @@ class _AiPulsarState extends State<AiPulsar>
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.isAnalyzing) {
-      return Center(child: _CoreDot(isOnline: widget.isOnline));
-    }
-
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
+        final color = _statusColor;
+        final wave = Curves.easeOutCubic.transform(_controller.value);
+        final glowStrength = widget.isOnline ? 0.85 : 0.58;
         return Center(
           child: Stack(
             alignment: Alignment.center,
             children: [
               Container(
-                width: 12 + (16 * _controller.value),
-                height: 12 + (16 * _controller.value),
+                width: 12 + (18 * wave),
+                height: 12 + (18 * wave),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: (widget.isOnline ? AppTheme.success : AppTheme.primary)
-                      .withValues(alpha: 0.7 * (1 - _controller.value)),
+                  color: color.withValues(alpha: glowStrength * (1 - wave)),
                 ),
               ),
-              _CoreDot(isOnline: widget.isOnline),
+              _CoreDot(color: color, isOnline: widget.isOnline),
             ],
           ),
         );
       },
     );
   }
+
+  Color get _statusColor =>
+      widget.isOnline ? AppTheme.success : AppTheme.warning;
+
+  Duration _durationFor(bool isAnalyzing) {
+    return isAnalyzing
+        ? const Duration(milliseconds: 520)
+        : const Duration(milliseconds: 2200);
+  }
 }
 
 class _CoreDot extends StatelessWidget {
+  final Color color;
   final bool isOnline;
 
-  const _CoreDot({required this.isOnline});
+  const _CoreDot({required this.color, required this.isOnline});
 
   @override
   Widget build(BuildContext context) {
-    final color = isOnline ? AppTheme.success : AppTheme.primary;
     return Container(
       width: 10,
       height: 10,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color,
-        boxShadow: [BoxShadow(color: color, blurRadius: 8, spreadRadius: 2)],
+        boxShadow: [
+          BoxShadow(
+            color: color,
+            blurRadius: isOnline ? 12 : 8,
+            spreadRadius: isOnline ? 3 : 2,
+          ),
+        ],
       ),
     );
   }
