@@ -479,8 +479,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: ResponsiveWrapper(
                   maxWidth: 1000,
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 320),
-                    switchInCurve: Curves.easeOutCubic,
+                    duration: const Duration(milliseconds: 520),
+                    switchInCurve: Curves.easeOutBack,
                     switchOutCurve: Curves.easeInCubic,
                     layoutBuilder: (currentChild, previousChildren) {
                       return Stack(
@@ -489,13 +489,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       );
                     },
                     transitionBuilder: (child, animation) {
+                      final curved = CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutBack,
+                        reverseCurve: Curves.easeInCubic,
+                      );
                       final offset = Tween<Offset>(
-                        begin: const Offset(0.04, 0),
+                        begin: const Offset(0.08, 0.02),
                         end: Offset.zero,
-                      ).animate(animation);
+                      ).animate(curved);
                       return FadeTransition(
-                        opacity: animation,
-                        child: SlideTransition(position: offset, child: child),
+                        opacity: curved,
+                        child: SlideTransition(
+                          position: offset,
+                          child: ScaleTransition(
+                            scale: Tween<double>(
+                              begin: 0.96,
+                              end: 1,
+                            ).animate(curved),
+                            child: child,
+                          ),
+                        ),
                       );
                     },
                     child: KeyedSubtree(

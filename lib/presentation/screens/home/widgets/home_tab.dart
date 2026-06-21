@@ -160,60 +160,117 @@ class _HeroCommandPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppTheme.surfaceContainer.withValues(alpha: 0.88),
-            AppTheme.surfaceHigh.withValues(alpha: 0.7),
-            AppTheme.primary.withValues(alpha: 0.12),
+    return CinematicFloat(
+      travel: const Offset(0, -4),
+      scaleDelta: 0.006,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppTheme.surfaceContainer.withValues(alpha: 0.92),
+              AppTheme.surfaceHigh.withValues(alpha: 0.72),
+              AppTheme.primary.withValues(alpha: 0.18),
+            ],
+          ),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primary.withValues(alpha: 0.18),
+              blurRadius: 54,
+              offset: const Offset(0, 24),
+            ),
           ],
         ),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primary.withValues(alpha: 0.08),
-            blurRadius: 36,
-            offset: const Offset(0, 20),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: Stack(
             children: [
-              Expanded(
-                child: Text(
-                  greeting,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    height: 1.12,
-                    fontSize: Responsive.isMobile(context) ? 23 : 28,
-                    letterSpacing: -0.7,
+              Positioned(
+                right: -46,
+                top: -42,
+                child: CinematicPulse(
+                  minScale: 0.88,
+                  maxScale: 1.18,
+                  child: Container(
+                    width: 150,
+                    height: 150,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          AppTheme.primary.withValues(alpha: 0.22),
+                          AppTheme.primary.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              _StatusPill(isOnline: isJarvisOnline),
+              Positioned(
+                left: -50,
+                bottom: -70,
+                child: CinematicPulse(
+                  minScale: 1.12,
+                  maxScale: 0.92,
+                  duration: const Duration(milliseconds: 2800),
+                  child: Container(
+                    width: 130,
+                    height: 130,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          AppTheme.tertiary.withValues(alpha: 0.12),
+                          AppTheme.tertiary.withValues(alpha: 0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          greeting,
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                height: 1.12,
+                                fontSize: Responsive.isMobile(context)
+                                    ? 23
+                                    : 28,
+                                letterSpacing: -0.7,
+                              ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      _StatusPill(isOnline: isJarvisOnline),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  AiCommandBar(
+                    controller: commandController,
+                    isOnline: isJarvisOnline,
+                    isProcessing: isProcessingCommand,
+                    hasCheckedStatus: hasCheckedJarvisStatus,
+                    offlineHint: offlineHint,
+                    onSubmit: onSubmitCommand,
+                    onTap: onOpenChat,
+                  ),
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: 16),
-          AiCommandBar(
-            controller: commandController,
-            isOnline: isJarvisOnline,
-            isProcessing: isProcessingCommand,
-            hasCheckedStatus: hasCheckedJarvisStatus,
-            offlineHint: offlineHint,
-            onSubmit: onSubmitCommand,
-            onTap: onOpenChat,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -473,89 +530,120 @@ class _NextMoveCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final action = _actionForSnapshot(snapshot);
 
-    return PressableScale(
-      onTap: action.$2,
-      pressedScale: 0.98,
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: AppTheme.surfaceContainer.withValues(alpha: 0.82),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: AppTheme.primaryGradient,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.primary.withValues(alpha: 0.22),
-                    blurRadius: 24,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
-              ),
-              child: Icon(snapshot.nextMoveIcon, color: Colors.black, size: 24),
+    return CinematicFloat(
+      travel: const Offset(0, -3),
+      scaleDelta: 0.004,
+      delay: const Duration(milliseconds: 260),
+      child: PressableScale(
+        onTap: action.$2,
+        pressedScale: 0.965,
+        child: PointerTilt(
+          maxTilt: 0.035,
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceContainer.withValues(alpha: 0.86),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primary.withValues(alpha: 0.12),
+                  blurRadius: 34,
+                  offset: const Offset(0, 18),
+                ),
+              ],
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            child: Row(
+              children: [
+                CinematicPulse(
+                  minScale: 0.96,
+                  maxScale: 1.08,
+                  child: Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: AppTheme.primaryGradient,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.primary.withValues(alpha: 0.34),
+                          blurRadius: 34,
+                          offset: const Offset(0, 16),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      snapshot.nextMoveIcon,
+                      color: Colors.black,
+                      size: 25,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Next move',
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: AppTheme.primary,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1,
+                                ),
+                          ),
+                          const Spacer(),
+                          const CinematicPulse(
+                            minScale: 0.94,
+                            maxScale: 1.12,
+                            child: Icon(
+                              LucideIcons.arrowUpRight,
+                              size: 16,
+                              color: AppTheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
                       Text(
-                        'Next move',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppTheme.primary,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1,
+                        snapshot.nextMoveTitle,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: AppTheme.onSurface,
+                              fontWeight: FontWeight.w800,
+                              height: 1.15,
+                            ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        snapshot.nextMoveBody,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.onSurfaceVariant.withValues(
+                            alpha: 0.78,
+                          ),
+                          height: 1.35,
                         ),
                       ),
-                      const Spacer(),
-                      Icon(
-                        LucideIcons.arrowUpRight,
-                        size: 16,
-                        color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
+                      const SizedBox(height: 12),
+                      Text(
+                        action.$1,
+                        style: const TextStyle(
+                          color: AppTheme.primary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    snapshot.nextMoveTitle,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppTheme.onSurface,
-                      fontWeight: FontWeight.w800,
-                      height: 1.15,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    snapshot.nextMoveBody,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.onSurfaceVariant.withValues(alpha: 0.78),
-                      height: 1.35,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    action.$1,
-                    style: const TextStyle(
-                      color: AppTheme.primary,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -665,61 +753,80 @@ class _GlanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return PressableScale(
       onTap: onTap,
-      pressedScale: 0.96,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppTheme.surfaceContainer.withValues(alpha: 0.72),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 19, color: color),
-                const Spacer(),
-                SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    value: progress.clamp(0, 1),
-                    strokeWidth: 3,
-                    backgroundColor: color.withValues(alpha: 0.12),
-                    valueColor: AlwaysStoppedAnimation(color),
+      pressedScale: 0.94,
+      child: PointerTilt(
+        maxTilt: 0.03,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceContainer.withValues(alpha: 0.78),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.08),
+                blurRadius: 22,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CinematicPulse(
+                    minScale: 0.96,
+                    maxScale: 1.12,
+                    duration: const Duration(milliseconds: 2600),
+                    child: Icon(icon, size: 20, color: color),
                   ),
+                  const Spacer(),
+                  CinematicPulse(
+                    minScale: 0.94,
+                    maxScale: 1.06,
+                    child: SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: CircularProgressIndicator(
+                        value: progress.clamp(0, 1),
+                        strokeWidth: 3,
+                        backgroundColor: color.withValues(alpha: 0.12),
+                        valueColor: AlwaysStoppedAnimation(color),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppTheme.onSurface,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 23,
                 ),
-              ],
-            ),
-            const Spacer(),
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: AppTheme.onSurface,
-                fontWeight: FontWeight.w900,
-                fontSize: 23,
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: AppTheme.onSurface,
-                fontWeight: FontWeight.w800,
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: AppTheme.onSurface,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-            Text(
-              detail,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: AppTheme.onSurfaceVariant.withValues(alpha: 0.62),
+              Text(
+                detail,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppTheme.onSurfaceVariant.withValues(alpha: 0.62),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

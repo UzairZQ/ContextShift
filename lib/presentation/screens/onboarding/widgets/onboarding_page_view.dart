@@ -120,90 +120,117 @@ class _DepthIconCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PointerTilt(
-      maxTilt: 0.05,
-      child: SizedBox(
-        width: 126,
-        height: 112,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned(
-              right: 2,
-              top: 10,
-              child: Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: page.accent.withValues(alpha: 0.22),
+    return CinematicFloat(
+      travel: const Offset(0, -9),
+      scaleDelta: 0.018,
+      child: PointerTilt(
+        maxTilt: 0.075,
+        child: SizedBox(
+          width: 126,
+          height: 112,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                right: 2,
+                top: 10,
+                child: CinematicPulse(
+                  minScale: 0.88,
+                  maxScale: 1.12,
+                  duration: const Duration(milliseconds: 2600),
+                  child: Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: page.accent.withValues(alpha: 0.28),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: page.accent.withValues(alpha: 0.14),
+                          blurRadius: 28,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            Positioned(
-              left: 24,
-              bottom: 0,
-              child: Container(
-                width: 66,
-                height: 12,
+              Positioned(
+                left: 24,
+                bottom: 0,
+                child: Container(
+                  width: 72,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: page.accent.withValues(alpha: 0.34),
+                        blurRadius: 34,
+                        spreadRadius: 10,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 520),
+                curve: Curves.easeOutCubic,
+                width: 98,
+                height: 98,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(31),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.2),
+                      page.accent.withValues(alpha: 0.42),
+                      AppTheme.surfaceHigh.withValues(alpha: 0.84),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.16),
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: page.accent.withValues(alpha: 0.24),
-                      blurRadius: 26,
-                      spreadRadius: 8,
+                      color: page.accent.withValues(alpha: 0.34),
+                      blurRadius: 54,
+                      offset: const Offset(0, 22),
                     ),
                   ],
                 ),
+                child: Icon(page.icon, size: 40, color: Colors.white),
               ),
-            ),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 520),
-              curve: Curves.easeOutCubic,
-              width: 96,
-              height: 96,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(30),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.16),
-                    page.accent.withValues(alpha: 0.34),
-                    AppTheme.surfaceHigh.withValues(alpha: 0.84),
-                  ],
-                ),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-                boxShadow: [
-                  BoxShadow(
-                    color: page.accent.withValues(alpha: 0.23),
-                    blurRadius: 42,
-                    offset: const Offset(0, 18),
-                  ),
-                ],
-              ),
-              child: Icon(page.icon, size: 38, color: Colors.white),
-            ),
-            Positioned(
-              left: 74,
-              top: 72,
-              child: Container(
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: page.accent,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppTheme.background.withValues(alpha: 0.7),
-                    width: 4,
+              Positioned(
+                left: 76,
+                top: 74,
+                child: CinematicPulse(
+                  minScale: 0.82,
+                  maxScale: 1.18,
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: page.accent,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppTheme.background.withValues(alpha: 0.7),
+                        width: 4,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: page.accent.withValues(alpha: 0.34),
+                          blurRadius: 18,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

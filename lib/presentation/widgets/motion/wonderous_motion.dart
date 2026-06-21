@@ -8,12 +8,16 @@ class WonderousReveal extends StatelessWidget {
   final Widget child;
   final Duration delay;
   final Offset begin;
+  final double scaleBegin;
+  final double rotationBegin;
 
   const WonderousReveal({
     super.key,
     required this.child,
     this.delay = Duration.zero,
-    this.begin = const Offset(0, 0.08),
+    this.begin = const Offset(0, 0.12),
+    this.scaleBegin = 0.94,
+    this.rotationBegin = 0,
   });
 
   @override
@@ -28,16 +32,153 @@ class WonderousReveal extends StatelessWidget {
         delay.inMilliseconds /
             math.max(1, (Motion.expressive + delay).inMilliseconds),
         1,
-        curve: Curves.easeOutCubic,
+        curve: Curves.easeOutBack,
       ),
-      builder: (context, value, child) => Opacity(
-        opacity: value,
-        child: Transform.translate(
-          offset: Offset(begin.dx * 80, begin.dy * 80) * (1 - value),
-          child: child,
-        ),
-      ),
+      builder: (context, value, child) {
+        final clampedOpacity = value.clamp(0.0, 1.0);
+        return Opacity(
+          opacity: clampedOpacity,
+          child: Transform.translate(
+            offset: Offset(begin.dx * 110, begin.dy * 110) * (1 - value),
+            child: Transform.rotate(
+              angle: rotationBegin * (1 - value),
+              child: Transform.scale(
+                scale: scaleBegin + ((1 - scaleBegin) * value),
+                child: child,
+              ),
+            ),
+          ),
+        );
+      },
       child: child,
+    );
+  }
+}
+
+class CinematicFloat extends StatefulWidget {
+  final Widget child;
+  final Offset travel;
+  final double scaleDelta;
+  final Duration duration;
+  final Duration delay;
+
+  const CinematicFloat({
+    super.key,
+    required this.child,
+    this.travel = const Offset(0, -5),
+    this.scaleDelta = 0.012,
+    this.duration = const Duration(milliseconds: 3600),
+    this.delay = Duration.zero,
+  });
+
+  @override
+  State<CinematicFloat> createState() => _CinematicFloatState();
+}
+
+class _CinematicFloatState extends State<CinematicFloat>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: widget.duration);
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOutSine,
+    );
+    Future<void>.delayed(widget.delay, () {
+      if (mounted) _controller.repeat(reverse: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (reduceMotion) return widget.child;
+
+    return AnimatedBuilder(
+      animation: _animation,
+      child: widget.child,
+      builder: (context, child) {
+        final value = _animation.value;
+        return Transform.translate(
+          offset: Offset(widget.travel.dx * value, widget.travel.dy * value),
+          child: Transform.scale(
+            scale: 1 + (widget.scaleDelta * value),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class CinematicPulse extends StatefulWidget {
+  final Widget child;
+  final double minScale;
+  final double maxScale;
+  final Duration duration;
+
+  const CinematicPulse({
+    super.key,
+    required this.child,
+    this.minScale = 0.96,
+    this.maxScale = 1.08,
+    this.duration = const Duration(milliseconds: 2200),
+  });
+
+  @override
+  State<CinematicPulse> createState() => _CinematicPulseState();
+}
+
+class _CinematicPulseState extends State<CinematicPulse>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: widget.duration)
+      ..repeat(reverse: true);
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOutSine,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (reduceMotion) return widget.child;
+
+    return AnimatedBuilder(
+      animation: _animation,
+      child: widget.child,
+      builder: (context, child) {
+        return Transform.scale(
+          scale:
+              widget.minScale +
+              ((widget.maxScale - widget.minScale) * _animation.value),
+          child: child,
+        );
+      },
     );
   }
 }
@@ -82,7 +223,7 @@ class _PressableScaleState extends State<PressableScale> {
         onTapUp: (_) => setState(() => _pressed = false),
         child: AnimatedScale(
           scale: _pressed ? widget.pressedScale : 1,
-          duration: Motion.fast,
+          duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutBack,
           child: widget.child,
         ),
