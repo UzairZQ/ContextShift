@@ -3,7 +3,7 @@
     "short_name": "context_shift",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#FF8C96",
+    "background_color": "#100B19",
     "theme_color": "#FF8C96",
     "description": "A new Flutter project.",
     "orientation": "portrait-primary",
