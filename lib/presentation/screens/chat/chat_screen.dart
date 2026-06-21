@@ -3,6 +3,9 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:speech_to_text/speech_recognition_error.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../../../core/ai_service.dart';
 import '../../../core/ai/action_executor.dart';
@@ -20,6 +23,7 @@ import '../../../core/responsive.dart';
 import '../../../core/services/feature_manager.dart';
 import '../../widgets/generative_card_module.dart';
 import '../../widgets/genui/a2ui_surface_card.dart';
+import '../../widgets/jarvis_hero.dart';
 import '../../widgets/motion/wonderous_motion.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -42,11 +46,37 @@ class ChatScreen extends StatefulWidget {
 
 enum _JarvisIntent { chat, action, genui }
 
+@visibleForTesting
+bool shouldRouteChatMessageToGenUi(String message) {
+  final lower = message.trim().toLowerCase();
+  if (lower.length < 8) return false;
+
+  final mutatingCommand = RegExp(
+    r'\b(add|create|new|track|note|remember|write down|jot down|remind me|start|open|show)\b',
+  ).hasMatch(lower);
+  final explicitAppObject = RegExp(
+    r'\b(task|todo|habit|note|focus|pomodoro)\b',
+  ).hasMatch(lower);
+  if (mutatingCommand && explicitAppObject) return false;
+
+  final asksForDesignedOutput = RegExp(
+    r'\b(build|make|generate|design|create|draft|craft|give me|show me)\b',
+  ).hasMatch(lower);
+  final structuredDomain = RegExp(
+    r'\b(plan|planner|routine|workout|exercise|schedule|itinerary|dashboard|card|view|screen|widget|form|layout|checklist|program)\b',
+  ).hasMatch(lower);
+  return asksForDesignedOutput && structuredDomain;
+}
+
 class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
+  final _speech = stt.SpeechToText();
   JarvisGenUiRuntime? _genUiRuntime;
   bool _isProcessing = false;
+  bool _speechReady = false;
+  bool _isListening = false;
+  String _dictationBaseText = '';
   late final bool _forceComposer;
   bool _loggedFirstBuild = false;
 
@@ -82,6 +112,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    if (_speechReady) {
+      _speech.stop();
+    }
     _messageController.dispose();
     _scrollController.dispose();
     _messagesSub?.cancel();
@@ -229,6 +262,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _sendMessage(String? text) async {
     final message = text ?? _messageController.text.trim();
     if (message.isEmpty) return;
+    if (_isListening) await _stopDictation();
     _messageController.clear();
 
     if (_activeConversationId == null) {
@@ -250,7 +284,9 @@ class _ChatScreenState extends State<ChatScreen> {
         content: message,
       );
 
-      final isDirectCommand = AiService.instance.isCommandQuery(message);
+      final shouldUseGenUi = shouldRouteChatMessageToGenUi(message);
+      final isDirectCommand =
+          AiService.instance.isCommandQuery(message) && !shouldUseGenUi;
       String response;
       String? widgetJson;
 
@@ -389,6 +425,10 @@ class _ChatScreenState extends State<ChatScreen> {
       'messageLength=${message.length}, conversation=$_activeConversationId',
     );
     final lower = message.trim().toLowerCase();
+    if (shouldRouteChatMessageToGenUi(message)) {
+      debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.genui}');
+      return _JarvisIntent.genui;
+    }
     if (lower.length <= 80 && _looksLikeConversation(lower)) {
       debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.chat}');
       return _JarvisIntent.chat;
@@ -484,6 +524,90 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  Future<void> _toggleDictation() async {
+    if (_isProcessing) return;
+    if (_isListening) {
+      await _stopDictation();
+      return;
+    }
+    await _startDictation();
+  }
+
+  Future<void> _startDictation() async {
+    try {
+      if (!_speechReady) {
+        _speechReady = await _speech.initialize(
+          onError: _handleSpeechError,
+          onStatus: _handleSpeechStatus,
+          options: [
+            stt.SpeechToText.androidNoBluetooth,
+            stt.SpeechToText.iosNoBluetooth,
+          ],
+        );
+      }
+      if (!_speechReady) {
+        _showMessage('Dictation is not available on this device.');
+        return;
+      }
+
+      _dictationBaseText = _messageController.text.trim();
+      await _speech.listen(
+        onResult: _handleSpeechResult,
+        listenOptions: stt.SpeechListenOptions(
+          listenMode: stt.ListenMode.dictation,
+          partialResults: true,
+          autoPunctuation: true,
+          enableHapticFeedback: true,
+          pauseFor: const Duration(seconds: 4),
+          listenFor: const Duration(minutes: 2),
+          cancelOnError: true,
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _isListening = true);
+    } catch (error, stackTrace) {
+      debugPrint('[ChatScreen] Dictation failed to start: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) _showMessage('Dictation could not start.');
+    }
+  }
+
+  Future<void> _stopDictation() async {
+    if (_speechReady) await _speech.stop();
+    if (!mounted) return;
+    setState(() => _isListening = false);
+  }
+
+  void _handleSpeechResult(SpeechRecognitionResult result) {
+    final words = result.recognizedWords.trim();
+    final combined = [
+      if (_dictationBaseText.isNotEmpty) _dictationBaseText,
+      if (words.isNotEmpty) words,
+    ].join(' ');
+    _messageController.value = TextEditingValue(
+      text: combined,
+      selection: TextSelection.collapsed(offset: combined.length),
+    );
+  }
+
+  void _handleSpeechError(SpeechRecognitionError error) {
+    debugPrint('[ChatScreen] Dictation error: $error');
+    if (!mounted) return;
+    setState(() => _isListening = false);
+    if (error.permanent || error.errorMsg == 'error_permission') {
+      _showMessage('Microphone permission is needed for dictation.');
+    }
+  }
+
+  void _handleSpeechStatus(String status) {
+    debugPrint('[ChatScreen] Dictation status: $status');
+    if (!mounted) return;
+    if (status == stt.SpeechToText.notListeningStatus ||
+        status == stt.SpeechToText.doneStatus) {
+      setState(() => _isListening = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final showBackButton = Navigator.of(context).canPop();
@@ -510,16 +634,15 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
         child: SafeArea(
-          top: !showBackButton,
+          top: true,
           bottom: false,
           child: Column(
             children: [
-              if (showBackButton)
-                _buildHeader(context, hasActiveConv)
-              else
-                SizedBox(
-                  height: MediaQuery.of(context).padding.top + Spacing.lg,
-                ),
+              _buildHeader(
+                context,
+                hasActiveConv,
+                showBackButton: showBackButton,
+              ),
               Expanded(
                 child: hasActiveConv
                     ? _buildChatView(context)
@@ -533,20 +656,42 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, bool hasActiveConv) {
+  Widget _buildHeader(
+    BuildContext context,
+    bool hasActiveConv, {
+    required bool showBackButton,
+  }) {
     return Padding(
       padding: EdgeInsets.only(
-        left: Spacing.xs,
+        left: showBackButton ? Spacing.xs : Spacing.lg,
         right: Spacing.lg,
         top: Spacing.sm,
         bottom: Spacing.sm,
       ),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(LucideIcons.arrowLeft, color: AppTheme.onSurface),
-            onPressed: () => Navigator.pop(context),
-          ),
+          if (showBackButton)
+            IconButton(
+              icon: const Icon(
+                LucideIcons.arrowLeft,
+                color: AppTheme.onSurface,
+              ),
+              onPressed: () => Navigator.pop(context),
+            )
+          else
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                LucideIcons.sparkles,
+                color: AppTheme.primary,
+                size: 20,
+              ),
+            ),
           const SizedBox(width: Spacing.sm),
           Expanded(
             child: Text(
@@ -729,6 +874,28 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
               SizedBox(width: Spacing.sm),
+              Semantics(
+                label: _isListening ? 'Stop dictation' : 'Start dictation',
+                toggled: _isListening,
+                child: IconButton(
+                  onPressed: _isProcessing ? null : _toggleDictation,
+                  icon: Icon(
+                    _isListening ? LucideIcons.micOff : LucideIcons.mic,
+                    color: _isListening
+                        ? AppTheme.accent
+                        : AppTheme.onSurfaceVariant,
+                    size: 18,
+                  ),
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(36, 36),
+                    backgroundColor: _isListening
+                        ? AppTheme.accent.withValues(alpha: 0.12)
+                        : Colors.transparent,
+                  ),
+                  tooltip: _isListening ? 'Stop dictation' : 'Dictate',
+                ),
+              ),
+              SizedBox(width: Spacing.xs),
               _isProcessing
                   ? const SizedBox(
                       width: 20,
@@ -760,10 +927,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return widget.enableInputHero
         ? Hero(
-            tag: 'jarvis_bar',
-            createRectTween: (begin, end) =>
-                MaterialRectArcTween(begin: begin, end: end),
-            child: bar,
+            tag: JarvisHero.tag,
+            createRectTween: JarvisHero.createRectTween,
+            flightShuttleBuilder: JarvisHero.flightShuttleBuilder,
+            transitionOnUserGestures: true,
+            child: RepaintBoundary(child: bar),
           )
         : bar;
   }
@@ -889,7 +1057,8 @@ class _MessageBubble extends StatelessWidget {
         children: [
           Container(
             constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.8,
+              maxWidth:
+                  MediaQuery.of(context).size.width * (isUser ? 0.8 : 0.9),
             ),
             padding: EdgeInsets.symmetric(
               horizontal: Spacing.lg,

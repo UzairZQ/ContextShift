@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/ai_service.dart';
 import '../../../core/ai/action_executor.dart';
 import '../../../core/app_spacing.dart';
+import '../../../core/app_routes.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
 import '../../../core/local_llm/gemma_service.dart';
@@ -369,13 +370,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _openDashboard() {
     Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (_) => const AiDashboardScreen()));
+    ).push(SmoothPageRoute(builder: (_) => const AiDashboardScreen()));
   }
 
   void _openProfile() {
     Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+    ).push(SmoothPageRoute(builder: (_) => const SettingsScreen()));
   }
 
   Future<void> _openChat() async {
@@ -389,7 +390,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     try {
       debugPrint('[HomeScreen] Pushing stable ChatScreen route...');
       await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
+        SmoothPageRoute<void>(
           settings: const RouteSettings(name: 'jarvis_chat_fab'),
           builder: (_) {
             debugPrint('[HomeScreen] Building stable ChatScreen route');
@@ -421,8 +422,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }) {
     return Navigator.of(context).push<void>(
       PageRouteBuilder<void>(
-        transitionDuration: Motion.expressive,
-        reverseTransitionDuration: Motion.complex,
+        transitionDuration: Motion.heroFlight,
+        reverseTransitionDuration: Motion.smoothScreenReverse,
         pageBuilder: (context, animation, secondaryAnimation) {
           return ChatScreen(
             initialMessage: initialMessage,
@@ -433,16 +434,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           final curved = CurvedAnimation(
             parent: animation,
-            curve: Motion.decelerate,
-            reverseCurve: Motion.standard,
+            curve: Motion.smoothEnter,
+            reverseCurve: Motion.smoothExit,
           );
           final slide = Tween<Offset>(
-            begin: const Offset(0, 0.035),
+            begin: const Offset(0, 0.028),
             end: Offset.zero,
           ).animate(curved);
-          return FadeTransition(
-            opacity: curved,
-            child: SlideTransition(position: slide, child: child),
+          final scale = Tween<double>(begin: 0.992, end: 1).animate(curved);
+          return ScaleTransition(
+            scale: scale,
+            child: FadeTransition(
+              opacity: curved,
+              child: SlideTransition(position: slide, child: child),
+            ),
           );
         },
       ),
@@ -563,9 +568,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: ResponsiveWrapper(
                   maxWidth: 1000,
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 260),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
+                    duration: Motion.smoothTab,
+                    reverseDuration: Motion.complex,
+                    switchInCurve: Motion.smoothEnter,
+                    switchOutCurve: Motion.smoothExit,
                     layoutBuilder: (currentChild, previousChildren) {
                       return Stack(
                         alignment: Alignment.topCenter,
@@ -575,20 +581,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     transitionBuilder: (child, animation) {
                       final movement = CurvedAnimation(
                         parent: animation,
-                        curve: Curves.easeOutCubic,
-                        reverseCurve: Curves.easeInCubic,
+                        curve: Motion.smoothEnter,
+                        reverseCurve: Motion.smoothExit,
                       );
                       final opacity = CurvedAnimation(
                         parent: animation,
-                        curve: Curves.easeOutCubic,
-                        reverseCurve: Curves.easeInCubic,
+                        curve: Motion.smoothEnter,
+                        reverseCurve: Motion.smoothExit,
                       );
                       final offset = Tween<Offset>(
-                        begin: const Offset(0.04, 0.012),
+                        begin: const Offset(0.035, 0.015),
                         end: Offset.zero,
                       ).animate(movement);
                       final scale = Tween<double>(
-                        begin: 0.985,
+                        begin: 0.988,
                         end: 1,
                       ).animate(movement);
                       return FadeTransition(
@@ -637,7 +643,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _openModelDownload() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
+      SmoothPageRoute(
         builder: (_) => ModelDownloadScreen(
           model: ModelDefinition.e2b,
           isOnboarding: false,

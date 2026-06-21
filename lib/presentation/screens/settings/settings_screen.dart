@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../core/app_routes.dart';
 import '../../../core/app_spacing.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
@@ -161,7 +162,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onTap: () async {
                         await Navigator.push(
                           context,
-                          MaterialPageRoute(
+                          SmoothPageRoute(
                             builder: (_) => ModelDownloadScreen(
                               model: ModelDefinition.e2b,
                               isOnboarding: false,

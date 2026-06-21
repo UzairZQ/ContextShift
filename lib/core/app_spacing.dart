@@ -66,6 +66,18 @@ class Motion {
   /// 600ms — expressive transitions (hero, cards)
   static const Duration expressive = Duration(milliseconds: 600);
 
+  /// 700ms — smooth full-screen transitions
+  static const Duration smoothScreen = Duration(milliseconds: 700);
+
+  /// 540ms — smooth reverse full-screen transitions
+  static const Duration smoothScreenReverse = Duration(milliseconds: 540);
+
+  /// 460ms — tab/page content swaps
+  static const Duration smoothTab = Duration(milliseconds: 460);
+
+  /// 780ms — shared element flights
+  static const Duration heroFlight = Duration(milliseconds: 780);
+
   /// 1000ms — loading pulses
   static const Duration pulse = Duration(milliseconds: 1000);
 
@@ -73,6 +85,8 @@ class Motion {
   static const Curve standard = Curves.easeInOutCubic;
   static const Curve emphasize = Curves.easeInOutCubicEmphasized;
   static const Curve decelerate = Curves.easeOutCubic;
+  static const Curve smoothEnter = Curves.easeOutCubic;
+  static const Curve smoothExit = Curves.easeInCubic;
 }
 
 /// Touch target minimum sizes per M3 (48dp) and HIG (44dp).

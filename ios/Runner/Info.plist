@@ -37,6 +37,10 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Context Shift uses the microphone so you can dictate messages to JARVIS.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Context Shift uses speech recognition to turn your dictated words into chat text.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

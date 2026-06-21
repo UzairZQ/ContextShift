@@ -5,6 +5,7 @@ import 'package:genui/genui.dart';
 
 import '../../../core/app_spacing.dart';
 import '../../../core/app_theme.dart';
+import '../../../core/genui/jarvis_design_catalog.dart';
 import '../../../core/genui/widget_node.dart';
 import '../motion/wonderous_motion.dart';
 
@@ -34,7 +35,7 @@ class _A2uiSurfaceCardState extends State<A2uiSurfaceCard> {
   @override
   void initState() {
     super.initState();
-    _catalog = BasicCatalogItems.asNoAssetCatalog();
+    _catalog = JarvisDesignCatalog.extend(BasicCatalogItems.asNoAssetCatalog());
     _controller = SurfaceController(catalogs: [_catalog]);
     _transport = A2uiTransportAdapter(onSend: (_) async {});
     _conversation = Conversation(

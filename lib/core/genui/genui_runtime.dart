@@ -6,6 +6,7 @@ import 'package:genui/genui.dart';
 
 import '../ai/context_provider.dart';
 import '../local_llm/gemma_service.dart';
+import 'jarvis_design_catalog.dart';
 
 class GenUiGeneration {
   final String text;
@@ -27,13 +28,26 @@ class GenUiGeneration {
 /// Connects the official GenUI A2UI runtime to the on-device Gemma model.
 class JarvisGenUiRuntime {
   JarvisGenUiRuntime() {
-    catalog = BasicCatalogItems.asNoAssetCatalog(
-      systemPromptFragments: const [
-        'Use compact, mobile-first layouts that fit ContextShift.',
-        'Prefer one clear hierarchy and no more than one primary action.',
-        'Use event names create_task, create_habit, create_note, start_focus, '
-            'or continue_conversation when an interaction should affect the app.',
-      ],
+    catalog = JarvisDesignCatalog.extend(
+      BasicCatalogItems.asNoAssetCatalog(
+        systemPromptFragments: const [
+          'Use compact, mobile-first layouts that fit ContextShift.',
+          'Use the basic Flutter-style GenUI catalog as a creative construction '
+              'kit: Column, Row, Card, Text, Button, CheckBox, ChoicePicker, '
+              'DateTimeInput, Divider, Icon, List, Modal, Slider, Tabs, and '
+              'TextField. Combine them into the UI the user actually needs.',
+          'Do not default to the same generic card. First infer the domain and '
+              'the job-to-be-done, then choose the smallest useful interface: '
+              'for workout requests, include concrete exercise blocks, sets or '
+              'time ranges, rest guidance, and progression cues; for schedules, '
+              'include time blocks; for choices, include pickers or checkboxes.',
+          'Prefer one clear hierarchy and one primary action, but use multiple '
+              'sections, tabs, checkboxes, sliders, or inputs when the request '
+              'benefits from them.',
+          'Use event names create_task, create_habit, create_note, start_focus, '
+              'or continue_conversation when an interaction should affect the app.',
+        ],
+      ),
     );
     controller = SurfaceController(catalogs: [catalog]);
     transport = A2uiTransportAdapter(onSend: _sendToModel);
@@ -93,6 +107,12 @@ class JarvisGenUiRuntime {
             'You are JARVIS, a warm, concise, action-oriented private guide.',
             'Respond with short useful text and create a surface only when '
                 'interactive or structured UI is genuinely useful.',
+            'When creating a surface, avoid pre-made templates. Build a fresh '
+                'composition from the available catalog components that fits '
+                'the user prompt and any local ContextShift data.',
+            'If the user asks for a plan, routine, workout, dashboard, card, '
+                'screen, checklist, program, or visual structure, create an '
+                'A2UI surface unless a plain chat answer is clearly better.',
           ],
           clientDataModel: localContext,
         ).systemPromptJoined(),

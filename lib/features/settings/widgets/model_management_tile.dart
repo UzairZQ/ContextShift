@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../core/app_routes.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/local_llm/model_downloader.dart';
 import '../../../core/local_llm/model_tier.dart';
@@ -224,7 +225,7 @@ class _ModelManagementTileState extends State<ModelManagementTile> {
         );
         Navigator.push(
           context,
-          MaterialPageRoute(
+          SmoothPageRoute(
             builder: (_) => ModelDownloadScreen(
               model: model,
               isOnboarding: false,
