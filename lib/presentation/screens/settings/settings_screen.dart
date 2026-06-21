@@ -158,8 +158,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: LucideIcons.downloadCloud,
                       title: 'Manage AI model',
                       subtitle: _modelStatusSubtitle(),
-                      onTap: () {
-                        Navigator.push(
+                      onTap: () async {
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => ModelDownloadScreen(
@@ -169,6 +169,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           ),
                         );
+                        if (mounted) setState(() {});
                       },
                     ),
                     _SettingsTile(

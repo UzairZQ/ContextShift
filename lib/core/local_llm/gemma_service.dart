@@ -235,6 +235,26 @@ class GemmaService {
     }
   }
 
+  Future<String> runHealthCheck(ModelDefinition model) async {
+    debugPrint('[GemmaService] Running health check for ${model.modelId}');
+    await loadModel(model);
+    final response = await generate(
+      'Health check. Reply with exactly: OK',
+      maxTokens: 32,
+      temperature: 0,
+      timeout: const Duration(seconds: 20),
+    );
+    final trimmed = response.trim();
+    if (trimmed.isEmpty) {
+      throw const GemmaException(
+        code: GemmaErrorCode.unknown,
+        message: 'Health check returned an empty response.',
+      );
+    }
+    debugPrint('[GemmaService] Health check response: $trimmed');
+    return trimmed;
+  }
+
   Stream<String> generateStream(
     String prompt, {
     int maxTokens = 512,

@@ -274,6 +274,7 @@ class ModelDownloader {
     } catch (e, stack) {
       debugPrint('[ModelDownloader] Error deleting model: $e');
       debugPrint('[ModelDownloader]   Stack: $stack');
+      rethrow;
     }
   }
 

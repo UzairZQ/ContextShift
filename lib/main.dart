@@ -42,12 +42,8 @@ void main() {
 
       try {
         await FeatureManager.instance.initialize();
-        final model = FeatureManager.instance.resolveBestModelDef();
-        if (model != null) {
-          await GemmaService.instance.loadModel(model);
-        }
       } catch (e, stack) {
-        debugPrint('[main] Model state restore failed (non-fatal): $e');
+        debugPrint('[main] Feature state restore failed (non-fatal): $e');
         debugPrintStack(stackTrace: stack);
       }
 
