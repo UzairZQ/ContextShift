@@ -14,7 +14,9 @@ import '../../../core/genui/safe_renderer.dart';
 import '../../../core/genui/action_bus.dart';
 import '../../../core/genui/genui_runtime.dart';
 import '../../../core/genui/widget_node.dart';
+import '../../../core/local_llm/gemma_service.dart';
 import '../../../core/responsive.dart';
+import '../../../core/services/feature_manager.dart';
 import '../../widgets/generative_card_module.dart';
 import '../../widgets/genui/a2ui_surface_card.dart';
 import '../../widgets/motion/wonderous_motion.dart';
@@ -207,7 +209,11 @@ class _ChatScreenState extends State<ChatScreen> {
       String response;
       String? widgetJson;
 
-      if (isDirectCommand) {
+      final localSmallTalk = _localSmallTalkResponse(message);
+      if (localSmallTalk != null) {
+        response = localSmallTalk;
+        widgetJson = null;
+      } else if (isDirectCommand) {
         final result = await AiService.instance.processCommand(
           command: message,
           userName: DatabaseService.instance.firstName,
@@ -221,9 +227,11 @@ class _ChatScreenState extends State<ChatScreen> {
             ? _encodeWidgetPayload(result)
             : jsonEncode(execution.generatedCard);
       } else {
+        await _ensureJarvisReadyForChat(message);
         final generation = await _genUiRuntime.generate(
           userMessage: message,
           conversationId: _activeConversationId,
+          timeout: const Duration(seconds: 45),
         );
         response = generation.text.isEmpty
             ? 'I shaped that into an interactive view.'
@@ -249,7 +257,14 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     } catch (error, stackTrace) {
-      debugPrint('[ChatScreen] Message send failed: $error');
+      final diagnosticId = _diagnosticId();
+      debugPrint(
+        '[ChatScreen][$diagnosticId] Message send failed. '
+        'conversation=$_activeConversationId, '
+        'messageLength=${message.length}, '
+        'modelLoaded=${GemmaService.instance.isModelLoaded}, '
+        'activeModel=${GemmaService.instance.activeModelDef?.modelId}: $error',
+      );
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       final conversationId = _activeConversationId;
@@ -258,7 +273,7 @@ class _ChatScreenState extends State<ChatScreen> {
           await DatabaseService.instance.addMessage(
             conversationId: conversationId,
             role: 'assistant',
-            content: 'Sorry, I had trouble with that. Please try again.',
+            content: _diagnosticMessage(error, diagnosticId),
           );
         } catch (persistenceError, persistenceStack) {
           debugPrint(
@@ -271,6 +286,71 @@ class _ChatScreenState extends State<ChatScreen> {
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
+  }
+
+  String? _localSmallTalkResponse(String message) {
+    final cleaned = message
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    const greetings = {
+      'hi',
+      'hello',
+      'hey',
+      'yo',
+      'hi jarvis',
+      'hello jarvis',
+      'hey jarvis',
+      'how are you',
+      'hi how are you',
+      'hello how are you',
+      'hey how are you',
+      'how are you jarvis',
+    };
+    if (!greetings.contains(cleaned)) return null;
+    final name = DatabaseService.instance.firstName;
+    return "I'm here, $name. Ready when you are. Tell me what you want to clear, plan, or focus on next.";
+  }
+
+  Future<void> _ensureJarvisReadyForChat(String message) async {
+    if (GemmaService.instance.isModelLoaded) return;
+
+    final model = FeatureManager.instance.resolveBestModelDef();
+    if (model == null) {
+      throw const GemmaException(
+        code: GemmaErrorCode.modelNotInstalled,
+        message: 'No local JARVIS model is marked as downloaded.',
+      );
+    }
+
+    debugPrint(
+      '[ChatScreen] Model not loaded before chat. '
+      'Loading ${model.modelId} for messageLength=${message.length}',
+    );
+    await GemmaService.instance
+        .loadModel(model)
+        .timeout(
+          const Duration(seconds: 60),
+          onTimeout: () => throw TimeoutException(
+            'Timed out while loading ${model.displayName}.',
+          ),
+        );
+  }
+
+  String _diagnosticId() {
+    return DateTime.now().millisecondsSinceEpoch.toRadixString(16);
+  }
+
+  String _diagnosticMessage(Object error, String diagnosticId) {
+    final errorText = error.toString();
+    final shortError = errorText.length > 240
+        ? '${errorText.substring(0, 240)}...'
+        : errorText;
+    return 'JARVIS hit an error before it could answer.\n'
+        'Diagnostic ID: $diagnosticId\n'
+        '$shortError\n\n'
+        'Please send this screen if it happens again.';
   }
 
   String? _encodeWidgetPayload(AiCommandResult result) {

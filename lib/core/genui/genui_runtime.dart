@@ -54,12 +54,15 @@ class JarvisGenUiRuntime {
   Future<GenUiGeneration> generate({
     required String userMessage,
     int? conversationId,
+    Duration timeout = const Duration(seconds: 45),
   }) async {
     _rawResponse.clear();
     _latestText = '';
     _conversationId = conversationId;
 
-    await conversation.sendRequest(ChatMessage.user(userMessage));
+    await conversation
+        .sendRequest(ChatMessage.user(userMessage))
+        .timeout(timeout);
     await Future<void>.delayed(const Duration(milliseconds: 20));
 
     return GenUiGeneration(
@@ -97,11 +100,20 @@ class JarvisGenUiRuntime {
       ..writeln('Conversation input:')
       ..writeln(jsonEncode(message.toJson()));
 
-    await for (final token in GemmaService.instance.generateStream(
-      prompt.toString(),
-      maxTokens: 1200,
-      temperature: 0.2,
-    )) {
+    await for (final token
+        in GemmaService.instance
+            .generateStream(prompt.toString(), maxTokens: 900, temperature: 0.2)
+            .timeout(
+              const Duration(seconds: 30),
+              onTimeout: (sink) {
+                sink.addError(
+                  TimeoutException(
+                    'JARVIS stream produced no output for 30 seconds.',
+                  ),
+                );
+                sink.close();
+              },
+            )) {
       _rawResponse.write(token);
       transport.addChunk(token);
     }

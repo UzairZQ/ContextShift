@@ -8,6 +8,7 @@ import '../../../core/ai/action_executor.dart';
 import '../../../core/app_spacing.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
+import '../../../core/local_llm/gemma_service.dart';
 import '../../../core/local_llm/model_tier.dart';
 import '../../../core/responsive.dart';
 import '../../../core/services/feature_manager.dart';
@@ -392,7 +393,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: HomeTab(
           greeting: _greeting,
           commandController: _commandController,
-          isJarvisOnline: true,
+          isJarvisOnline: GemmaService.instance.isModelLoaded,
           hasCheckedJarvisStatus: true,
           isProcessingCommand: _isProcessingCommand,
           offlineHint: '',
