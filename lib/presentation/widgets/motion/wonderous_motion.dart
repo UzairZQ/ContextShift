@@ -63,8 +63,17 @@ class _PressableScaleState extends State<PressableScale> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.onTap == null) {
+      return AnimatedScale(
+        scale: 1,
+        duration: Motion.fast,
+        curve: Curves.easeOutBack,
+        child: widget.child,
+      );
+    }
+
     return Semantics(
-      button: widget.onTap != null,
+      button: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,

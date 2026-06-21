@@ -4,14 +4,18 @@ import '../../../../core/app_theme.dart';
 import '../../../widgets/motion/wonderous_motion.dart';
 
 class OnboardingPageData {
+  final String eyebrow;
   final String title;
   final String body;
+  final String proof;
   final IconData icon;
   final Color accent;
 
   const OnboardingPageData({
+    required this.eyebrow,
     required this.title,
     required this.body,
+    required this.proof,
     required this.icon,
     required this.accent,
   });
@@ -19,68 +23,265 @@ class OnboardingPageData {
 
 class OnboardingPageView extends StatelessWidget {
   final OnboardingPageData page;
+  final PageController controller;
+  final int index;
 
-  const OnboardingPageView({super.key, required this.page});
+  const OnboardingPageView({
+    super.key,
+    required this.page,
+    required this.controller,
+    required this.index,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Spacer(),
-          WonderousReveal(
-            child: PointerTilt(
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeOutCubic,
-                width: 88,
-                height: 88,
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, child) {
+        final offset = _pageOffset;
+        final distance = offset.abs().clamp(0.0, 1.0);
+        final opacity = 1 - (distance * 0.35);
+        final scale = 1 - (distance * 0.045);
+
+        return Opacity(
+          opacity: opacity,
+          child: Transform.scale(
+            scale: scale,
+            alignment: Alignment.center,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Spacer(),
+                  Transform.translate(
+                    offset: Offset(offset * -34, 0),
+                    child: WonderousReveal(
+                      begin: const Offset(-0.04, 0.08),
+                      child: _DepthIconCard(page: page),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Transform.translate(
+                    offset: Offset(offset * -20, 0),
+                    child: WonderousReveal(
+                      delay: const Duration(milliseconds: 55),
+                      begin: const Offset(0, 0.04),
+                      child: _Eyebrow(page: page),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Transform.translate(
+                    offset: Offset(offset * -14, 0),
+                    child: WonderousReveal(
+                      delay: const Duration(milliseconds: 100),
+                      child: Text(
+                        page.title,
+                        style: Theme.of(context).textTheme.displayLarge
+                            ?.copyWith(fontSize: 38, height: 1.02),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Transform.translate(
+                    offset: Offset(offset * -8, 0),
+                    child: WonderousReveal(
+                      delay: const Duration(milliseconds: 165),
+                      child: Text(
+                        page.body,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppTheme.onSurface.withValues(alpha: 0.72),
+                          height: 1.55,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Transform.translate(
+                    offset: Offset(offset * 18, 0),
+                    child: WonderousReveal(
+                      delay: const Duration(milliseconds: 230),
+                      begin: const Offset(0.06, 0.08),
+                      child: _ProofCard(page: page),
+                    ),
+                  ),
+                  const Spacer(),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  double get _pageOffset {
+    if (!controller.hasClients || !controller.position.hasContentDimensions) {
+      return 0;
+    }
+    final pageValue = controller.page ?? controller.initialPage.toDouble();
+    return pageValue - index;
+  }
+}
+
+class _DepthIconCard extends StatelessWidget {
+  final OnboardingPageData page;
+
+  const _DepthIconCard({required this.page});
+
+  @override
+  Widget build(BuildContext context) {
+    return PointerTilt(
+      maxTilt: 0.05,
+      child: SizedBox(
+        width: 126,
+        height: 112,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              right: 2,
+              top: 10,
+              child: Container(
+                width: 76,
+                height: 76,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(28),
-                  gradient: LinearGradient(
-                    colors: [
-                      page.accent.withValues(alpha: 0.18),
-                      page.accent.withValues(alpha: 0.35),
-                    ],
-                  ),
+                  shape: BoxShape.circle,
                   border: Border.all(
-                    color: page.accent.withValues(alpha: 0.35),
+                    color: page.accent.withValues(alpha: 0.22),
                   ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 24,
+              bottom: 0,
+              child: Container(
+                width: 66,
+                height: 12,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
                   boxShadow: [
                     BoxShadow(
-                      color: page.accent.withValues(alpha: 0.18),
-                      blurRadius: 32,
+                      color: page.accent.withValues(alpha: 0.24),
+                      blurRadius: 26,
+                      spreadRadius: 8,
                     ),
                   ],
                 ),
-                child: Icon(page.icon, size: 36, color: Colors.white),
+              ),
+            ),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 520),
+              curve: Curves.easeOutCubic,
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(30),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.16),
+                    page.accent.withValues(alpha: 0.34),
+                    AppTheme.surfaceHigh.withValues(alpha: 0.84),
+                  ],
+                ),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                boxShadow: [
+                  BoxShadow(
+                    color: page.accent.withValues(alpha: 0.23),
+                    blurRadius: 42,
+                    offset: const Offset(0, 18),
+                  ),
+                ],
+              ),
+              child: Icon(page.icon, size: 38, color: Colors.white),
+            ),
+            Positioned(
+              right: 12,
+              bottom: 18,
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: page.accent,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppTheme.background.withValues(alpha: 0.7),
+                    width: 4,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Eyebrow extends StatelessWidget {
+  final OnboardingPageData page;
+
+  const _Eyebrow({required this.page});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: page.accent.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: page.accent.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        page.eyebrow.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: page.accent,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.1,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProofCard extends StatelessWidget {
+  final OnboardingPageData page;
+
+  const _ProofCard({required this.page});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceHigh.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: page.accent,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              page.proof,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppTheme.onSurface.withValues(alpha: 0.74),
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
-          const SizedBox(height: 32),
-          WonderousReveal(
-            delay: const Duration(milliseconds: 80),
-            child: Text(
-              page.title,
-              style: Theme.of(
-                context,
-              ).textTheme.displayLarge?.copyWith(fontSize: 38, height: 1.02),
-            ),
-          ),
-          const SizedBox(height: 18),
-          WonderousReveal(
-            delay: const Duration(milliseconds: 150),
-            child: Text(
-              page.body,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: AppTheme.onSurface.withValues(alpha: 0.72),
-                height: 1.55,
-              ),
-            ),
-          ),
-          const Spacer(),
         ],
       ),
     );
