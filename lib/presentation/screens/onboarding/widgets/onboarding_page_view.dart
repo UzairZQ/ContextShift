@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/app_theme.dart';
+import '../../../widgets/motion/wonderous_motion.dart';
 
 class OnboardingPageData {
   final String title;
@@ -29,50 +30,55 @@ class OnboardingPageView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Spacer(),
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOutCubic,
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
-              gradient: LinearGradient(
-                colors: [
-                  page.accent.withValues(alpha: 0.18),
-                  page.accent.withValues(alpha: 0.35),
-                ],
-              ),
-              border: Border.all(
-                color: page.accent.withValues(alpha: 0.35),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: page.accent.withValues(alpha: 0.18),
-                  blurRadius: 32,
+          WonderousReveal(
+            child: PointerTilt(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeOutCubic,
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(28),
+                  gradient: LinearGradient(
+                    colors: [
+                      page.accent.withValues(alpha: 0.18),
+                      page.accent.withValues(alpha: 0.35),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: page.accent.withValues(alpha: 0.35),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: page.accent.withValues(alpha: 0.18),
+                      blurRadius: 32,
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: Icon(
-              page.icon,
-              size: 36,
-              color: Colors.white,
+                child: Icon(page.icon, size: 36, color: Colors.white),
+              ),
             ),
           ),
           const SizedBox(height: 32),
-          Text(
-            page.title,
-            style: Theme.of(context)
-                .textTheme
-                .displayLarge
-                ?.copyWith(fontSize: 38, height: 1.02),
+          WonderousReveal(
+            delay: const Duration(milliseconds: 80),
+            child: Text(
+              page.title,
+              style: Theme.of(
+                context,
+              ).textTheme.displayLarge?.copyWith(fontSize: 38, height: 1.02),
+            ),
           ),
           const SizedBox(height: 18),
-          Text(
-            page.body,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppTheme.onSurface.withValues(alpha: 0.72),
-                  height: 1.55,
-                ),
+          WonderousReveal(
+            delay: const Duration(milliseconds: 150),
+            child: Text(
+              page.body,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: AppTheme.onSurface.withValues(alpha: 0.72),
+                height: 1.55,
+              ),
+            ),
           ),
           const Spacer(),
         ],

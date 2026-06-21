@@ -21,31 +21,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   static const List<OnboardingPageData> _pages = [
     OnboardingPageData(
-      title: 'Your AI lives on\nyour phone',
+      title: 'Too much in your head?\nDrop it here.',
       body:
-          'JARVIS runs on-device, not in the cloud. No servers, no subscriptions, no one listening in. Your AI, your rules — private by design.',
+          'Write the messy version. JARVIS helps turn scattered thoughts, overdue tasks, and half-made plans into one clear next move.',
       icon: LucideIcons.sparkles,
       accent: AppTheme.primary,
     ),
     OnboardingPageData(
-      title: 'No internet?\nNo problem.',
+      title: 'Find the next move.\nNot another list.',
       body:
-          'Planes, tunnels, the middle of nowhere — JARVIS doesn\'t care. Every task, note, and insight lives on your device without needing a signal.',
-      icon: LucideIcons.wifiOff,
+          'Tasks, habits, notes, focus, and mood finally work together. Open the app and see what matters now, without rebuilding your day.',
+      icon: LucideIcons.compass,
       accent: AppTheme.warning,
     ),
     OnboardingPageData(
-      title: 'Your data stays\nyours',
+      title: 'Built to work\noffline.',
       body:
-          'No cloud upload, no account trap, no data mining. Everything stays in your pocket and nowhere else. The product should earn your trust, not demand it.',
-      icon: LucideIcons.shield,
+          'On a train, in a tunnel, or hiding from bad Wi-Fi, your workspace still works. JARVIS runs on your phone, so a weak signal never breaks your flow.',
+      icon: LucideIcons.wifiOff,
       accent: AppTheme.success,
     ),
     OnboardingPageData(
-      title: 'Your space,\nyour rules',
+      title: 'Your life isn\'t\ntraining data.',
       body:
-          'A workspace that bends around your energy and priorities instead of trapping you in a static dashboard. Capture the chaos, build momentum, and let JARVIS help you move.',
-      icon: LucideIcons.layoutDashboard,
+          'Your plans, moods, notes, and conversations stay on your device. No cloud history to sell. No audience. Just a private space that helps.',
+      icon: LucideIcons.shield,
       accent: AppTheme.tertiary,
     ),
   ];
@@ -154,7 +154,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             ),
                             child: Text(
                               _currentPage == _pages.length - 1
-                                  ? 'Let\'s go'
+                                  ? 'Build my space'
                                   : 'Next',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,

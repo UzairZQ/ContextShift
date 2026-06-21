@@ -116,9 +116,7 @@ class SafeRenderer {
       decoration: BoxDecoration(
         color: AppTheme.surfaceContainer,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppTheme.warning.withValues(alpha: 0.2),
-        ),
+        border: Border.all(color: AppTheme.warning.withValues(alpha: 0.2)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

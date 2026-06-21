@@ -12,8 +12,7 @@ import 'package:uuid/uuid.dart';
 
 import 'schema.dart';
 
-/// Singleton service that mirrors [FirebaseService]'s API exactly,
-/// backed by a local Drift (SQLite) database.
+/// Singleton service backed by a local Drift (SQLite) database.
 class DatabaseService {
   DatabaseService._();
   static final DatabaseService instance = DatabaseService._();

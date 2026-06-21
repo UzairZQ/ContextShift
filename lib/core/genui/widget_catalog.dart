@@ -3,6 +3,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../app_spacing.dart';
 import '../app_theme.dart';
+import 'action_bus.dart';
 import 'widget_node.dart';
 
 /// Result of building a widget from the catalog.
@@ -46,19 +47,32 @@ class WidgetCatalog {
       // ── Layout ──
       CatalogEntry(
         type: 'Column',
-        allowedProps: ['crossAxisAlignment', 'mainAxisAlignment', 'mainAxisSize'],
+        allowedProps: [
+          'crossAxisAlignment',
+          'mainAxisAlignment',
+          'mainAxisSize',
+        ],
         builder: (node, ctx) => _buildColumn(node, ctx),
       ),
       CatalogEntry(
         type: 'Row',
-        allowedProps: ['crossAxisAlignment', 'mainAxisAlignment', 'mainAxisSize'],
+        allowedProps: [
+          'crossAxisAlignment',
+          'mainAxisAlignment',
+          'mainAxisSize',
+        ],
         builder: (node, ctx) => _buildRow(node, ctx),
       ),
       CatalogEntry(
         type: 'Container',
         allowedProps: [
-          'padding', 'margin', 'width', 'height',
-          'decoration', 'borderRadius', 'color',
+          'padding',
+          'margin',
+          'width',
+          'height',
+          'decoration',
+          'borderRadius',
+          'color',
         ],
         builder: (node, ctx) => _buildContainer(node, ctx),
       ),
@@ -99,7 +113,8 @@ class WidgetCatalog {
         allowedProps: ['thickness', 'color'],
         builder: (node, _) => Divider(
           thickness: _prop<double>(node, 'thickness', 1),
-          color: _parseColor(_prop<String>(node, 'color')) ??
+          color:
+              _parseColor(_prop<String>(node, 'color')) ??
               AppTheme.onSurfaceVariant.withValues(alpha: 0.1),
         ),
       ),
@@ -180,8 +195,7 @@ class WidgetCatalog {
 
   bool isAllowed(String type) => get(type) != null;
 
-  List<String> get allowedTypes =>
-      _entries.map((e) => e.type).toList();
+  List<String> get allowedTypes => _entries.map((e) => e.type).toList();
 
   // ── Builders ──
 
@@ -217,12 +231,8 @@ class WidgetCatalog {
 
   Widget _buildContainer(WidgetNode node, BuildContext ctx) {
     return Container(
-      padding: _parseEdgeInsets(
-        node.props['padding'] as Map<String, dynamic>?,
-      ),
-      margin: _parseEdgeInsets(
-        node.props['margin'] as Map<String, dynamic>?,
-      ),
+      padding: _parseEdgeInsets(node.props['padding'] as Map<String, dynamic>?),
+      margin: _parseEdgeInsets(node.props['margin'] as Map<String, dynamic>?),
       width: _prop<double>(node, 'width'),
       height: _prop<double>(node, 'height'),
       decoration: BoxDecoration(
@@ -252,15 +262,9 @@ class WidgetCatalog {
           color: AppTheme.onSurface,
         );
       case 'bodyLarge':
-        style = const TextStyle(
-          fontSize: 15,
-          color: AppTheme.onSurfaceVariant,
-        );
+        style = const TextStyle(fontSize: 15, color: AppTheme.onSurfaceVariant);
       case 'bodySmall':
-        style = const TextStyle(
-          fontSize: 12,
-          color: AppTheme.onSurfaceVariant,
-        );
+        style = const TextStyle(fontSize: 12, color: AppTheme.onSurfaceVariant);
       case 'label':
         style = const TextStyle(
           fontSize: 11,
@@ -269,10 +273,7 @@ class WidgetCatalog {
           letterSpacing: 0.5,
         );
       default:
-        style = const TextStyle(
-          fontSize: 14,
-          color: AppTheme.onSurface,
-        );
+        style = const TextStyle(fontSize: 14, color: AppTheme.onSurface);
     }
 
     final colorStr = _prop<String>(node, 'color');
@@ -364,9 +365,7 @@ class WidgetCatalog {
     );
 
     return GestureDetector(
-      onTap: node.onTap != null
-          ? () => _handleAction(node.onTap!, ctx)
-          : null,
+      onTap: node.onTap != null ? () => _handleAction(node.onTap!, ctx) : null,
       child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: Spacing.xl,
@@ -529,7 +528,8 @@ class WidgetCatalog {
           ? _parseEdgeInsets(node.props['padding'] as Map<String, dynamic>)
           : Spacing.cardPadding,
       decoration: BoxDecoration(
-        color: _parseColor(_prop<String>(node, 'color')) ??
+        color:
+            _parseColor(_prop<String>(node, 'color')) ??
             AppTheme.surfaceContainer,
         borderRadius: BorderRadius.circular(
           _prop<double>(node, 'borderRadius', 16) ?? 16,
@@ -586,9 +586,8 @@ class WidgetCatalog {
   }
 
   void _handleAction(WidgetAction action, BuildContext ctx) {
-    // Actions are handled by the parent context — this just logs.
-    // The GenerativeCardModule wraps the renderer and intercepts actions.
     debugPrint('[GenUI] Action triggered: ${action.action} ${action.params}');
+    GenUiActionBus.instance.emit(action);
   }
 
   // ── Property Parsers ──
@@ -615,48 +614,74 @@ class WidgetCatalog {
 
   CrossAxisAlignment _parseCrossAxisAlignment(String? value) {
     switch (value) {
-      case 'start': return CrossAxisAlignment.start;
-      case 'end': return CrossAxisAlignment.end;
-      case 'center': return CrossAxisAlignment.center;
-      case 'stretch': return CrossAxisAlignment.stretch;
-      default: return CrossAxisAlignment.start;
+      case 'start':
+        return CrossAxisAlignment.start;
+      case 'end':
+        return CrossAxisAlignment.end;
+      case 'center':
+        return CrossAxisAlignment.center;
+      case 'stretch':
+        return CrossAxisAlignment.stretch;
+      default:
+        return CrossAxisAlignment.start;
     }
   }
 
   MainAxisAlignment _parseMainAxisAlignment(String? value) {
     switch (value) {
-      case 'start': return MainAxisAlignment.start;
-      case 'end': return MainAxisAlignment.end;
-      case 'center': return MainAxisAlignment.center;
-      case 'spaceBetween': return MainAxisAlignment.spaceBetween;
-      case 'spaceAround': return MainAxisAlignment.spaceAround;
-      case 'spaceEvenly': return MainAxisAlignment.spaceEvenly;
-      default: return MainAxisAlignment.start;
+      case 'start':
+        return MainAxisAlignment.start;
+      case 'end':
+        return MainAxisAlignment.end;
+      case 'center':
+        return MainAxisAlignment.center;
+      case 'spaceBetween':
+        return MainAxisAlignment.spaceBetween;
+      case 'spaceAround':
+        return MainAxisAlignment.spaceAround;
+      case 'spaceEvenly':
+        return MainAxisAlignment.spaceEvenly;
+      default:
+        return MainAxisAlignment.start;
     }
   }
 
   TextAlign _parseAlign(String? value) {
     switch (value) {
-      case 'left': return TextAlign.left;
-      case 'right': return TextAlign.right;
-      case 'center': return TextAlign.center;
-      default: return TextAlign.start;
+      case 'left':
+        return TextAlign.left;
+      case 'right':
+        return TextAlign.right;
+      case 'center':
+        return TextAlign.center;
+      default:
+        return TextAlign.start;
     }
   }
 
   Color? _parseColor(String? value) {
     if (value == null) return null;
     switch (value) {
-      case 'primary': return AppTheme.primary;
-      case 'primaryDim': return AppTheme.primaryDim;
-      case 'tertiary': return AppTheme.tertiary;
-      case 'success': return AppTheme.success;
-      case 'warning': return AppTheme.warning;
-      case 'error': return AppTheme.error;
-      case 'surface': return AppTheme.surfaceContainer;
-      case 'surfaceHigh': return AppTheme.surfaceHigh;
-      case 'onSurface': return AppTheme.onSurface;
-      case 'onSurfaceVariant': return AppTheme.onSurfaceVariant;
+      case 'primary':
+        return AppTheme.primary;
+      case 'primaryDim':
+        return AppTheme.primaryDim;
+      case 'tertiary':
+        return AppTheme.tertiary;
+      case 'success':
+        return AppTheme.success;
+      case 'warning':
+        return AppTheme.warning;
+      case 'error':
+        return AppTheme.error;
+      case 'surface':
+        return AppTheme.surfaceContainer;
+      case 'surfaceHigh':
+        return AppTheme.surfaceHigh;
+      case 'onSurface':
+        return AppTheme.onSurface;
+      case 'onSurfaceVariant':
+        return AppTheme.onSurfaceVariant;
       default:
         try {
           return Color(int.parse(value.replaceFirst('#', '0xFF')));
@@ -669,43 +694,80 @@ class WidgetCatalog {
   IconData _parseIcon(String? name) {
     if (name == null) return LucideIcons.helpCircle;
     switch (name) {
-      case 'sparkles': return LucideIcons.sparkles;
-      case 'brain': return LucideIcons.brain;
-      case 'checkSquare': return LucideIcons.checkSquare;
-      case 'activity': return LucideIcons.activity;
-      case 'timer': return LucideIcons.timer;
-      case 'flame': return LucideIcons.flame;
-      case 'target': return LucideIcons.target;
-      case 'messageSquare': return LucideIcons.messageSquare;
-      case 'coffee': return LucideIcons.coffee;
-      case 'batteryCharging': return LucideIcons.batteryCharging;
-      case 'rotateCcw': return LucideIcons.rotateCcw;
-      case 'skipForward': return LucideIcons.skipForward;
-      case 'play': return LucideIcons.play;
-      case 'pause': return LucideIcons.pause;
-      case 'send': return LucideIcons.send;
-      case 'plus': return LucideIcons.plus;
-      case 'trash2': return LucideIcons.trash2;
-      case 'arrowLeft': return LucideIcons.arrowLeft;
-      case 'chevronRight': return LucideIcons.chevronRight;
-      case 'downloadCloud': return LucideIcons.downloadCloud;
-      case 'settings': return LucideIcons.settings;
-      case 'barChart2': return LucideIcons.barChart2;
-      case 'shield': return LucideIcons.shield;
-      case 'info': return LucideIcons.info;
-      case 'crown': return LucideIcons.crown;
-      case 'lock': return LucideIcons.lock;
-      case 'user': return LucideIcons.user;
-      case 'userPlus': return LucideIcons.userPlus;
-      case 'star': return LucideIcons.star;
-      case 'heart': return LucideIcons.heart;
-      case 'zap': return LucideIcons.zap;
-      case 'globe': return LucideIcons.globe;
-      case 'sun': return LucideIcons.sun;
-      case 'moon': return LucideIcons.moon;
-      case 'cloudOff': return LucideIcons.cloudOff;
-      case 'loader2': return LucideIcons.loader2;
-      default: return LucideIcons.helpCircle;
+      case 'sparkles':
+        return LucideIcons.sparkles;
+      case 'brain':
+        return LucideIcons.brain;
+      case 'checkSquare':
+        return LucideIcons.checkSquare;
+      case 'activity':
+        return LucideIcons.activity;
+      case 'timer':
+        return LucideIcons.timer;
+      case 'flame':
+        return LucideIcons.flame;
+      case 'target':
+        return LucideIcons.target;
+      case 'messageSquare':
+        return LucideIcons.messageSquare;
+      case 'coffee':
+        return LucideIcons.coffee;
+      case 'batteryCharging':
+        return LucideIcons.batteryCharging;
+      case 'rotateCcw':
+        return LucideIcons.rotateCcw;
+      case 'skipForward':
+        return LucideIcons.skipForward;
+      case 'play':
+        return LucideIcons.play;
+      case 'pause':
+        return LucideIcons.pause;
+      case 'send':
+        return LucideIcons.send;
+      case 'plus':
+        return LucideIcons.plus;
+      case 'trash2':
+        return LucideIcons.trash2;
+      case 'arrowLeft':
+        return LucideIcons.arrowLeft;
+      case 'chevronRight':
+        return LucideIcons.chevronRight;
+      case 'downloadCloud':
+        return LucideIcons.downloadCloud;
+      case 'settings':
+        return LucideIcons.settings;
+      case 'barChart2':
+        return LucideIcons.barChart2;
+      case 'shield':
+        return LucideIcons.shield;
+      case 'info':
+        return LucideIcons.info;
+      case 'crown':
+        return LucideIcons.crown;
+      case 'lock':
+        return LucideIcons.lock;
+      case 'user':
+        return LucideIcons.user;
+      case 'userPlus':
+        return LucideIcons.userPlus;
+      case 'star':
+        return LucideIcons.star;
+      case 'heart':
+        return LucideIcons.heart;
+      case 'zap':
+        return LucideIcons.zap;
+      case 'globe':
+        return LucideIcons.globe;
+      case 'sun':
+        return LucideIcons.sun;
+      case 'moon':
+        return LucideIcons.moon;
+      case 'cloudOff':
+        return LucideIcons.cloudOff;
+      case 'loader2':
+        return LucideIcons.loader2;
+      default:
+        return LucideIcons.helpCircle;
     }
   }
 }

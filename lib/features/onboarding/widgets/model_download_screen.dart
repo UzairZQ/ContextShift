@@ -5,7 +5,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
 import '../../../core/local_llm/model_downloader.dart';
+import '../../../core/local_llm/gemma_service.dart';
 import '../../../core/local_llm/model_tier.dart';
+import '../../../core/services/feature_manager.dart';
 
 class ModelDownloadScreen extends StatefulWidget {
   final ModelDefinition model;
@@ -32,7 +34,6 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
   DownloadProgressInfo _progress = const DownloadProgressInfo();
   bool _hasStarted = false;
 
-
   @override
   void initState() {
     super.initState();
@@ -42,7 +43,9 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
   Future<void> _checkIfAlreadyDownloaded() async {
     try {
       final downloaded = await _downloader.isModelDownloaded(widget.model);
-      debugPrint('[ModelDownloadScreen] Model "${widget.model.modelId}" already downloaded: $downloaded');
+      debugPrint(
+        '[ModelDownloadScreen] Model "${widget.model.modelId}" already downloaded: $downloaded',
+      );
       if (downloaded && mounted) {
         setState(() {
           _progress = const DownloadProgressInfo(
@@ -68,29 +71,59 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
     debugPrint('[ModelDownloadScreen] Start download pressed');
     setState(() {
       _hasStarted = true;
-      _progress = const DownloadProgressInfo(state: DownloadState.checkingStorage);
+      _progress = const DownloadProgressInfo(
+        state: DownloadState.checkingStorage,
+      );
     });
 
     _subscription?.cancel();
-    _subscription = _downloader.download(widget.model).listen(
-      _onProgress,
-      onError: (error) {
-        debugPrint('[ModelDownloadScreen] Stream error: $error');
-      },
-      onDone: () {
-        debugPrint('[ModelDownloadScreen] Stream done, state=${_progress.state}');
-      },
-    );
+    _subscription = _downloader
+        .download(widget.model)
+        .listen(
+          _onProgress,
+          onError: (error) {
+            debugPrint('[ModelDownloadScreen] Stream error: $error');
+          },
+          onDone: () {
+            debugPrint(
+              '[ModelDownloadScreen] Stream done, state=${_progress.state}',
+            );
+          },
+        );
   }
 
-  void _onProgress(DownloadProgressInfo info) {
+  Future<void> _onProgress(DownloadProgressInfo info) async {
     if (!mounted) return;
-    debugPrint('[ModelDownloadScreen] Progress: ${info.progressPercent} '
-        'state=${info.state} '
-        '${info.downloadedFormatted}/${info.totalFormatted}');
+    debugPrint(
+      '[ModelDownloadScreen] Progress: ${info.progressPercent} '
+      'state=${info.state} '
+      '${info.downloadedFormatted}/${info.totalFormatted}',
+    );
     setState(() {
       _progress = info;
     });
+    if (info.state == DownloadState.completed) {
+      if (widget.model.tier == ModelTier.e2b) {
+        FeatureManager.instance.setE2bDownloaded(true);
+      } else {
+        FeatureManager.instance.setE4bDownloaded(true);
+      }
+      try {
+        await GemmaService.instance.loadModel(widget.model);
+      } catch (error, stackTrace) {
+        debugPrint('[ModelDownloadScreen] Model activation failed: $error');
+        debugPrintStack(stackTrace: stackTrace);
+        if (!mounted) return;
+        setState(() {
+          _progress = DownloadProgressInfo(
+            state: DownloadState.failed,
+            errorMessage: 'Downloaded, but JARVIS could not start.',
+            errorDetail: error.toString(),
+            errorCode: 'model_activation_failed',
+          );
+        });
+      }
+    }
   }
 
   void _pauseDownload() {
@@ -102,15 +135,19 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
   void _resumeDownload() {
     debugPrint('[ModelDownloadScreen] Resume requested');
     setState(() {
-      _progress = const DownloadProgressInfo(state: DownloadState.checkingStorage);
+      _progress = const DownloadProgressInfo(
+        state: DownloadState.checkingStorage,
+      );
     });
     _subscription?.cancel();
-    _subscription = _downloader.resume(widget.model).listen(
-      _onProgress,
-      onError: (error) {
-        debugPrint('[ModelDownloadScreen] Resume stream error: $error');
-      },
-    );
+    _subscription = _downloader
+        .resume(widget.model)
+        .listen(
+          _onProgress,
+          onError: (error) {
+            debugPrint('[ModelDownloadScreen] Resume stream error: $error');
+          },
+        );
   }
 
   void _cancelDownload() {
@@ -140,7 +177,10 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(LucideIcons.arrowLeft, color: AppTheme.onSurface),
+                    icon: const Icon(
+                      LucideIcons.arrowLeft,
+                      color: AppTheme.onSurface,
+                    ),
                     onPressed: () => Navigator.pop(context),
                   ),
                   const Spacer(),
@@ -213,17 +253,17 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
     String title;
     switch (_progress.state) {
       case DownloadState.idle:
-        title = 'Download AI Model';
+        title = 'Bring JARVIS offline';
       case DownloadState.checkingStorage:
-        title = 'Checking Storage...';
+        title = 'Making room';
       case DownloadState.downloading:
-        title = 'Downloading ${widget.model.displayName}';
+        title = 'Bringing JARVIS home';
       case DownloadState.paused:
-        title = 'Download Paused';
+        title = 'Download paused';
       case DownloadState.completed:
-        title = 'Download Complete!';
+        title = 'JARVIS is ready';
       case DownloadState.failed:
-        title = 'Download Failed';
+        title = 'That didn\'t land';
     }
     return Text(
       title,
@@ -240,18 +280,24 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
     String subtitle;
     switch (_progress.state) {
       case DownloadState.idle:
-        subtitle = '${widget.model.displayName} (${widget.model.downloadSizeFormatted}) '
-            'needs to be downloaded for JARVIS AI features.';
+        subtitle =
+            'Download ${widget.model.displayName} once (${widget.model.downloadSizeFormatted}) '
+            'and JARVIS can help without sending your thoughts to a server.';
       case DownloadState.checkingStorage:
-        subtitle = 'Verifying device has enough space...';
+        subtitle = 'Checking that your phone has enough space for JARVIS.';
       case DownloadState.downloading:
-        subtitle = '${_progress.progressPercent} at ${_progress.speedFormatted}';
+        subtitle =
+            '${_progress.progressPercent} complete. You only need to do this once.';
       case DownloadState.paused:
-        subtitle = '${_progress.downloadedFormatted} / ${_progress.totalFormatted} downloaded';
+        subtitle =
+            '${_progress.downloadedFormatted} of ${_progress.totalFormatted} downloaded. Resume when you\'re ready.';
       case DownloadState.completed:
-        subtitle = '${widget.model.displayName} is ready to use!';
+        subtitle =
+            'Your private, on-device assistant is ready whenever you are.';
       case DownloadState.failed:
-        subtitle = _progress.errorMessage ?? 'Something went wrong. Please try again.';
+        subtitle =
+            _progress.errorMessage ??
+            'The download hit a snag. Let\'s try that again.';
     }
     return Text(
       subtitle,
@@ -346,7 +392,7 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
                   ),
                 ),
                 child: const Text(
-                  'Start Download',
+                  'Download JARVIS',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ),
@@ -357,7 +403,9 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
                 onPressed: widget.onSkip,
                 child: Text(
                   'Skip for now',
-                  style: TextStyle(color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                  style: TextStyle(
+                    color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  ),
                 ),
               ),
             ],
@@ -442,7 +490,7 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
               ),
             ),
             child: const Text(
-              'Continue',
+              'Meet JARVIS',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
           ),
@@ -457,7 +505,7 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
               child: ElevatedButton.icon(
                 onPressed: _retryDownload,
                 icon: const Icon(LucideIcons.refreshCw, size: 20),
-                label: const Text('Retry Download'),
+                label: const Text('Try Again'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: AppTheme.onSurface,
@@ -473,7 +521,9 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
                 onPressed: widget.onSkip,
                 child: Text(
                   'Skip for now',
-                  style: TextStyle(color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                  style: TextStyle(
+                    color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  ),
                 ),
               ),
             ],

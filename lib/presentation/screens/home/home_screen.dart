@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/ai_service.dart';
+import '../../../core/ai/action_executor.dart';
 import '../../../core/app_spacing.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
@@ -28,8 +29,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   static const List<String> _defaultModuleOrder = [
     'TasksModule',
     'HabitModule',
@@ -112,7 +112,9 @@ class _HomeScreenState extends State<HomeScreen>
         _aiInsight = insight;
         _isLoadingInsight = false;
       });
-    } catch (e) {
+    } catch (error, stackTrace) {
+      debugPrint('[HomeScreen] Failed to load AI insight: $error');
+      debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       setState(() {
         _aiInsight =
@@ -124,7 +126,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _processCommand(String command) async {
     if (command.trim().isEmpty) return;
-    _commandController.clear();
 
     try {
       // If no model is available, route to download screen
@@ -138,14 +139,12 @@ class _HomeScreenState extends State<HomeScreen>
       // Route chat queries to the ChatScreen with hero animation
       if (!AiService.instance.isCommandQuery(command)) {
         if (!mounted) return;
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ChatScreen(initialMessage: command),
-          ),
-        );
+        await _pushChat(initialMessage: command);
+        _commandController.clear();
         return;
       }
 
+      _commandController.clear();
       if (mounted) setState(() => _isProcessingCommand = true);
       bool navigatedByAction = false;
       Map<String, dynamic>? nextGenerativeCardPayload;
@@ -194,7 +193,9 @@ class _HomeScreenState extends State<HomeScreen>
       Future.delayed(const Duration(seconds: 5), () {
         if (mounted) setState(() => _aiResponse = null);
       });
-    } catch (e) {
+    } catch (error, stackTrace) {
+      debugPrint('[HomeScreen] JARVIS command failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -216,23 +217,16 @@ class _HomeScreenState extends State<HomeScreen>
   }) async {
     switch (action.type) {
       case 'add_task':
-        await DatabaseService.instance.addTask(
-          title: action.params['title'] ?? '',
-          priority: action.params['priority'] ?? 'normal',
-        );
+        await ActionExecutor.instance.executeAll([action]);
         break;
       case 'add_habit':
-        await DatabaseService.instance.addHabit(
-          name: action.params['name'] ?? '',
-          icon: action.params['icon'] ?? '✨',
-        );
+        await ActionExecutor.instance.executeAll([action]);
         break;
       case 'add_note':
-        await DatabaseService.instance.addNote(
-          content: action.params['content'] ?? '',
-        );
+        await ActionExecutor.instance.executeAll([action]);
         break;
       case 'start_focus':
+        await ActionExecutor.instance.executeAll([action]);
         break;
       case 'show_dynamic_card':
         if (action.params.containsKey('card')) {
@@ -338,24 +332,46 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _openDashboard() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AiDashboardScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AiDashboardScreen()));
   }
 
   void _openProfile() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SettingsScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
   }
 
-  void _openChat() {
+  Future<void> _openChat() async {
     final text = _commandController.text.trim();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChatScreen(
-          initialMessage: text.isNotEmpty ? text : null,
-        ),
+    await _pushChat(initialMessage: text.isNotEmpty ? text : null);
+    _commandController.clear();
+  }
+
+  Future<void> _pushChat({String? initialMessage}) {
+    return Navigator.of(context).push<void>(
+      PageRouteBuilder<void>(
+        transitionDuration: Motion.expressive,
+        reverseTransitionDuration: Motion.complex,
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return ChatScreen(initialMessage: initialMessage);
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Motion.decelerate,
+            reverseCurve: Motion.standard,
+          );
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 0.035),
+            end: Offset.zero,
+          ).animate(curved);
+          return FadeTransition(
+            opacity: curved,
+            child: SlideTransition(position: slide, child: child),
+          );
+        },
       ),
     );
   }
@@ -392,31 +408,31 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildBody() {
     return switch (_currentIndex) {
       0 => RefreshIndicator(
-          onRefresh: _loadInitialData,
-          child: HomeTab(
-            greeting: _greeting,
-            commandController: _commandController,
-            isJarvisOnline: true,
-            hasCheckedJarvisStatus: true,
-            isProcessingCommand: _isProcessingCommand,
-            offlineHint: '',
-            aiResponse: _aiResponse,
-            responseAnimation: _responseAnimController,
-            isLoadingInsight: _isLoadingInsight,
-            aiInsight: _aiInsight,
-            focusMinutesToday: _focusMinutesToday,
-            todayMood: _todayMood,
-            moduleOrder: _moduleOrder,
-            layoutRefresher: _layoutRefresher,
-            generativeCardPayload: _generativeCardPayload,
-            onOpenDashboard: _openDashboard,
-            onOpenProfile: _openProfile,
-            onOpenChat: _openChat,
-            onSeeAll: _handleSeeAll,
-            onGenerativeCardAction: _handleGenerativeCardAction,
-            onSubmitCommand: _processCommand,
-            onSelectMood: _saveMood,
-            onDismissResponse: () {
+        onRefresh: _loadInitialData,
+        child: HomeTab(
+          greeting: _greeting,
+          commandController: _commandController,
+          isJarvisOnline: true,
+          hasCheckedJarvisStatus: true,
+          isProcessingCommand: _isProcessingCommand,
+          offlineHint: '',
+          aiResponse: _aiResponse,
+          responseAnimation: _responseAnimController,
+          isLoadingInsight: _isLoadingInsight,
+          aiInsight: _aiInsight,
+          focusMinutesToday: _focusMinutesToday,
+          todayMood: _todayMood,
+          moduleOrder: _moduleOrder,
+          layoutRefresher: _layoutRefresher,
+          generativeCardPayload: _generativeCardPayload,
+          onOpenDashboard: _openDashboard,
+          onOpenProfile: _openProfile,
+          onOpenChat: _openChat,
+          onSeeAll: _handleSeeAll,
+          onGenerativeCardAction: _handleGenerativeCardAction,
+          onSubmitCommand: _processCommand,
+          onSelectMood: _saveMood,
+          onDismissResponse: () {
             if (mounted) setState(() => _aiResponse = null);
           },
           isAuthGuest: DatabaseService.instance.isGuest,
@@ -489,10 +505,7 @@ class _HomeScreenState extends State<HomeScreen>
                     layoutBuilder: (currentChild, previousChildren) {
                       return Stack(
                         alignment: Alignment.topCenter,
-                        children: <Widget>[
-                          ?currentChild,
-                          ...previousChildren,
-                        ],
+                        children: <Widget>[?currentChild, ...previousChildren],
                       );
                     },
                     transitionBuilder: (child, animation) {
@@ -547,10 +560,7 @@ class _FullScreenModule extends StatelessWidget {
   final String title;
   final Widget child;
 
-  const _FullScreenModule({
-    required this.title,
-    required this.child,
-  });
+  const _FullScreenModule({required this.title, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -576,17 +586,18 @@ class _FullScreenModule extends StatelessWidget {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(LucideIcons.arrowLeft,
-                          color: AppTheme.onSurface),
+                      icon: const Icon(
+                        LucideIcons.arrowLeft,
+                        color: AppTheme.onSurface,
+                      ),
                       onPressed: () => Navigator.pop(context),
                     ),
                     const SizedBox(width: Spacing.sm),
                     Text(
                       title,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),

@@ -67,7 +67,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     if (_selectedInterests.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Select at least one interest'),
+          content: Text('Pick at least one area where you want a hand'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -106,63 +106,72 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 children: [
                   const SizedBox(height: 24),
                   IconButton(
-                    icon: const Icon(LucideIcons.arrowLeft, color: AppTheme.onSurface),
+                    icon: const Icon(
+                      LucideIcons.arrowLeft,
+                      color: AppTheme.onSurface,
+                    ),
                     onPressed: () => Navigator.pop(context),
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Tell JARVIS about you',
+                    'Make JARVIS useful\nto you',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.onSurface,
-                        ),
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.onSurface,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'This helps JARVIS personalize your experience.',
+                    'A little context now means fewer generic suggestions later.',
                     style: TextStyle(
                       color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
                       fontSize: 15,
                     ),
                   ),
                   const SizedBox(height: 32),
-                  _Label('First name'),
+                  _Label('What should we call you?'),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _firstNameController,
                     style: const TextStyle(color: AppTheme.onSurface),
                     cursorColor: AppTheme.primary,
                     textCapitalization: TextCapitalization.words,
-                    inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\d'))],
-                    decoration: _inputDecoration('Your first name'),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.deny(RegExp(r'\d')),
+                    ],
+                    decoration: _inputDecoration('First name'),
                     validator: (v) =>
                         (v == null || v.trim().isEmpty) ? 'Required' : null,
                   ),
                   const SizedBox(height: 20),
-                  _Label('Last name (optional)'),
+                  _Label('Last name, if you want'),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _lastNameController,
                     style: const TextStyle(color: AppTheme.onSurface),
                     cursorColor: AppTheme.primary,
                     textCapitalization: TextCapitalization.words,
-                    inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\d'))],
-                    decoration: _inputDecoration('Your last name'),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.deny(RegExp(r'\d')),
+                    ],
+                    decoration: _inputDecoration('Last name'),
                   ),
                   const SizedBox(height: 20),
-                  _Label('What do you do?'),
+                  _Label('What fills most of your days?'),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _focusRoleController,
                     style: const TextStyle(color: AppTheme.onSurface),
                     cursorColor: AppTheme.primary,
                     textCapitalization: TextCapitalization.sentences,
-                    decoration: _inputDecoration('e.g. Software Engineer, Student'),
+                    decoration: _inputDecoration(
+                      'Student, designer, founder...',
+                    ),
                     validator: (v) =>
                         (v == null || v.trim().isEmpty) ? 'Required' : null,
                   ),
                   const SizedBox(height: 24),
-                  _Label('What should JARVIS help with?'),
+                  _Label('Where could you use a hand?'),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
@@ -176,7 +185,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                             color: selected
                                 ? AppTheme.primary
                                 : AppTheme.onSurfaceVariant,
-                            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                            fontWeight: selected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                           ),
                         ),
                         selected: selected,
@@ -204,7 +215,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     }).toList(),
                   ),
                   const SizedBox(height: 24),
-                  _Label('Wind-down time (optional)'),
+                  _Label('When do you want to switch off?'),
                   const SizedBox(height: 8),
                   InkWell(
                     onTap: _pickTime,
@@ -230,12 +241,13 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                           Text(
                             _windDownTime != null
                                 ? _windDownTime!.format(context)
-                                : 'Set a time',
+                                : 'Choose a wind-down time',
                             style: TextStyle(
                               color: _windDownTime != null
                                   ? AppTheme.onSurface
-                                  : AppTheme.onSurfaceVariant
-                                      .withValues(alpha: 0.5),
+                                  : AppTheme.onSurfaceVariant.withValues(
+                                      alpha: 0.5,
+                                    ),
                               fontSize: 16,
                             ),
                           ),
@@ -257,7 +269,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                         ),
                       ),
                       child: const Text(
-                        'Jump in',
+                        'Make it mine',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

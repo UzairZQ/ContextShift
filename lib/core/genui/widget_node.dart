@@ -19,7 +19,8 @@ class WidgetNode {
     return WidgetNode(
       widget: json['widget'] as String? ?? 'SizedBox',
       props: Map<String, dynamic>.from(json['props'] as Map? ?? {}),
-      children: (json['children'] as List<dynamic>?)
+      children:
+          (json['children'] as List<dynamic>?)
               ?.map((e) => WidgetNode.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'ai/context_provider.dart';
 import 'local_llm/gemma_service.dart';
 
 /// Result model for an AI command
@@ -58,6 +59,7 @@ class AiService {
   static final AiService instance = AiService._();
 
   String? _cachedInsight;
+  String? _cachedInsightKey;
 
   // ── AI Command Processing ─────────────────────────────────
 
@@ -65,9 +67,15 @@ class AiService {
     required String command,
     required String userName,
     Map<String, dynamic>? context,
+    int? conversationId,
   }) async {
     debugPrint('AI Command — processing locally: "$command"');
-    return _processLocally(command, userName, false);
+    return _processLocally(
+      command,
+      userName,
+      false,
+      conversationId: conversationId,
+    );
   }
 
   Future<AiCommandResult> _processLocally(
@@ -75,6 +83,7 @@ class AiService {
     String userName,
     bool isTimeout, {
     bool fromBackend = false,
+    int? conversationId,
   }) async {
     AiCommandResult build({
       required List<AiAction> actions,
@@ -433,13 +442,12 @@ class AiService {
     if (GemmaService.instance.isModelLoaded) {
       try {
         debugPrint('[AiService] Trying GemmaService for: "$command"');
+        final prompt = await ContextProvider.instance.build(
+          userMessage: command,
+          conversationId: conversationId,
+        );
         final gemmaResponse = await GemmaService.instance.generate(
-          'You are JARVIS, the AI brain of ContextShift. '
-          'Parse this user command and return valid JSON with actions and a short response.\n'
-          'Actions can be: add_task, add_habit, add_note, start_focus.\n'
-          'User command: "$command"\n'
-          'User name: $userName\n'
-          'Return JSON: {"actions": [{"type": "...", "params": {...}}], "response": "..."}',
+          prompt,
           maxTokens: 256,
           timeout: const Duration(seconds: 10),
         );
@@ -452,13 +460,12 @@ class AiService {
           final parsed = jsonDecode(jsonStr) as Map<String, dynamic>;
           debugPrint('[AiService] GemmaService returned: $parsed');
           return build(
-            actions: (parsed['actions'] as List<dynamic>?)
-                    ?.map((a) =>
-                        AiAction.fromJson(a as Map<String, dynamic>))
+            actions:
+                (parsed['actions'] as List<dynamic>?)
+                    ?.map((a) => AiAction.fromJson(a as Map<String, dynamic>))
                     .toList() ??
                 [],
-            response: parsed['response'] as String? ??
-                'Done!',
+            response: parsed['response'] as String? ?? 'Done!',
           );
         }
       } catch (e, stack) {
@@ -493,7 +500,16 @@ class AiService {
     required String userName,
     Map<String, dynamic>? stats,
   }) async {
-    _cachedInsight ??= _localInsight(userName);
+    final now = DateTime.now();
+    final insightKey = jsonEncode({
+      'user': userName,
+      'timeWindow': now.hour ~/ 4,
+      'stats': stats ?? const <String, dynamic>{},
+    });
+    if (_cachedInsight == null || _cachedInsightKey != insightKey) {
+      _cachedInsight = _localInsight(userName, stats ?? const {});
+      _cachedInsightKey = insightKey;
+    }
     return _cachedInsight!;
   }
 
@@ -501,7 +517,24 @@ class AiService {
 
   String get cachedInsight => _cachedInsight ?? '';
 
-  String _localInsight(String userName) {
+  String _localInsight(String userName, Map<String, dynamic> stats) {
+    final openTasks = stats['open_tasks'] as int? ?? 0;
+    final completedTasks = stats['completed_tasks'] as int? ?? 0;
+    final totalHabits = stats['total_habits'] as int? ?? 0;
+    final completedHabits = stats['completed_habits_today'] as int? ?? 0;
+    final focusMinutes = stats['focus_minutes_today'] as int? ?? 0;
+
+    if (openTasks >= 4 && completedTasks == 0) {
+      return 'You have $openTasks open tasks. Pick one small win first, $userName, then reassess.';
+    }
+    if (totalHabits > 0 && completedHabits < totalHabits) {
+      final remaining = totalHabits - completedHabits;
+      return '$remaining habit${remaining == 1 ? '' : 's'} left today. A quick check-in can protect your momentum.';
+    }
+    if (focusMinutes >= 60) {
+      return 'You have already logged $focusMinutes focused minutes today. Take a short recovery break before the next sprint.';
+    }
+
     final hour = DateTime.now().hour;
     if (hour < 10) {
       return 'Morning sessions have the highest completion rates. Start with your most important task, $userName.';

@@ -1,24 +1,29 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/ai_service.dart';
+import '../../../core/ai/action_executor.dart';
 import '../../../core/app_spacing.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
 import '../../../core/database/schema.dart';
+import '../../../core/genui/safe_renderer.dart';
+import '../../../core/genui/action_bus.dart';
+import '../../../core/genui/genui_runtime.dart';
+import '../../../core/genui/widget_node.dart';
 import '../../../core/responsive.dart';
+import '../../widgets/generative_card_module.dart';
+import '../../widgets/genui/a2ui_surface_card.dart';
+import '../../widgets/motion/wonderous_motion.dart';
 
 class ChatScreen extends StatefulWidget {
   final String? initialMessage;
   final int? conversationId;
 
-  const ChatScreen({
-    super.key,
-    this.initialMessage,
-    this.conversationId,
-  });
+  const ChatScreen({super.key, this.initialMessage, this.conversationId});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -27,17 +32,23 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
+  late final JarvisGenUiRuntime _genUiRuntime;
   bool _isProcessing = false;
 
   int? _activeConversationId;
   List<ConversationTableData> _conversations = [];
   List<MessageTableData> _messages = [];
   StreamSubscription? _messagesSub;
+  StreamSubscription<WidgetAction>? _genUiActionSub;
 
   @override
   void initState() {
     super.initState();
+    _genUiRuntime = JarvisGenUiRuntime();
     _activeConversationId = widget.conversationId;
+    _genUiActionSub = GenUiActionBus.instance.actions.listen(
+      _handleGenUiAction,
+    );
     _loadConversations().then((_) {
       if (widget.initialMessage != null && widget.initialMessage!.isNotEmpty) {
         _sendMessage(widget.initialMessage!);
@@ -50,16 +61,57 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.dispose();
     _scrollController.dispose();
     _messagesSub?.cancel();
+    _genUiActionSub?.cancel();
+    _genUiRuntime.dispose();
     super.dispose();
   }
 
-  Future<void> _loadConversations() async {
-    final convs = await DatabaseService.instance.getAllConversations();
+  Future<void> _handleGenUiAction(WidgetAction action) async {
+    final type = switch (action.action) {
+      'create_task' => 'add_task',
+      'create_habit' => 'add_habit',
+      'create_note' => 'add_note',
+      'start_focus' => 'start_focus',
+      _ => action.action,
+    };
+    const executableActions = {
+      'add_task',
+      'add_habit',
+      'add_note',
+      'start_focus',
+    };
+    if (!executableActions.contains(type)) {
+      final message =
+          action.params['message']?.toString().trim().isNotEmpty == true
+          ? action.params['message'].toString()
+          : 'The generated UI action was "${action.action}" with '
+                'context ${jsonEncode(action.params)}.';
+      await _sendMessage(message);
+      return;
+    }
+    await ActionExecutor.instance.executeAll([
+      AiAction(type: type, params: action.params),
+    ]);
     if (!mounted) return;
-    setState(() => _conversations = convs);
-    if (_activeConversationId == null && convs.isNotEmpty) {
-      _activeConversationId = convs.first.id;
-      _watchMessages();
+    _showMessage('Done');
+  }
+
+  Future<void> _loadConversations() async {
+    try {
+      final convs = await DatabaseService.instance.getAllConversations();
+      if (!mounted) return;
+      setState(() => _conversations = convs);
+
+      final isNewPrompt = widget.initialMessage?.trim().isNotEmpty ?? false;
+      if (!isNewPrompt && _activeConversationId == null && convs.isNotEmpty) {
+        _activeConversationId = convs.first.id;
+        _watchMessages();
+      }
+    } catch (error, stackTrace) {
+      debugPrint('[ChatScreen] Failed to load conversations: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      _showMessage('Your conversations could not be loaded.');
     }
   }
 
@@ -69,10 +121,10 @@ class _ChatScreenState extends State<ChatScreen> {
     _messagesSub = DatabaseService.instance
         .watchMessages(_activeConversationId!)
         .listen((msgs) {
-      if (!mounted) return;
-      setState(() => _messages = msgs);
-      _scrollToBottom();
-    });
+          if (!mounted) return;
+          setState(() => _messages = msgs);
+          _scrollToBottom();
+        });
   }
 
   void _scrollToBottom() {
@@ -93,15 +145,23 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _startNewConversation() async {
-    final conv = await DatabaseService.instance.createConversation(
-      title: 'New Chat',
-    );
-    if (!mounted) return;
-    setState(() {
-      _conversations.insert(0, conv);
-      _activeConversationId = conv.id;
-    });
-    _watchMessages();
+    try {
+      final conv = await DatabaseService.instance.createConversation(
+        title: 'New Chat',
+      );
+      if (!mounted) return;
+      setState(() {
+        _conversations.insert(0, conv);
+        _activeConversationId = conv.id;
+        _messages = [];
+      });
+      _watchMessages();
+    } catch (error, stackTrace) {
+      debugPrint('[ChatScreen] Failed to create conversation: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) _showMessage('A new conversation could not be created.');
+      rethrow;
+    }
   }
 
   Future<void> _deleteConversation(int id) async {
@@ -110,8 +170,9 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       _conversations.removeWhere((c) => c.id == id);
       if (_activeConversationId == id) {
-        _activeConversationId =
-            _conversations.isNotEmpty ? _conversations.first.id : null;
+        _activeConversationId = _conversations.isNotEmpty
+            ? _conversations.first.id
+            : null;
         if (_activeConversationId != null) {
           _watchMessages();
         } else {
@@ -136,51 +197,102 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      final userMsg = await DatabaseService.instance.addMessage(
+      await DatabaseService.instance.addMessage(
         conversationId: _activeConversationId!,
         role: 'user',
         content: message,
       );
-      setState(() => _messages = [..._messages, userMsg]);
 
-      final result = await AiService.instance.processCommand(
-        command: message,
-        userName: DatabaseService.instance.firstName,
-      );
+      final isDirectCommand = AiService.instance.isCommandQuery(message);
+      String response;
+      String? widgetJson;
 
-      final aiMsg = await DatabaseService.instance.addMessage(
+      if (isDirectCommand) {
+        final result = await AiService.instance.processCommand(
+          command: message,
+          userName: DatabaseService.instance.firstName,
+          conversationId: _activeConversationId,
+        );
+        final execution = await ActionExecutor.instance.executeAll(
+          result.actions,
+        );
+        response = result.response;
+        widgetJson = execution.generatedCard == null
+            ? _encodeWidgetPayload(result)
+            : jsonEncode(execution.generatedCard);
+      } else {
+        final generation = await _genUiRuntime.generate(
+          userMessage: message,
+          conversationId: _activeConversationId,
+        );
+        response = generation.text.isEmpty
+            ? 'I shaped that into an interactive view.'
+            : generation.text;
+        widgetJson =
+            generation.surfaceIds.isEmpty || generation.rawA2ui.trim().isEmpty
+            ? null
+            : jsonEncode(generation.toPersistenceJson());
+      }
+
+      await DatabaseService.instance.addMessage(
         conversationId: _activeConversationId!,
         role: 'assistant',
-        content: result.response,
-        widgetJson: result.actions.isNotEmpty
-            ? result.actions
-                .map((a) => {'type': a.type, 'params': a.params})
-                .toList()
-                .toString()
-            : null,
+        content: response,
+        widgetJson: widgetJson,
       );
       if (!mounted) return;
-      setState(() => _messages = [..._messages, aiMsg]);
 
       if (_conversations.any((c) => c.id == _activeConversationId)) {
         await DatabaseService.instance.renameConversation(
           _activeConversationId!,
-          message.length > 40
-              ? '${message.substring(0, 40)}...'
-              : message,
+          message.length > 40 ? '${message.substring(0, 40)}...' : message,
         );
       }
-    } catch (e) {
+    } catch (error, stackTrace) {
+      debugPrint('[ChatScreen] Message send failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
-      final errMsg = await DatabaseService.instance.addMessage(
-        conversationId: _activeConversationId!,
-        role: 'assistant',
-        content: 'Sorry, I had trouble with that. Please try again.',
-      );
-      setState(() => _messages = [..._messages, errMsg]);
+      final conversationId = _activeConversationId;
+      if (conversationId != null) {
+        try {
+          await DatabaseService.instance.addMessage(
+            conversationId: conversationId,
+            role: 'assistant',
+            content: 'Sorry, I had trouble with that. Please try again.',
+          );
+        } catch (persistenceError, persistenceStack) {
+          debugPrint(
+            '[ChatScreen] Failed to persist error response: $persistenceError',
+          );
+          debugPrintStack(stackTrace: persistenceStack);
+        }
+      }
+      if (mounted) _showMessage('JARVIS could not complete that message.');
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
+  }
+
+  String? _encodeWidgetPayload(AiCommandResult result) {
+    for (final action in result.actions) {
+      if (action.type != 'show_dynamic_card') continue;
+      final card = action.params['card'];
+      if (card is Map) {
+        try {
+          return jsonEncode(Map<String, dynamic>.from(card));
+        } catch (error, stackTrace) {
+          debugPrint('[ChatScreen] Failed to encode GenUI payload: $error');
+          debugPrintStack(stackTrace: stackTrace);
+        }
+      }
+    }
+    return null;
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 
   @override
@@ -204,9 +316,7 @@ class _ChatScreenState extends State<ChatScreen> {
             if (showBackButton)
               _buildHeader(context, hasActiveConv)
             else
-              SizedBox(
-                height: MediaQuery.of(context).padding.top + Spacing.lg,
-              ),
+              SizedBox(height: MediaQuery.of(context).padding.top + Spacing.lg),
             Expanded(
               child: hasActiveConv
                   ? _buildChatView(context)
@@ -230,29 +340,34 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(LucideIcons.arrowLeft,
-                color: AppTheme.onSurface),
+            icon: const Icon(LucideIcons.arrowLeft, color: AppTheme.onSurface),
             onPressed: () => Navigator.pop(context),
           ),
           const SizedBox(width: Spacing.sm),
           Expanded(
             child: Text(
               'JARVIS',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
           if (hasActiveConv)
             IconButton(
-              icon: const Icon(LucideIcons.plus,
-                  color: AppTheme.onSurfaceVariant, size: 20),
+              icon: const Icon(
+                LucideIcons.plus,
+                color: AppTheme.onSurfaceVariant,
+                size: 20,
+              ),
               onPressed: _startNewConversation,
               tooltip: 'New conversation',
             ),
           IconButton(
-            icon: const Icon(LucideIcons.trash2,
-                color: AppTheme.error, size: 20),
+            icon: const Icon(
+              LucideIcons.trash2,
+              color: AppTheme.error,
+              size: 20,
+            ),
             onPressed: _activeConversationId != null
                 ? () => _deleteConversation(_activeConversationId!)
                 : null,
@@ -269,14 +384,17 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.messageSquare,
-                size: 48, color: AppTheme.onSurfaceVariant.withValues(alpha: 0.3)),
+            Icon(
+              LucideIcons.messageSquare,
+              size: 48,
+              color: AppTheme.onSurfaceVariant.withValues(alpha: 0.3),
+            ),
             const SizedBox(height: Spacing.lg),
             Text(
               'No conversations yet',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
-                  ),
+                color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
+              ),
             ),
             const SizedBox(height: Spacing.xl),
             _GlassButton(
@@ -315,21 +433,24 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.sparkles,
-                size: 48, color: AppTheme.primary.withValues(alpha: 0.4)),
+            Icon(
+              LucideIcons.sparkles,
+              size: 48,
+              color: AppTheme.primary.withValues(alpha: 0.4),
+            ),
             const SizedBox(height: Spacing.lg),
             Text(
               'Ask me anything',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.onSurfaceVariant,
-                  ),
+                color: AppTheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: Spacing.sm),
             Text(
               'I can help with tasks, habits, focus, and more',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
-                  ),
+                color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
+              ),
             ),
           ],
         ),
@@ -352,10 +473,16 @@ class _ChatScreenState extends State<ChatScreen> {
         }
         final msg = _messages[index];
         final isUser = msg.role == 'user';
-        return _MessageBubble(
-          message: msg.content,
-          isUser: isUser,
-          timestamp: msg.createdAt,
+        return WonderousReveal(
+          key: ValueKey(msg.id),
+          begin: Offset(isUser ? 0.08 : -0.08, 0.03),
+          child: _MessageBubble(
+            message: msg.content,
+            isUser: isUser,
+            timestamp: msg.createdAt,
+            widgetJson: msg.widgetJson,
+            onWidgetAction: (label) => _sendMessage(label),
+          ),
         );
       },
     );
@@ -372,10 +499,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         child: Container(
           margin: EdgeInsets.only(bottom: Spacing.xs),
-          padding: EdgeInsets.symmetric(
-            horizontal: Spacing.xl,
-            vertical: 4,
-          ),
+          padding: EdgeInsets.symmetric(horizontal: Spacing.xl, vertical: 4),
           decoration: AppTheme.glassmorphism(
             tint: AppTheme.surfaceHighest,
             borderRadius: 999,
@@ -431,7 +555,12 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     return widget.conversationId == null
-        ? Hero(tag: 'jarvis_bar', child: bar)
+        ? Hero(
+            tag: 'jarvis_bar',
+            createRectTween: (begin, end) =>
+                MaterialRectArcTween(begin: begin, end: end),
+            child: bar,
+          )
         : bar;
   }
 }
@@ -465,9 +594,7 @@ class _ConversationTile extends StatelessWidget {
               : AppTheme.surfaceContainer,
           borderRadius: BorderRadius.circular(16),
           border: isActive
-              ? Border.all(
-                  color: AppTheme.primary.withValues(alpha: 0.2),
-                )
+              ? Border.all(color: AppTheme.primary.withValues(alpha: 0.2))
               : null,
         ),
         child: Row(
@@ -475,9 +602,7 @@ class _ConversationTile extends StatelessWidget {
             Icon(
               LucideIcons.messageSquare,
               size: 18,
-              color: isActive
-                  ? AppTheme.primary
-                  : AppTheme.onSurfaceVariant,
+              color: isActive ? AppTheme.primary : AppTheme.onSurfaceVariant,
             ),
             const SizedBox(width: Spacing.md),
             Expanded(
@@ -538,23 +663,25 @@ class _MessageBubble extends StatelessWidget {
   final String message;
   final bool isUser;
   final DateTime timestamp;
+  final String? widgetJson;
+  final ValueChanged<String> onWidgetAction;
 
   const _MessageBubble({
     required this.message,
     required this.isUser,
     required this.timestamp,
+    required this.widgetJson,
+    required this.onWidgetAction,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(
-        top: Spacing.xs,
-        bottom: Spacing.xs,
-      ),
+      padding: EdgeInsets.only(top: Spacing.xs, bottom: Spacing.xs),
       child: Column(
-        crossAxisAlignment:
-            isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isUser
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           Container(
             constraints: BoxConstraints(
@@ -578,13 +705,24 @@ class _MessageBubble extends StatelessWidget {
                     )
                   : null,
             ),
-            child: Text(
-              message,
-              style: TextStyle(
-                color: isUser ? AppTheme.onSurface : AppTheme.onSurfaceVariant,
-                fontSize: 14,
-                height: 1.5,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: isUser
+                        ? AppTheme.onSurface
+                        : AppTheme.onSurfaceVariant,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+                if (!isUser && widgetJson != null) ...[
+                  const SizedBox(height: Spacing.md),
+                  _buildGeneratedContent(context),
+                ],
+              ],
             ),
           ),
           SizedBox(height: 2),
@@ -600,6 +738,38 @@ class _MessageBubble extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildGeneratedContent(BuildContext context) {
+    try {
+      final decoded = jsonDecode(widgetJson!);
+      if (decoded is Map) {
+        final card = Map<String, dynamic>.from(decoded);
+        if (card['format'] == 'a2ui-v0.9' && card['raw'] is String) {
+          return A2uiSurfaceCard(
+            rawA2ui: card['raw'] as String,
+            onAction: (action) {
+              GenUiActionBus.instance.emit(action);
+            },
+          );
+        }
+        return GenerativeCardModule(
+          cardData: card,
+          onAction: () =>
+              onWidgetAction(card['action_label'] as String? ?? 'Continue'),
+        );
+      }
+      debugPrint(
+        '[ChatScreen] Ignoring non-object GenUI payload: ${decoded.runtimeType}',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('[ChatScreen] Invalid stored GenUI JSON: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+
+    return SafeRenderer.buildFallbackWidget(
+      'This older interactive response could not be displayed.',
     );
   }
 
@@ -625,9 +795,9 @@ class _ThinkingBubble extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: AppTheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(20).copyWith(
-            bottomLeft: const Radius.circular(4),
-          ),
+          borderRadius: BorderRadius.circular(
+            20,
+          ).copyWith(bottomLeft: const Radius.circular(4)),
           border: Border.all(
             color: AppTheme.onSurfaceVariant.withValues(alpha: 0.08),
           ),
@@ -655,8 +825,7 @@ class _Dot extends StatefulWidget {
   State<_Dot> createState() => _DotState();
 }
 
-class _DotState extends State<_Dot>
-    with SingleTickerProviderStateMixin {
+class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 

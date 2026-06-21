@@ -1,14 +1,12 @@
 import 'dart:ui';
 
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/app_theme.dart';
 import 'core/database/database_service.dart';
 import 'core/local_llm/gemma_service.dart';
-import 'firebase_options.dart';
+import 'core/services/feature_manager.dart';
 import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/onboarding/onboarding_screen.dart';
 import 'presentation/screens/onboarding/profile_setup_screen.dart';
@@ -16,20 +14,15 @@ import 'presentation/screens/onboarding/profile_setup_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase Crashlytics only
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-    PlatformDispatcher.instance.onError = (error, stack) {
-      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-      return true;
-    };
-  } catch (e, stack) {
-    debugPrint('[main] Firebase init failed (non-fatal): $e');
-    debugPrint('[main]   Stack: $stack');
-  }
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('[FlutterError] ${details.exceptionAsString()}');
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('[UncaughtError] $error');
+    debugPrintStack(stackTrace: stack);
+    return true;
+  };
 
   // Initialize local database
   await DatabaseService.instance.init();
@@ -40,6 +33,17 @@ void main() async {
     debugPrint('[main] GemmaService initialized');
   } catch (e, stack) {
     debugPrint('[main] GemmaService init skipped (non-fatal): $e');
+    debugPrint('[main]   Stack: $stack');
+  }
+
+  try {
+    await FeatureManager.instance.initialize();
+    final model = FeatureManager.instance.resolveBestModelDef();
+    if (model != null) {
+      await GemmaService.instance.loadModel(model);
+    }
+  } catch (e, stack) {
+    debugPrint('[main] Model state restore failed (non-fatal): $e');
     debugPrint('[main]   Stack: $stack');
   }
 
@@ -82,8 +86,6 @@ class _LaunchGateState extends State<_LaunchGate> {
   Future<void> _determineStep() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      // Reset onboarding for testing — remove this override later
-      await prefs.setBool(_onboardingKey, false);
       final hasSeenOnboarding = prefs.getBool(_onboardingKey) ?? false;
 
       if (!hasSeenOnboarding) {
@@ -94,9 +96,17 @@ class _LaunchGateState extends State<_LaunchGate> {
 
       final needsProfile = !DatabaseService.instance.hasProfileData;
       if (!mounted) return;
-      setState(() => _step = needsProfile ? _SetupStep.profile : _SetupStep.home);
-    } on PlatformException catch (error) {
-      debugPrint('SharedPreferences error: $error');
+      setState(
+        () => _step = needsProfile ? _SetupStep.profile : _SetupStep.home,
+      );
+    } on PlatformException catch (error, stackTrace) {
+      debugPrint('[_LaunchGate] SharedPreferences read failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() => _step = _SetupStep.onboarding);
+    } catch (error, stackTrace) {
+      debugPrint('[_LaunchGate] Startup routing failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       setState(() => _step = _SetupStep.onboarding);
     }
@@ -106,8 +116,12 @@ class _LaunchGateState extends State<_LaunchGate> {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_onboardingKey, true);
-    } on PlatformException catch (error) {
-      debugPrint('SharedPreferences save failed: $error');
+    } on PlatformException catch (error, stackTrace) {
+      debugPrint('[_LaunchGate] SharedPreferences save failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    } catch (error, stackTrace) {
+      debugPrint('[_LaunchGate] Onboarding completion failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
 
     if (!mounted) return;

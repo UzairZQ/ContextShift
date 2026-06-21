@@ -6,6 +6,7 @@ class ModelDefinition {
   final ModelTier tier;
   final String displayName;
   final String modelId;
+  final String downloadUrl;
   final int downloadSizeMb;
   final int minRamMb;
   final bool requiresPurchase;
@@ -17,6 +18,7 @@ class ModelDefinition {
     required this.tier,
     required this.displayName,
     required this.modelId,
+    required this.downloadUrl,
     required this.downloadSizeMb,
     required this.minRamMb,
     required this.requiresPurchase,
@@ -24,10 +26,6 @@ class ModelDefinition {
     required this.fileType,
     this.maxTokens = 2048,
   });
-
-  String get downloadUrl {
-    return 'https://huggingface.co/google/gemma-4-$displayName/resolve/main/model.task';
-  }
 
   String get downloadSizeFormatted {
     if (downloadSizeMb >= 1000) {
@@ -49,24 +47,28 @@ class ModelDefinition {
   static const ModelDefinition _e2b = ModelDefinition(
     tier: ModelTier.e2b,
     displayName: 'E2B',
-    modelId: 'gemma-4-e2b-gemmaIt.task',
-    downloadSizeMb: 2400,
+    modelId: 'model.litertlm',
+    downloadUrl:
+        'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/model.litertlm',
+    downloadSizeMb: 2583,
     minRamMb: 4096,
     requiresPurchase: false,
-    modelType: ModelType.gemmaIt,
-    fileType: ModelFileType.task,
+    modelType: ModelType.general,
+    fileType: ModelFileType.litertlm,
     maxTokens: 2048,
   );
 
   static const ModelDefinition _e4b = ModelDefinition(
     tier: ModelTier.e4b,
     displayName: 'E4B',
-    modelId: 'gemma-4-e4b-gemmaIt.task',
+    modelId: 'gemma-4-e4b-it.litertlm',
+    downloadUrl:
+        'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/model.litertlm',
     downloadSizeMb: 4300,
     minRamMb: 8192,
     requiresPurchase: true,
-    modelType: ModelType.gemmaIt,
-    fileType: ModelFileType.task,
+    modelType: ModelType.general,
+    fileType: ModelFileType.litertlm,
     maxTokens: 4096,
   );
 
@@ -110,7 +112,9 @@ class DownloadProgressInfo {
   String get progressPercent => '${(progress * 100).toStringAsFixed(1)}%';
 
   String get speedFormatted {
-    if (speedBytesPerSec < 1024) return '${speedBytesPerSec.toStringAsFixed(0)} B/s';
+    if (speedBytesPerSec < 1024) {
+      return '${speedBytesPerSec.toStringAsFixed(0)} B/s';
+    }
     if (speedBytesPerSec < 1024 * 1024) {
       return '${(speedBytesPerSec / 1024).toStringAsFixed(1)} KB/s';
     }
@@ -125,7 +129,9 @@ class DownloadProgressInfo {
   }
 
   String get totalFormatted {
-    if (totalBytes < 1024 * 1024) return '${(totalBytes / 1024).toStringAsFixed(0)} KB';
+    if (totalBytes < 1024 * 1024) {
+      return '${(totalBytes / 1024).toStringAsFixed(0)} KB';
+    }
     return '${(totalBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 

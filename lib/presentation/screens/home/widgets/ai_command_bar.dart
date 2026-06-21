@@ -62,8 +62,8 @@ class _AiCommandBarState extends State<AiCommandBar> {
       color: widget.isOnline
           ? AppTheme.onSurfaceVariant.withValues(alpha: 0.4)
           : (widget.hasCheckedStatus
-              ? AppTheme.warning.withValues(alpha: 0.75)
-              : AppTheme.onSurfaceVariant.withValues(alpha: 0.55)),
+                ? AppTheme.warning.withValues(alpha: 0.75)
+                : AppTheme.onSurfaceVariant.withValues(alpha: 0.55)),
       fontStyle: (widget.isOnline || !widget.hasCheckedStatus)
           ? FontStyle.normal
           : FontStyle.italic,
@@ -78,6 +78,8 @@ class _AiCommandBarState extends State<AiCommandBar> {
   Widget build(BuildContext context) {
     return Hero(
       tag: 'jarvis_bar',
+      createRectTween: (begin, end) =>
+          MaterialRectArcTween(begin: begin, end: end),
       child: GestureDetector(
         onTap: widget.onTap,
         child: Container(
@@ -93,43 +95,39 @@ class _AiCommandBarState extends State<AiCommandBar> {
             textInputAction: TextInputAction.send,
             style: const TextStyle(color: AppTheme.onSurface),
             decoration: InputDecoration(
-          icon: Icon(
-            _leadingIcon,
-            color: _leadingColor,
-            size: 20,
-          ),
-          hintText: _hintText,
-          hintStyle: _hintStyle,
-          border: InputBorder.none,
-          suffixIcon: widget.isProcessing
-              ? const Padding(
-                  padding: EdgeInsets.all(Spacing.md),
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppTheme.primary,
+              icon: Icon(_leadingIcon, color: _leadingColor, size: 20),
+              hintText: _hintText,
+              hintStyle: _hintStyle,
+              border: InputBorder.none,
+              suffixIcon: widget.isProcessing
+                  ? const Padding(
+                      padding: EdgeInsets.all(Spacing.md),
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppTheme.primary,
+                        ),
+                      ),
+                    )
+                  : Semantics(
+                      label: 'Send command',
+                      child: IconButton(
+                        onPressed: _handleSend,
+                        icon: Icon(
+                          widget.isOnline
+                              ? LucideIcons.send
+                              : LucideIcons.wifiOff,
+                          color: widget.isOnline
+                              ? AppTheme.primary
+                              : AppTheme.warning.withValues(alpha: 0.9),
+                          size: 18,
+                        ),
+                      ),
                     ),
-                  ),
-                )
-              : Semantics(
-                  label: 'Send command',
-                  child: IconButton(
-                    onPressed: _handleSend,
-                    icon: Icon(
-                      widget.isOnline
-                          ? LucideIcons.send
-                          : LucideIcons.wifiOff,
-                      color: widget.isOnline
-                          ? AppTheme.primary
-                          : AppTheme.warning.withValues(alpha: 0.9),
-                      size: 18,
-                    ),
-                  ),
-                ),
-        ),
-        onSubmitted: (_) => _handleSend(),
+            ),
+            onSubmitted: (_) => _handleSend(),
           ),
         ),
       ),
