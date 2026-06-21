@@ -10,7 +10,7 @@ class FloatingNavBar extends StatelessWidget {
     _NavItem(LucideIcons.checkSquare, 'Tasks'),
     _NavItem(LucideIcons.activity, 'Habits'),
     _NavItem(LucideIcons.timer, 'Focus'),
-    _NavItem(LucideIcons.messageSquare, 'Chat'),
+    _NavItem(LucideIcons.bookOpen, 'Journal'),
   ];
 
   final int currentIndex;
@@ -45,12 +45,9 @@ class FloatingNavBar extends StatelessWidget {
             final i = entry.key;
             final item = entry.value;
             final isActive = currentIndex == i;
-            return Semantics(
-              label: item.label,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  minWidth: HitTarget.navItem,
-                ),
+            return Expanded(
+              child: Semantics(
+                label: item.label,
                 child: InkWell(
                   onTap: () => onTap(i),
                   borderRadius: BorderRadius.circular(999),
@@ -74,18 +71,22 @@ class FloatingNavBar extends StatelessWidget {
                           size: 24,
                           color: isActive
                               ? AppTheme.primary
-                              : AppTheme.onSurfaceVariant
-                                  .withValues(alpha: 0.6),
+                              : AppTheme.onSurfaceVariant.withValues(
+                                  alpha: 0.6,
+                                ),
                         ),
                         SizedBox(height: Spacing.xs),
                         Text(
                           item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 10,
                             color: isActive
                                 ? AppTheme.primary
-                                : AppTheme.onSurfaceVariant
-                                    .withValues(alpha: 0.6),
+                                : AppTheme.onSurfaceVariant.withValues(
+                                    alpha: 0.6,
+                                  ),
                           ),
                         ),
                       ],

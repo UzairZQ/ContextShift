@@ -14,10 +14,10 @@ import '../../../core/services/feature_manager.dart';
 import '../../../features/onboarding/widgets/model_download_screen.dart';
 import '../../widgets/focus/focus_module.dart';
 import '../../widgets/habits/habit_module.dart';
-import '../../widgets/notes/notes_module.dart';
 import '../../widgets/tasks/tasks_module.dart';
 import '../ai_dashboard/ai_dashboard_screen.dart';
 import '../chat/chat_screen.dart';
+import '../journal/journal_screen.dart';
 import '../settings/settings_screen.dart';
 import 'widgets/floating_nav_bar.dart';
 import 'widgets/home_tab.dart';
@@ -30,13 +30,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  static const List<String> _defaultModuleOrder = [
-    'TasksModule',
-    'HabitModule',
-    'FocusTimerModule',
-    'NotesModule',
-  ];
-
   int _currentIndex = 0;
   String _greeting = '';
   String? _aiInsight;
@@ -46,8 +39,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _focusMinutesToday = 0;
   String? _todayMood;
   Map<String, dynamic>? _generativeCardPayload;
-  List<String> _moduleOrder = _defaultModuleOrder;
-  String _layoutRefresher = '';
 
   final TextEditingController _commandController = TextEditingController();
   late final AnimationController _responseAnimController;
@@ -181,10 +172,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (result.greetingUpdate != null) {
           _greeting = result.greetingUpdate!;
         }
-        if (result.layoutOrder != null && result.layoutOrder!.isNotEmpty) {
-          _moduleOrder = result.layoutOrder!;
-          _layoutRefresher = DateTime.now().toIso8601String();
-          if (!navigatedByAction) _currentIndex = 0;
+        if (result.layoutOrder != null &&
+            result.layoutOrder!.isNotEmpty &&
+            !navigatedByAction) {
+          _currentIndex = 0;
         }
       });
       _responseAnimController.forward(from: 0);
@@ -241,10 +232,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           'tasks': 1,
           'habits': 2,
           'focus': 3,
-          'chat': 4,
+          'journal': 4,
+          'notes': 4,
+          'mood': 4,
         };
         final tab = action.params['tab'] as String?;
-        if (tab != null && tabMap.containsKey(tab)) {
+        if (tab == 'chat' || tab == 'jarvis') {
+          await _pushChat();
+          onNavigated();
+        } else if (tab != null && tabMap.containsKey(tab)) {
           _switchTab(tabMap[tab]!);
           onNavigated();
         }
@@ -292,7 +288,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() => _currentIndex = index);
     DatabaseService.instance.logEvent(
       eventType: 'tab_tap',
-      module: ['home', 'tasks', 'habits', 'focus', 'chat'][index],
+      module: ['home', 'tasks', 'habits', 'focus', 'journal'][index],
     );
   }
 
@@ -382,26 +378,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _switchTab(3);
     } else if (module == 'TasksModule') {
       _switchTab(1);
-    }
-  }
-
-  void _handleSeeAll(String moduleName) {
-    switch (moduleName) {
-      case 'TasksModule':
-        _switchTab(1);
-      case 'HabitModule':
-        _switchTab(2);
-      case 'FocusTimerModule':
-        _switchTab(3);
-      case 'NotesModule':
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => _FullScreenModule(
-              title: 'Quick Notes',
-              child: const NotesModule(),
-            ),
-          ),
-        );
+    } else if (module == 'HabitModule') {
+      _switchTab(2);
+    } else if (module == 'NotesModule') {
+      _switchTab(4);
     }
   }
 
@@ -422,26 +402,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           aiInsight: _aiInsight,
           focusMinutesToday: _focusMinutesToday,
           todayMood: _todayMood,
-          moduleOrder: _moduleOrder,
-          layoutRefresher: _layoutRefresher,
           generativeCardPayload: _generativeCardPayload,
           onOpenDashboard: _openDashboard,
           onOpenProfile: _openProfile,
           onOpenChat: _openChat,
-          onSeeAll: _handleSeeAll,
+          onOpenTasks: () => _switchTab(1),
+          onOpenHabits: () => _switchTab(2),
+          onOpenFocus: () => _switchTab(3),
+          onOpenJournal: () => _switchTab(4),
           onGenerativeCardAction: _handleGenerativeCardAction,
           onSubmitCommand: _processCommand,
           onSelectMood: _saveMood,
           onDismissResponse: () {
             if (mounted) setState(() => _aiResponse = null);
           },
-          isAuthGuest: DatabaseService.instance.isGuest,
         ),
       ),
       1 => const TasksModule(),
       2 => const HabitModule(),
       3 => const FocusTimerModule(),
-      4 => const ChatScreen(conversationId: null),
+      4 => JournalScreen(todayMood: _todayMood, onSelectMood: _saveMood),
       _ => const SizedBox.shrink(),
     };
   }
@@ -550,69 +530,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               FeatureManager.instance.setE2bDownloaded(true);
             });
           },
-        ),
-      ),
-    );
-  }
-}
-
-class _FullScreenModule extends StatelessWidget {
-  final String title;
-  final Widget child;
-
-  const _FullScreenModule({required this.title, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [AppTheme.background, AppTheme.surfaceLow],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: EdgeInsets.only(
-                  left: Spacing.xs,
-                  right: Spacing.lg,
-                  top: Spacing.sm,
-                  bottom: Spacing.sm,
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        LucideIcons.arrowLeft,
-                        color: AppTheme.onSurface,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const SizedBox(width: Spacing.sm),
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: Responsive.horizontalPadding(context),
-                  ),
-                  child: child,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
