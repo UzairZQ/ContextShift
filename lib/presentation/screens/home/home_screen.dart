@@ -51,15 +51,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
+    GemmaService.instance.statusRevision.addListener(_refreshJarvisStatus);
     _computeGreeting();
     _loadInitialData();
   }
 
   @override
   void dispose() {
+    GemmaService.instance.statusRevision.removeListener(_refreshJarvisStatus);
     _responseAnimController.dispose();
     _commandController.dispose();
     super.dispose();
+  }
+
+  void _refreshJarvisStatus() {
+    if (mounted) setState(() {});
   }
 
   void _computeGreeting() {
@@ -405,7 +411,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           offlineHint:
               FeatureManager.instance.isE2bAvailable ||
                   FeatureManager.instance.isE4bAvailable
-              ? 'Restart to activate JARVIS'
+              ? 'Initialize JARVIS in Manage AI'
               : 'Download JARVIS to chat',
           aiResponse: _aiResponse,
           responseAnimation: _responseAnimController,

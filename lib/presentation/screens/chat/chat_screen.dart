@@ -224,18 +224,23 @@ class _ChatScreenState extends State<ChatScreen> {
             : jsonEncode(execution.generatedCard);
       } else {
         await _ensureJarvisReadyForChat(message);
-        final generation = await _genUiRuntime.generate(
-          userMessage: message,
-          conversationId: _activeConversationId,
-          timeout: const Duration(seconds: 45),
-        );
-        response = generation.text.isEmpty
-            ? 'I shaped that into an interactive view.'
-            : generation.text;
-        widgetJson =
-            generation.surfaceIds.isEmpty || generation.rawA2ui.trim().isEmpty
-            ? null
-            : jsonEncode(generation.toPersistenceJson());
+        if (_shouldUsePlainJarvisReply(message)) {
+          response = await _generatePlainJarvisReply(message);
+          widgetJson = null;
+        } else {
+          final generation = await _genUiRuntime.generate(
+            userMessage: message,
+            conversationId: _activeConversationId,
+            timeout: const Duration(seconds: 45),
+          );
+          response = generation.text.isEmpty
+              ? 'I shaped that into an interactive view.'
+              : generation.text;
+          widgetJson =
+              generation.surfaceIds.isEmpty || generation.rawA2ui.trim().isEmpty
+              ? null
+              : jsonEncode(generation.toPersistenceJson());
+        }
       }
 
       await DatabaseService.instance.addMessage(
@@ -307,6 +312,45 @@ class _ChatScreenState extends State<ChatScreen> {
             'Timed out while loading ${model.displayName}.',
           ),
         );
+  }
+
+  bool _shouldUsePlainJarvisReply(String message) {
+    final lower = message.trim().toLowerCase();
+    if (lower.length <= 80 &&
+        !RegExp(
+          r'\b(create|build|make|show|design|screen|card|view|ui|button|form|dashboard|task|habit|note|focus)\b',
+        ).hasMatch(lower)) {
+      return true;
+    }
+    return false;
+  }
+
+  Future<String> _generatePlainJarvisReply(String message) async {
+    debugPrint(
+      '[ChatScreen] Generating plain JARVIS reply. '
+      'messageLength=${message.length}, conversation=$_activeConversationId',
+    );
+    final prompt = [
+      'You are JARVIS inside ContextShift.',
+      'Reply naturally, warmly, and concisely.',
+      'Do not output JSON or UI markup.',
+      'User: $message',
+      'JARVIS:',
+    ].join('\n');
+    final response = await GemmaService.instance.generate(
+      prompt,
+      maxTokens: 160,
+      temperature: 0.3,
+      timeout: const Duration(seconds: 30),
+    );
+    final trimmed = response.trim();
+    if (trimmed.isEmpty) {
+      throw const GemmaException(
+        code: GemmaErrorCode.unknown,
+        message: 'JARVIS returned an empty chat response.',
+      );
+    }
+    return trimmed;
   }
 
   String _diagnosticId() {

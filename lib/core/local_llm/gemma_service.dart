@@ -41,6 +41,7 @@ class GemmaService {
   ModelDefinition? _activeModelDef;
   InferenceModel? _model;
   InferenceChat? _chat;
+  final ValueNotifier<int> statusRevision = ValueNotifier<int>(0);
 
   bool get isInitialized => _initialized;
   bool get isModelLoaded => _modelLoaded;
@@ -128,6 +129,7 @@ class GemmaService {
       _activeModelTier = model.tier;
       _activeModelDef = model;
       _modelLoaded = true;
+      _notifyStatusChanged();
 
       debugPrint(
         '[GemmaService] Model loaded successfully: ${model.displayName}',
@@ -136,6 +138,7 @@ class GemmaService {
       debugPrint('[GemmaService] Failed to load model: $e');
       debugPrint('[GemmaService]   Stack: $stack');
       _modelLoaded = false;
+      _notifyStatusChanged();
 
       if (e is GemmaException) rethrow;
 
@@ -253,6 +256,7 @@ class GemmaService {
       );
     }
     debugPrint('[GemmaService] Health check response: $trimmed');
+    await clearChat();
     return trimmed;
   }
 
@@ -295,11 +299,16 @@ class GemmaService {
       _modelLoaded = false;
       _activeModelTier = null;
       _activeModelDef = null;
+      _notifyStatusChanged();
       debugPrint('[GemmaService] Model disposed');
     } catch (e, stack) {
       debugPrint('[GemmaService] Error disposing model: $e');
       debugPrint('[GemmaService]   Stack: $stack');
     }
+  }
+
+  void _notifyStatusChanged() {
+    statusRevision.value += 1;
   }
 
   Future<void> dispose() async {
