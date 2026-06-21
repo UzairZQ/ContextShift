@@ -162,11 +162,6 @@ class GemmaService {
   }
 
   Future<void> _activateInstalledModel(ModelDefinition model) async {
-    if (FlutterGemma.hasActiveModel()) {
-      debugPrint('[GemmaService] FlutterGemma already has an active model');
-      return;
-    }
-
     debugPrint(
       '[GemmaService] Activating installed model metadata: ${model.modelId}',
     );

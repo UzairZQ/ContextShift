@@ -31,6 +31,8 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
+enum _JarvisIntent { chat, action, genui }
+
 class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
@@ -224,22 +226,38 @@ class _ChatScreenState extends State<ChatScreen> {
             : jsonEncode(execution.generatedCard);
       } else {
         await _ensureJarvisReadyForChat(message);
-        if (_shouldUsePlainJarvisReply(message)) {
-          response = await _generatePlainJarvisReply(message);
-          widgetJson = null;
-        } else {
-          final generation = await _genUiRuntime.generate(
-            userMessage: message,
-            conversationId: _activeConversationId,
-            timeout: const Duration(seconds: 45),
-          );
-          response = generation.text.isEmpty
-              ? 'I shaped that into an interactive view.'
-              : generation.text;
-          widgetJson =
-              generation.surfaceIds.isEmpty || generation.rawA2ui.trim().isEmpty
-              ? null
-              : jsonEncode(generation.toPersistenceJson());
+        final intent = await _classifyJarvisIntent(message);
+        switch (intent) {
+          case _JarvisIntent.chat:
+            response = await _generatePlainJarvisReply(message);
+            widgetJson = null;
+          case _JarvisIntent.action:
+            final result = await AiService.instance.processCommand(
+              command: message,
+              userName: DatabaseService.instance.firstName,
+              conversationId: _activeConversationId,
+            );
+            final execution = await ActionExecutor.instance.executeAll(
+              result.actions,
+            );
+            response = result.response;
+            widgetJson = execution.generatedCard == null
+                ? _encodeWidgetPayload(result)
+                : jsonEncode(execution.generatedCard);
+          case _JarvisIntent.genui:
+            final generation = await _genUiRuntime.generate(
+              userMessage: message,
+              conversationId: _activeConversationId,
+              timeout: const Duration(seconds: 45),
+            );
+            response = generation.text.isEmpty
+                ? 'I shaped that into an interactive view.'
+                : generation.text;
+            widgetJson =
+                generation.surfaceIds.isEmpty ||
+                    generation.rawA2ui.trim().isEmpty
+                ? null
+                : jsonEncode(generation.toPersistenceJson());
         }
       }
 
@@ -314,15 +332,61 @@ class _ChatScreenState extends State<ChatScreen> {
         );
   }
 
-  bool _shouldUsePlainJarvisReply(String message) {
-    final lower = message.trim().toLowerCase();
-    if (lower.length <= 80 &&
-        !RegExp(
-          r'\b(create|build|make|show|design|screen|card|view|ui|button|form|dashboard|task|habit|note|focus)\b',
-        ).hasMatch(lower)) {
-      return true;
+  Future<_JarvisIntent> _classifyJarvisIntent(String message) async {
+    debugPrint(
+      '[ChatScreen] Classifying JARVIS intent. '
+      'messageLength=${message.length}, conversation=$_activeConversationId',
+    );
+    final prompt = [
+      'Classify this ContextShift user message.',
+      'Return only JSON like {"intent":"chat"} with one intent:',
+      '- chat: normal conversation, questions, advice, reflection, greetings.',
+      '- action: user wants to create/update/open tasks, habits, notes, focus, journal, mood, or navigate.',
+      '- genui: user wants an interactive/generated UI, visual card, dashboard, form, screen, or custom widget.',
+      'Choose the most useful route. Prefer chat unless an app action or generated UI is clearly useful.',
+      'Message: ${jsonEncode(message)}',
+    ].join('\n');
+
+    try {
+      final raw = await GemmaService.instance.generate(
+        prompt,
+        maxTokens: 48,
+        temperature: 0,
+        timeout: const Duration(seconds: 12),
+      );
+      await GemmaService.instance.clearChat();
+      final normalized = raw.toLowerCase();
+      final start = normalized.indexOf('{');
+      final end = normalized.lastIndexOf('}');
+      final jsonText = start >= 0 && end > start
+          ? raw.substring(start, end + 1)
+          : raw;
+      final decoded = jsonDecode(jsonText) as Map<String, dynamic>;
+      final intent = decoded['intent']?.toString().toLowerCase().trim();
+      final classified = switch (intent) {
+        'action' => _JarvisIntent.action,
+        'genui' || 'ui' || 'surface' => _JarvisIntent.genui,
+        _ => _JarvisIntent.chat,
+      };
+      debugPrint('[ChatScreen] JARVIS intent=$classified raw=$raw');
+      return classified;
+    } catch (error, stackTrace) {
+      debugPrint('[ChatScreen] Intent classification failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      await GemmaService.instance.clearChat();
+      return _fallbackIntent(message);
     }
-    return false;
+  }
+
+  _JarvisIntent _fallbackIntent(String message) {
+    final lower = message.trim().toLowerCase();
+    if (AiService.instance.isCommandQuery(lower)) return _JarvisIntent.action;
+    if (RegExp(
+      r'\b(ui|screen|card|view|dashboard|widget|form|layout|visual|interactive)\b',
+    ).hasMatch(lower)) {
+      return _JarvisIntent.genui;
+    }
+    return _JarvisIntent.chat;
   }
 
   Future<String> _generatePlainJarvisReply(String message) async {

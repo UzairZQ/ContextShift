@@ -37,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? _aiResponse;
   bool _isProcessingCommand = false;
   bool _isLoadingInsight = true;
+  bool _isAutoWarmingJarvis = false;
   int _focusMinutesToday = 0;
   String? _todayMood;
   Map<String, dynamic>? _generativeCardPayload;
@@ -54,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     GemmaService.instance.statusRevision.addListener(_refreshJarvisStatus);
     _computeGreeting();
     _loadInitialData();
+    unawaited(_maybeWarmVerifiedJarvis());
   }
 
   @override
@@ -66,6 +68,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _refreshJarvisStatus() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _maybeWarmVerifiedJarvis() async {
+    if (_isAutoWarmingJarvis || GemmaService.instance.isModelLoaded) return;
+    if (!FeatureManager.instance.hasVerifiedModel) return;
+
+    final model = FeatureManager.instance.resolveBestModelDef();
+    if (model == null) return;
+
+    debugPrint(
+      '[HomeScreen] Auto-warming verified JARVIS model: ${model.modelId}',
+    );
+    if (mounted) setState(() => _isAutoWarmingJarvis = true);
+    try {
+      await GemmaService.instance
+          .loadModel(model)
+          .timeout(const Duration(seconds: 60));
+      debugPrint('[HomeScreen] Verified JARVIS model warmed successfully');
+    } catch (error, stackTrace) {
+      debugPrint('[HomeScreen] Auto-warm JARVIS failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    } finally {
+      if (mounted) setState(() => _isAutoWarmingJarvis = false);
+    }
   }
 
   void _computeGreeting() {
@@ -408,9 +434,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           isJarvisOnline: GemmaService.instance.isModelLoaded,
           hasCheckedJarvisStatus: true,
           isProcessingCommand: _isProcessingCommand,
-          offlineHint:
-              FeatureManager.instance.isE2bAvailable ||
-                  FeatureManager.instance.isE4bAvailable
+          offlineHint: _isAutoWarmingJarvis
+              ? 'Warming up JARVIS...'
+              : FeatureManager.instance.hasVerifiedModel
+              ? 'JARVIS will wake up automatically'
+              : FeatureManager.instance.isE2bAvailable ||
+                    FeatureManager.instance.isE4bAvailable
               ? 'Initialize JARVIS in Manage AI'
               : 'Download JARVIS to chat',
           aiResponse: _aiResponse,
@@ -551,8 +580,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _openModelDownload() {
-    Navigator.push(
+  Future<void> _openModelDownload() async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ModelDownloadScreen(
@@ -567,5 +596,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       ),
     );
+    if (!mounted) return;
+    setState(() {});
+    unawaited(_maybeWarmVerifiedJarvis());
   }
 }

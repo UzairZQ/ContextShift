@@ -52,15 +52,20 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
         '[ModelDownloadScreen] Model "${widget.model.modelId}" already downloaded: $downloaded',
       );
       if (downloaded && mounted) {
+        final verified =
+            GemmaService.instance.isModelLoaded ||
+            FeatureManager.instance.isModelVerified(widget.model.tier);
         setState(() {
           _progress = const DownloadProgressInfo(
             state: DownloadState.completed,
             progress: 1.0,
           );
           _hasStarted = true;
-          _healthCheckPassed = GemmaService.instance.isModelLoaded;
+          _healthCheckPassed = verified;
           _statusDetail = GemmaService.instance.isModelLoaded
               ? 'JARVIS is initialized on this device.'
+              : verified
+              ? 'JARVIS passed health check before. The app will warm it automatically.'
               : 'Downloaded. Initialize JARVIS before using chat.';
         });
       }
@@ -121,6 +126,7 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
         _healthCheckPassed = false;
         _statusDetail = 'Downloaded. Initialize JARVIS before using chat.';
       });
+      FeatureManager.instance.setModelVerified(widget.model.tier, false);
     }
   }
 
@@ -165,6 +171,7 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
         _healthCheckPassed = true;
         _statusDetail = 'Health check passed. Response: $response';
       });
+      FeatureManager.instance.setModelVerified(widget.model.tier, true);
       _showSnack('JARVIS health check passed.');
     } catch (error, stackTrace) {
       debugPrint('[ModelDownloadScreen] Health check failed: $error');
@@ -174,6 +181,7 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
         _healthCheckPassed = false;
         _statusDetail = error.toString();
       });
+      FeatureManager.instance.setModelVerified(widget.model.tier, false);
       _showSnack('JARVIS health check failed.');
     } finally {
       if (mounted) setState(() => _isHealthChecking = false);
@@ -220,6 +228,7 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
       } else {
         FeatureManager.instance.setE4bDownloaded(false);
       }
+      FeatureManager.instance.setModelVerified(widget.model.tier, false);
       if (!mounted) return;
       setState(() {
         _progress = const DownloadProgressInfo();
