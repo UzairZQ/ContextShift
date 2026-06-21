@@ -127,24 +127,6 @@ class _DepthIconCard extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Positioned(
-            right: 8,
-            top: 10,
-            child: Container(
-              width: 76,
-              height: 76,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: page.accent.withValues(alpha: 0.24)),
-                boxShadow: [
-                  BoxShadow(
-                    color: page.accent.withValues(alpha: 0.12),
-                    blurRadius: 24,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
             left: 24,
             bottom: 0,
             child: Container(
@@ -190,8 +172,30 @@ class _DepthIconCard extends StatelessWidget {
             child: Icon(page.icon, size: 40, color: Colors.white),
           ),
           Positioned(
-            left: 56,
-            top: 60,
+            left: 11,
+            top: 11,
+            child: IgnorePointer(
+              child: Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: page.accent.withValues(alpha: 0.28),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: page.accent.withValues(alpha: 0.1),
+                      blurRadius: 18,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 67,
+            top: 67,
             child: Container(
               width: 18,
               height: 18,

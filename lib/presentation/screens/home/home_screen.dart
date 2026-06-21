@@ -479,7 +479,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: ResponsiveWrapper(
                   maxWidth: 1000,
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 180),
+                    duration: const Duration(milliseconds: 260),
                     switchInCurve: Curves.easeOutCubic,
                     switchOutCurve: Curves.easeInCubic,
                     layoutBuilder: (currentChild, previousChildren) {
@@ -500,12 +500,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         reverseCurve: Curves.easeInCubic,
                       );
                       final offset = Tween<Offset>(
-                        begin: const Offset(0.025, 0),
+                        begin: const Offset(0.04, 0.012),
                         end: Offset.zero,
+                      ).animate(movement);
+                      final scale = Tween<double>(
+                        begin: 0.985,
+                        end: 1,
                       ).animate(movement);
                       return FadeTransition(
                         opacity: opacity,
-                        child: SlideTransition(position: offset, child: child),
+                        child: SlideTransition(
+                          position: offset,
+                          child: ScaleTransition(scale: scale, child: child),
+                        ),
                       );
                     },
                     child: KeyedSubtree(
