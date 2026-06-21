@@ -54,7 +54,7 @@ class _AiCommandBarState extends State<AiCommandBar> {
 
   String get _hintText {
     if (!widget.hasCheckedStatus) return 'Checking JARVIS status...';
-    return widget.isOnline ? 'Tell JARVIS what to do...' : widget.offlineHint;
+    return widget.isOnline ? 'Tell JARVIS what to do' : widget.offlineHint;
   }
 
   TextStyle get _hintStyle {
@@ -67,6 +67,8 @@ class _AiCommandBarState extends State<AiCommandBar> {
       fontStyle: (widget.isOnline || !widget.hasCheckedStatus)
           ? FontStyle.normal
           : FontStyle.italic,
+      fontSize: widget.isOnline ? 13 : 12,
+      height: 1.15,
     );
     if (!widget.hasCheckedStatus) {
       return base.copyWith(fontStyle: FontStyle.italic);
@@ -92,12 +94,16 @@ class _AiCommandBarState extends State<AiCommandBar> {
           child: TextField(
             controller: widget.controller,
             enabled: true,
+            maxLines: 1,
+            textAlignVertical: TextAlignVertical.center,
             textInputAction: TextInputAction.send,
-            style: const TextStyle(color: AppTheme.onSurface),
+            style: const TextStyle(color: AppTheme.onSurface, fontSize: 14),
             decoration: InputDecoration(
               icon: Icon(_leadingIcon, color: _leadingColor, size: 20),
               hintText: _hintText,
               hintStyle: _hintStyle,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
               border: InputBorder.none,
               suffixIcon: widget.isProcessing
                   ? const Padding(
