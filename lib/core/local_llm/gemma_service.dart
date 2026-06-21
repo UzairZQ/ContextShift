@@ -115,15 +115,11 @@ class GemmaService {
       debugPrint('[GemmaService] Native getActiveModel complete');
 
       debugPrint('[GemmaService] Creating chat session...');
-      _chat = InferenceChat(
-        sessionCreator: () => _model!.createSession(),
-        maxTokens: model.maxTokens,
-        tokenBuffer: 500,
+      _chat = await _model!.createChat(
         modelType: model.modelType,
+        tokenBuffer: 500,
+        maxOutputTokens: 256,
       );
-
-      debugPrint('[GemmaService] Initializing chat session...');
-      await _chat!.initSession();
       debugPrint('[GemmaService] Chat session initialized');
 
       _activeModelTier = model.tier;
@@ -185,33 +181,27 @@ class GemmaService {
     debugPrint('[GemmaService]   Max tokens: $maxTokens');
     debugPrint('[GemmaService]   Temperature: $temperature');
 
-    if (!_modelLoaded || _chat == null) {
+    if (!_modelLoaded || _model == null) {
       throw GemmaException(
         code: GemmaErrorCode.modelNotLoaded,
         message: 'No model loaded. Call loadModel() first.',
       );
     }
 
+    InferenceModelSession? session;
     try {
-      final message = Message(text: prompt, isUser: true);
-      await _chat!.addQuery(message);
-
-      final response = await _chat!.generateChatResponse().timeout(timeout);
-
-      if (response is TextResponse) {
-        final result = response.token;
-        debugPrint(
-          '[GemmaService] Generated response (${result.length} chars)',
-        );
-        return result;
-      }
-
-      debugPrint(
-        '[GemmaService] Unexpected response type: ${response.runtimeType}',
+      session = await _model!.openSession(
+        temperature: temperature,
+        topK: 1,
+        maxOutputTokens: maxTokens,
       );
-      return '';
+      await session.addQueryChunk(Message(text: prompt, isUser: true));
+      final result = await session.getResponse().timeout(timeout);
+      debugPrint('[GemmaService] Generated response (${result.length} chars)');
+      return result;
     } on TimeoutException {
       debugPrint('[GemmaService] Generation timed out after $timeout');
+      await session?.stopGeneration();
       throw GemmaException(
         code: GemmaErrorCode.inferenceTimeout,
         message: 'Model took too long to respond (>${timeout.inSeconds}s)',
@@ -231,6 +221,8 @@ class GemmaService {
       }
 
       rethrow;
+    } finally {
+      await session?.close();
     }
   }
 

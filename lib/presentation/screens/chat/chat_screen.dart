@@ -226,7 +226,7 @@ class _ChatScreenState extends State<ChatScreen> {
             : jsonEncode(execution.generatedCard);
       } else {
         await _ensureJarvisReadyForChat(message);
-        final intent = await _classifyJarvisIntent(message);
+        final intent = _classifyJarvisIntent(message);
         switch (intent) {
           case _JarvisIntent.chat:
             response = await _generatePlainJarvisReply(message);
@@ -332,54 +332,16 @@ class _ChatScreenState extends State<ChatScreen> {
         );
   }
 
-  Future<_JarvisIntent> _classifyJarvisIntent(String message) async {
+  _JarvisIntent _classifyJarvisIntent(String message) {
     debugPrint(
       '[ChatScreen] Classifying JARVIS intent. '
       'messageLength=${message.length}, conversation=$_activeConversationId',
     );
-    final prompt = [
-      'Classify this ContextShift user message.',
-      'Return only JSON like {"intent":"chat"} with one intent:',
-      '- chat: normal conversation, questions, advice, reflection, greetings.',
-      '- action: user wants to create/update/open tasks, habits, notes, focus, journal, mood, or navigate.',
-      '- genui: user wants an interactive/generated UI, visual card, dashboard, form, screen, or custom widget.',
-      'Choose the most useful route. Prefer chat unless an app action or generated UI is clearly useful.',
-      'Message: ${jsonEncode(message)}',
-    ].join('\n');
-
-    try {
-      final raw = await GemmaService.instance.generate(
-        prompt,
-        maxTokens: 48,
-        temperature: 0,
-        timeout: const Duration(seconds: 12),
-      );
-      await GemmaService.instance.clearChat();
-      final normalized = raw.toLowerCase();
-      final start = normalized.indexOf('{');
-      final end = normalized.lastIndexOf('}');
-      final jsonText = start >= 0 && end > start
-          ? raw.substring(start, end + 1)
-          : raw;
-      final decoded = jsonDecode(jsonText) as Map<String, dynamic>;
-      final intent = decoded['intent']?.toString().toLowerCase().trim();
-      final classified = switch (intent) {
-        'action' => _JarvisIntent.action,
-        'genui' || 'ui' || 'surface' => _JarvisIntent.genui,
-        _ => _JarvisIntent.chat,
-      };
-      debugPrint('[ChatScreen] JARVIS intent=$classified raw=$raw');
-      return classified;
-    } catch (error, stackTrace) {
-      debugPrint('[ChatScreen] Intent classification failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-      await GemmaService.instance.clearChat();
-      return _fallbackIntent(message);
-    }
-  }
-
-  _JarvisIntent _fallbackIntent(String message) {
     final lower = message.trim().toLowerCase();
+    if (lower.length <= 80 && _looksLikeConversation(lower)) {
+      debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.chat}');
+      return _JarvisIntent.chat;
+    }
     if (AiService.instance.isCommandQuery(lower)) return _JarvisIntent.action;
     if (RegExp(
       r'\b(ui|screen|card|view|dashboard|widget|form|layout|visual|interactive)\b',
@@ -387,6 +349,18 @@ class _ChatScreenState extends State<ChatScreen> {
       return _JarvisIntent.genui;
     }
     return _JarvisIntent.chat;
+  }
+
+  bool _looksLikeConversation(String lower) {
+    if (RegExp(
+      r"^(hi|hello|hey|yo|salam|assalam|how are you|what'?s up|thanks|thank you)\b",
+    ).hasMatch(lower)) {
+      return true;
+    }
+    if (lower.endsWith('?')) return true;
+    return RegExp(
+      r'\b(who|what|why|how|when|where|explain|tell me|advice|think|feel|should i)\b',
+    ).hasMatch(lower);
   }
 
   Future<String> _generatePlainJarvisReply(String message) async {
@@ -403,9 +377,9 @@ class _ChatScreenState extends State<ChatScreen> {
     ].join('\n');
     final response = await GemmaService.instance.generate(
       prompt,
-      maxTokens: 160,
+      maxTokens: 80,
       temperature: 0.3,
-      timeout: const Duration(seconds: 30),
+      timeout: const Duration(seconds: 12),
     );
     final trimmed = response.trim();
     if (trimmed.isEmpty) {
