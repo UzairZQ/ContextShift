@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../core/app_runtime.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/local_llm/model_downloader.dart';
 import '../../../core/local_llm/gemma_service.dart';
@@ -254,30 +255,6 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
     );
   }
 
-  void _pauseDownload() {
-    debugPrint('[ModelDownloadScreen] Pause requested');
-    _downloader.pause();
-    setState(() {});
-  }
-
-  void _resumeDownload() {
-    debugPrint('[ModelDownloadScreen] Resume requested');
-    setState(() {
-      _progress = const DownloadProgressInfo(
-        state: DownloadState.checkingStorage,
-      );
-    });
-    _subscription?.cancel();
-    _subscription = _downloader
-        .resume(widget.model)
-        .listen(
-          _onProgress,
-          onError: (error) {
-            debugPrint('[ModelDownloadScreen] Resume stream error: $error');
-          },
-        );
-  }
-
   void _cancelDownload() {
     debugPrint('[ModelDownloadScreen] Cancel requested');
     _subscription?.cancel();
@@ -330,6 +307,18 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
                     _buildProgressArea(),
                     const SizedBox(height: 40),
                     _buildBottomButtons(),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Build: $appRuntimeBuild',
+                      style: TextStyle(
+                        fontSize: 11,
+                        letterSpacing: 0.2,
+                        color: AppTheme.onSurfaceVariant.withValues(
+                          alpha: 0.45,
+                        ),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -408,7 +397,7 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
         case DownloadState.downloading:
           title = 'Bringing JARVIS home';
         case DownloadState.paused:
-          title = 'Download paused';
+          title = 'Download stopped';
         case DownloadState.completed:
           title = _healthCheckPassed
               ? 'JARVIS is ready'
@@ -450,7 +439,7 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
               '${_progress.progressPercent} complete. You only need to do this once.';
         case DownloadState.paused:
           subtitle =
-              '${_progress.downloadedFormatted} of ${_progress.totalFormatted} downloaded. Resume when you\'re ready.';
+              'The native installer cannot safely pause this download yet. Start again when you\'re ready.';
         case DownloadState.completed:
           subtitle = _healthCheckPassed
               ? 'Your private, on-device assistant passed its health check.'
@@ -612,12 +601,12 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
           width: double.infinity,
           height: 52,
           child: ElevatedButton.icon(
-            onPressed: _pauseDownload,
-            icon: const Icon(LucideIcons.pause),
-            label: const Text('Pause'),
+            onPressed: _cancelDownload,
+            icon: const Icon(LucideIcons.xCircle),
+            label: const Text('Cancel download'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.warning.withValues(alpha: 0.2),
-              foregroundColor: AppTheme.warning,
+              backgroundColor: AppTheme.error.withValues(alpha: 0.2),
+              foregroundColor: AppTheme.error,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
@@ -626,42 +615,42 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
         );
 
       case DownloadState.paused:
-        return Row(
+        return Column(
           children: [
-            Expanded(
-              child: SizedBox(
-                height: 52,
-                child: ElevatedButton.icon(
-                  onPressed: _cancelDownload,
-                  icon: const Icon(LucideIcons.xCircle, size: 20),
-                  label: const Text('Cancel'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.error.withValues(alpha: 0.2),
-                    foregroundColor: AppTheme.error,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: _startDownload,
+                icon: const Icon(LucideIcons.refreshCw, size: 20),
+                label: const Text('Start again'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: AppTheme.onSurface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: SizedBox(
-                height: 52,
-                child: ElevatedButton.icon(
-                  onPressed: _resumeDownload,
-                  icon: const Icon(LucideIcons.play, size: 20),
-                  label: const Text('Resume'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: AppTheme.onSurface,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: _cancelDownload,
+              icon: const Icon(LucideIcons.xCircle, size: 18),
+              label: const Text('Clear download state'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.onSurfaceVariant,
               ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'LiteRT downloads currently support cancel/retry, not reliable byte-level pause/resume.',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppTheme.onSurfaceVariant.withValues(alpha: 0.72),
+                height: 1.35,
+              ),
+              textAlign: TextAlign.center,
             ),
           ],
         );

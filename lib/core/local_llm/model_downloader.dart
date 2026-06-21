@@ -43,7 +43,6 @@ class ModelDownloader {
   CancelToken? _cancelToken;
   StreamController<DownloadProgressInfo>? _progressController;
   bool _isDownloading = false;
-  _CancelIntent _cancelIntent = _CancelIntent.none;
   DownloadProgressInfo _lastProgress = const DownloadProgressInfo();
 
   bool get isDownloading => _isDownloading;
@@ -61,7 +60,6 @@ class ModelDownloader {
     _cancelToken = CancelToken();
     _progressController = StreamController<DownloadProgressInfo>.broadcast();
     _isDownloading = true;
-    _cancelIntent = _CancelIntent.none;
     _lastProgress = const DownloadProgressInfo();
 
     _runDownload(model);
@@ -128,15 +126,12 @@ class ModelDownloader {
         ),
       );
     } on DownloadCancelledException catch (e, stackTrace) {
-      final wasPaused = _cancelIntent == _CancelIntent.pause;
-      debugPrint(
-        '[ModelDownloader] Download ${wasPaused ? 'paused' : 'cancelled'}: $e',
-      );
+      debugPrint('[ModelDownloader] Download cancelled: $e');
       debugPrintStack(stackTrace: stackTrace);
       _emitProgress(
         _lastProgress.copyWith(
-          state: wasPaused ? DownloadState.paused : DownloadState.idle,
-          errorMessage: wasPaused ? null : 'Download cancelled',
+          state: DownloadState.idle,
+          errorMessage: 'Download cancelled',
           errorDetail: e.message,
           errorCode: DownloadErrorCode.cancelled.name,
         ),
@@ -170,33 +165,9 @@ class ModelDownloader {
     }
   }
 
-  void pause() {
-    if (!_isDownloading || _cancelToken == null) return;
-    debugPrint('[ModelDownloader] Pause requested');
-    _cancelIntent = _CancelIntent.pause;
-    _cancelToken?.cancel('User paused download');
-    _emitProgress(_lastProgress.copyWith(state: DownloadState.paused));
-  }
-
-  Stream<DownloadProgressInfo> resume(ModelDefinition model) {
-    if (_isDownloading) {
-      throw StateError(
-        'Wait for the current download to pause before resuming.',
-      );
-    }
-    debugPrint('[ModelDownloader] Resume requested');
-    _cancelToken = CancelToken();
-    _progressController = StreamController<DownloadProgressInfo>.broadcast();
-    _isDownloading = true;
-    _cancelIntent = _CancelIntent.none;
-    _runDownload(model);
-    return _progressController!.stream;
-  }
-
   Future<void> cancel() async {
     if (!_isDownloading || _cancelToken == null) return;
     debugPrint('[ModelDownloader] Cancel requested');
-    _cancelIntent = _CancelIntent.cancel;
     _cancelToken?.cancel('User cancelled download');
   }
 
@@ -307,5 +278,3 @@ class ModelDownloader {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 }
-
-enum _CancelIntent { none, pause, cancel }
