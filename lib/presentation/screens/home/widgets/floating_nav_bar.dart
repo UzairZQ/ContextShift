@@ -27,12 +27,8 @@ class FloatingNavBar extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        margin: EdgeInsets.only(
-          left: Spacing.xxl,
-          right: Spacing.xxl,
-          bottom: 4,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        margin: EdgeInsets.only(left: Spacing.xl, right: Spacing.xl, bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: AppTheme.glassmorphism(
           tint: AppTheme.surfaceHighest,
           opacity: 0.90,
@@ -54,7 +50,7 @@ class FloatingNavBar extends StatelessWidget {
                   child: AnimatedContainer(
                     duration: Motion.fast,
                     padding: EdgeInsets.symmetric(
-                      horizontal: Spacing.lg,
+                      horizontal: Spacing.xs,
                       vertical: Spacing.sm,
                     ),
                     decoration: BoxDecoration(

@@ -7,7 +7,6 @@ class OnboardingPageData {
   final String eyebrow;
   final String title;
   final String body;
-  final String proof;
   final IconData icon;
   final Color accent;
 
@@ -15,7 +14,6 @@ class OnboardingPageData {
     required this.eyebrow,
     required this.title,
     required this.body,
-    required this.proof,
     required this.icon,
     required this.accent,
   });
@@ -94,15 +92,6 @@ class OnboardingPageView extends StatelessWidget {
                           height: 1.55,
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  Transform.translate(
-                    offset: Offset(offset * 18, 0),
-                    child: WonderousReveal(
-                      delay: const Duration(milliseconds: 230),
-                      begin: const Offset(0.06, 0.08),
-                      child: _ProofCard(page: page),
                     ),
                   ),
                   const Spacer(),
@@ -199,11 +188,11 @@ class _DepthIconCard extends StatelessWidget {
               child: Icon(page.icon, size: 38, color: Colors.white),
             ),
             Positioned(
-              right: 12,
-              bottom: 18,
+              left: 74,
+              top: 72,
               child: Container(
-                width: 22,
-                height: 22,
+                width: 20,
+                height: 20,
                 decoration: BoxDecoration(
                   color: page.accent,
                   shape: BoxShape.circle,
@@ -242,47 +231,6 @@ class _Eyebrow extends StatelessWidget {
           fontWeight: FontWeight.w800,
           letterSpacing: 1.1,
         ),
-      ),
-    );
-  }
-}
-
-class _ProofCard extends StatelessWidget {
-  final OnboardingPageData page;
-
-  const _ProofCard({required this.page});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceHigh.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: page.accent,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              page.proof,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.onSurface.withValues(alpha: 0.74),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

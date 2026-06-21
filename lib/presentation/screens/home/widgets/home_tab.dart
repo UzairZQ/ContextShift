@@ -597,7 +597,7 @@ class _GlanceGrid extends StatelessWidget {
       crossAxisCount: Responsive.isMobile(context) ? 2 : 4,
       crossAxisSpacing: Spacing.md,
       mainAxisSpacing: Spacing.md,
-      childAspectRatio: Responsive.isMobile(context) ? 1.42 : 1.55,
+      childAspectRatio: Responsive.isMobile(context) ? 1.26 : 1.48,
       children: [
         _GlanceCard(
           label: 'Tasks',
@@ -700,7 +700,7 @@ class _GlanceCard extends StatelessWidget {
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 color: AppTheme.onSurface,
                 fontWeight: FontWeight.w900,
-                fontSize: 24,
+                fontSize: 23,
               ),
             ),
             const SizedBox(height: 2),

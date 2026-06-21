@@ -7,7 +7,8 @@ void main() {
     final model = ModelDefinition.e2b;
 
     expect(model.downloadUrl, contains('litert-community'));
-    expect(model.downloadUrl, endsWith('model.litertlm'));
+    expect(model.downloadUrl, endsWith('gemma-4-E2B-it.litertlm'));
+    expect(model.modelId, 'gemma-4-E2B-it.litertlm');
     expect(model.fileType, ModelFileType.litertlm);
     expect(model.requiresPurchase, isFalse);
   });

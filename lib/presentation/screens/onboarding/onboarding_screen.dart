@@ -26,7 +26,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       title: 'Too much in your head?\nDrop it here.',
       body:
           'Write the messy version. JARVIS helps turn scattered thoughts, overdue tasks, and half-made plans into one clear next move.',
-      proof: 'From thought dump to next action in seconds.',
       icon: LucideIcons.sparkles,
       accent: AppTheme.primary,
     ),
@@ -35,7 +34,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       title: 'Find the next move.\nNot another list.',
       body:
           'Tasks, habits, notes, focus, and mood finally work together. Open the app and see what matters now, without rebuilding your day.',
-      proof: 'Your day, stitched together instead of scattered.',
       icon: LucideIcons.compass,
       accent: AppTheme.warning,
     ),
@@ -44,7 +42,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       title: 'Built to work\noffline.',
       body:
           'On a train, in a tunnel, or hiding from bad Wi-Fi, your workspace still works. JARVIS runs on your phone, so a weak signal never breaks your flow.',
-      proof: 'No signal, no problem, no waiting room.',
       icon: LucideIcons.wifiOff,
       accent: AppTheme.success,
     ),
@@ -53,7 +50,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       title: 'Your life isn\'t\ntraining data.',
       body:
           'Your plans, moods, notes, and conversations stay on your device. No cloud history to sell. No audience. Just a private space that helps.',
-      proof: 'Local memory without turning your life into a feed.',
       icon: LucideIcons.shield,
       accent: AppTheme.tertiary,
     ),

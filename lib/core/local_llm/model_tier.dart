@@ -47,10 +47,10 @@ class ModelDefinition {
   static const ModelDefinition _e2b = ModelDefinition(
     tier: ModelTier.e2b,
     displayName: 'E2B',
-    modelId: 'model.litertlm',
+    modelId: 'gemma-4-E2B-it.litertlm',
     downloadUrl:
-        'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/model.litertlm',
-    downloadSizeMb: 2583,
+        'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm',
+    downloadSizeMb: 2590,
     minRamMb: 4096,
     requiresPurchase: false,
     modelType: ModelType.general,
@@ -61,10 +61,10 @@ class ModelDefinition {
   static const ModelDefinition _e4b = ModelDefinition(
     tier: ModelTier.e4b,
     displayName: 'E4B',
-    modelId: 'gemma-4-e4b-it.litertlm',
+    modelId: 'gemma-4-E4B-it.litertlm',
     downloadUrl:
-        'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/model.litertlm',
-    downloadSizeMb: 4300,
+        'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm',
+    downloadSizeMb: 3660,
     minRamMb: 8192,
     requiresPurchase: true,
     modelType: ModelType.general,

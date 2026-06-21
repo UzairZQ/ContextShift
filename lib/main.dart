@@ -75,6 +75,7 @@ enum _SetupStep { loading, onboarding, profile, home }
 
 class _LaunchGateState extends State<_LaunchGate> {
   static const _onboardingKey = 'has_seen_onboarding';
+  static const _forceOnboardingForTesting = true;
   _SetupStep _step = _SetupStep.loading;
 
   @override
@@ -85,8 +86,10 @@ class _LaunchGateState extends State<_LaunchGate> {
 
   Future<void> _determineStep() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final hasSeenOnboarding = prefs.getBool(_onboardingKey) ?? false;
+      final hasSeenOnboarding = _forceOnboardingForTesting
+          ? false
+          : (await SharedPreferences.getInstance()).getBool(_onboardingKey) ??
+                false;
 
       if (!hasSeenOnboarding) {
         if (!mounted) return;
