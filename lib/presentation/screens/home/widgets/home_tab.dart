@@ -160,118 +160,103 @@ class _HeroCommandPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CinematicFloat(
-      travel: const Offset(0, -2),
-      scaleDelta: 0.002,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppTheme.surfaceContainer.withValues(alpha: 0.92),
-              AppTheme.surfaceHigh.withValues(alpha: 0.72),
-              AppTheme.primary.withValues(alpha: 0.18),
-            ],
-          ),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.primary.withValues(alpha: 0.18),
-              blurRadius: 54,
-              offset: const Offset(0, 24),
-            ),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppTheme.surfaceContainer.withValues(alpha: 0.92),
+            AppTheme.surfaceHigh.withValues(alpha: 0.72),
+            AppTheme.primary.withValues(alpha: 0.18),
           ],
         ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned(
-              right: -46,
-              top: -42,
-              child: CinematicPulse(
-                minScale: 0.88,
-                maxScale: 1.1,
-                child: Container(
-                  width: 150,
-                  height: 150,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        AppTheme.primary.withValues(alpha: 0.22),
-                        AppTheme.primary.withValues(alpha: 0),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: -50,
-              bottom: -70,
-              child: CinematicPulse(
-                minScale: 1.08,
-                maxScale: 0.94,
-                duration: const Duration(milliseconds: 2800),
-                child: Container(
-                  width: 130,
-                  height: 130,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        AppTheme.tertiary.withValues(alpha: 0.12),
-                        AppTheme.tertiary.withValues(alpha: 0),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 2),
-                        child: Text(
-                          greeting,
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                height: 1.16,
-                                fontSize: Responsive.isMobile(context)
-                                    ? 22
-                                    : 28,
-                                letterSpacing: -0.55,
-                              ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    _StatusPill(isOnline: isJarvisOnline),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primary.withValues(alpha: 0.14),
+            blurRadius: 42,
+            offset: const Offset(0, 18),
+          ),
+        ],
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: -46,
+            top: -42,
+            child: Container(
+              width: 150,
+              height: 150,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    AppTheme.primary.withValues(alpha: 0.18),
+                    AppTheme.primary.withValues(alpha: 0),
                   ],
                 ),
-                const SizedBox(height: 16),
-                AiCommandBar(
-                  controller: commandController,
-                  isOnline: isJarvisOnline,
-                  isProcessing: isProcessingCommand,
-                  hasCheckedStatus: hasCheckedJarvisStatus,
-                  offlineHint: offlineHint,
-                  onSubmit: onSubmitCommand,
-                  onTap: onOpenChat,
-                ),
-              ],
+              ),
             ),
-          ],
-        ),
+          ),
+          Positioned(
+            left: -50,
+            bottom: -70,
+            child: Container(
+              width: 130,
+              height: 130,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    AppTheme.tertiary.withValues(alpha: 0.1),
+                    AppTheme.tertiary.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 2),
+                      child: Text(
+                        greeting,
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              height: 1.16,
+                              fontSize: Responsive.isMobile(context) ? 22 : 28,
+                              letterSpacing: -0.55,
+                            ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _StatusPill(isOnline: isJarvisOnline),
+                ],
+              ),
+              const SizedBox(height: 16),
+              AiCommandBar(
+                controller: commandController,
+                isOnline: isJarvisOnline,
+                isProcessing: isProcessingCommand,
+                hasCheckedStatus: hasCheckedJarvisStatus,
+                offlineHint: offlineHint,
+                onSubmit: onSubmitCommand,
+                onTap: onOpenChat,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

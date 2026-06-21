@@ -3,7 +3,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
-import '../../../widgets/motion/wonderous_motion.dart';
 
 class FloatingNavBar extends StatelessWidget {
   static const List<_NavItem> _items = [
@@ -45,78 +44,55 @@ class FloatingNavBar extends StatelessWidget {
             return Expanded(
               child: Semantics(
                 label: item.label,
-                child: PressableScale(
-                  onTap: () => onTap(i),
-                  pressedScale: 0.88,
-                  child: AnimatedContainer(
-                    duration: Motion.normal,
-                    curve: Curves.easeOutBack,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: Spacing.xs,
-                      vertical: Spacing.sm,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isActive
-                          ? AppTheme.primary.withValues(alpha: 0.18)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(999),
-                      boxShadow: isActive
-                          ? [
-                              BoxShadow(
-                                color: AppTheme.primary.withValues(alpha: 0.28),
-                                blurRadius: 24,
-                                offset: const Offset(0, 10),
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AnimatedScale(
-                          scale: isActive ? 1.16 : 1,
-                          duration: Motion.normal,
-                          curve: Curves.easeOutBack,
-                          child: isActive
-                              ? CinematicPulse(
-                                  minScale: 0.98,
-                                  maxScale: 1.08,
-                                  child: Icon(
-                                    item.icon,
-                                    size: 24,
-                                    color: AppTheme.primary,
-                                  ),
-                                )
-                              : Icon(
-                                  item.icon,
-                                  size: 24,
-                                  color: AppTheme.onSurfaceVariant.withValues(
-                                    alpha: 0.6,
-                                  ),
-                                ),
-                        ),
-                        SizedBox(height: Spacing.xs),
-                        AnimatedDefaultTextStyle(
-                          duration: Motion.fast,
-                          curve: Curves.easeOutCubic,
-                          style: TextStyle(
-                            fontSize: isActive ? 11 : 10,
-                            fontWeight: isActive
-                                ? FontWeight.w800
-                                : FontWeight.w500,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => onTap(i),
+                    borderRadius: BorderRadius.circular(999),
+                    child: AnimatedContainer(
+                      duration: Motion.fast,
+                      curve: Curves.easeOutCubic,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: Spacing.xs,
+                        vertical: Spacing.sm,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? AppTheme.primary.withValues(alpha: 0.18)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            item.icon,
+                            size: 24,
                             color: isActive
                                 ? AppTheme.primary
                                 : AppTheme.onSurfaceVariant.withValues(
                                     alpha: 0.6,
                                   ),
                           ),
-                          child: Text(
+                          SizedBox(height: Spacing.xs),
+                          Text(
                             item.label,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: isActive ? 11 : 10,
+                              fontWeight: isActive
+                                  ? FontWeight.w800
+                                  : FontWeight.w500,
+                              color: isActive
+                                  ? AppTheme.primary
+                                  : AppTheme.onSurfaceVariant.withValues(
+                                      alpha: 0.6,
+                                    ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),

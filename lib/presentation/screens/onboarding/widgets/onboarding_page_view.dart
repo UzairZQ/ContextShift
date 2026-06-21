@@ -204,28 +204,24 @@ class _DepthIconCard extends StatelessWidget {
                 child: Icon(page.icon, size: 40, color: Colors.white),
               ),
               Positioned(
-                left: 70,
-                top: 68,
-                child: CinematicPulse(
-                  minScale: 0.9,
-                  maxScale: 1.08,
-                  child: Container(
-                    width: 18,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: page.accent,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppTheme.background.withValues(alpha: 0.7),
-                        width: 4,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: page.accent.withValues(alpha: 0.34),
-                          blurRadius: 18,
-                        ),
-                      ],
+                left: 64,
+                top: 64,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: page.accent,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppTheme.background.withValues(alpha: 0.7),
+                      width: 4,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: page.accent.withValues(alpha: 0.34),
+                        blurRadius: 18,
+                      ),
+                    ],
                   ),
                 ),
               ),

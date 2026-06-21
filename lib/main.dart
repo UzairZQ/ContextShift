@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -11,43 +12,52 @@ import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/onboarding/onboarding_screen.dart';
 import 'presentation/screens/onboarding/profile_setup_screen.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+void main() {
+  runZonedGuarded<Future<void>>(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
 
-  FlutterError.onError = (details) {
-    FlutterError.presentError(details);
-    debugPrint('[FlutterError] ${details.exceptionAsString()}');
-  };
-  PlatformDispatcher.instance.onError = (error, stack) {
-    debugPrint('[UncaughtError] $error');
-    debugPrintStack(stackTrace: stack);
-    return true;
-  };
+      FlutterError.onError = (details) {
+        FlutterError.presentError(details);
+        debugPrint('[FlutterError] ${details.exceptionAsString()}');
+        debugPrintStack(stackTrace: details.stack);
+      };
+      PlatformDispatcher.instance.onError = (error, stack) {
+        debugPrint('[UncaughtError] $error');
+        debugPrintStack(stackTrace: stack);
+        return true;
+      };
 
-  // Initialize local database
-  await DatabaseService.instance.init();
+      // Initialize local database
+      await DatabaseService.instance.init();
 
-  // Initialize FlutterGemma (don't fail if not supported on this platform)
-  try {
-    await GemmaService.instance.init();
-    debugPrint('[main] GemmaService initialized');
-  } catch (e, stack) {
-    debugPrint('[main] GemmaService init skipped (non-fatal): $e');
-    debugPrint('[main]   Stack: $stack');
-  }
+      // Initialize FlutterGemma (don't fail if not supported on this platform)
+      try {
+        await GemmaService.instance.init();
+        debugPrint('[main] GemmaService initialized');
+      } catch (e, stack) {
+        debugPrint('[main] GemmaService init skipped (non-fatal): $e');
+        debugPrintStack(stackTrace: stack);
+      }
 
-  try {
-    await FeatureManager.instance.initialize();
-    final model = FeatureManager.instance.resolveBestModelDef();
-    if (model != null) {
-      await GemmaService.instance.loadModel(model);
-    }
-  } catch (e, stack) {
-    debugPrint('[main] Model state restore failed (non-fatal): $e');
-    debugPrint('[main]   Stack: $stack');
-  }
+      try {
+        await FeatureManager.instance.initialize();
+        final model = FeatureManager.instance.resolveBestModelDef();
+        if (model != null) {
+          await GemmaService.instance.loadModel(model);
+        }
+      } catch (e, stack) {
+        debugPrint('[main] Model state restore failed (non-fatal): $e');
+        debugPrintStack(stackTrace: stack);
+      }
 
-  runApp(const ContextShiftApp());
+      runApp(const ContextShiftApp());
+    },
+    (error, stack) {
+      debugPrint('[ZoneError] $error');
+      debugPrintStack(stackTrace: stack);
+    },
+  );
 }
 
 class ContextShiftApp extends StatelessWidget {
