@@ -37,7 +37,7 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 1),
-    )..repeat(reverse: true);
+    );
     _pulseAnim = Tween<double>(begin: 1.0, end: 1.05).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
@@ -67,6 +67,7 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
     _sessionId = await DatabaseService.instance.startFocusSession(
       durationMinutes: _selectedMinutes,
     );
+    _pulseController.repeat(reverse: true);
     if (mounted) setState(() => _isRunning = true);
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_remainingSeconds <= 0) {
@@ -79,11 +80,15 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
 
   void _pauseTimer() {
     _timer?.cancel();
+    _pulseController.stop();
+    _pulseController.value = 0;
     if (mounted) setState(() => _isRunning = false);
   }
 
   void _resetTimer() {
     _timer?.cancel();
+    _pulseController.stop();
+    _pulseController.value = 0;
     if (mounted) {
       setState(() {
         _isRunning = false;
@@ -94,6 +99,8 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
 
   Future<void> _completeSession() async {
     _timer?.cancel();
+    _pulseController.stop();
+    _pulseController.value = 0;
     if (_sessionId != null) {
       await DatabaseService.instance.completeFocusSession(_sessionId!);
     }
@@ -110,9 +117,7 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
         ),
         backgroundColor: Colors.black87,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -162,15 +167,12 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
                 _TimerControls(
                   isRunning: _isRunning,
                   onReset: _resetTimer,
-                  onToggle: () =>
-                      _isRunning ? _pauseTimer() : _startTimer(),
+                  onToggle: () => _isRunning ? _pauseTimer() : _startTimer(),
                   onComplete: _completeSession,
                 ),
                 const SizedBox(height: 40),
                 const ProductivityTip(),
-                SizedBox(
-                  height: MediaQuery.of(context).padding.bottom + 16,
-                ),
+                SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
               ],
             ),
           ),

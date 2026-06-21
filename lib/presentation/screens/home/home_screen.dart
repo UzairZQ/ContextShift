@@ -479,8 +479,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: ResponsiveWrapper(
                   maxWidth: 1000,
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 520),
-                    switchInCurve: Curves.easeOutBack,
+                    duration: const Duration(milliseconds: 180),
+                    switchInCurve: Curves.easeOutCubic,
                     switchOutCurve: Curves.easeInCubic,
                     layoutBuilder: (currentChild, previousChildren) {
                       return Stack(
@@ -491,7 +491,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     transitionBuilder: (child, animation) {
                       final movement = CurvedAnimation(
                         parent: animation,
-                        curve: Curves.easeOutBack,
+                        curve: Curves.easeOutCubic,
                         reverseCurve: Curves.easeInCubic,
                       );
                       final opacity = CurvedAnimation(
@@ -500,21 +500,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         reverseCurve: Curves.easeInCubic,
                       );
                       final offset = Tween<Offset>(
-                        begin: const Offset(0.08, 0.02),
+                        begin: const Offset(0.025, 0),
                         end: Offset.zero,
                       ).animate(movement);
                       return FadeTransition(
                         opacity: opacity,
-                        child: SlideTransition(
-                          position: offset,
-                          child: ScaleTransition(
-                            scale: Tween<double>(
-                              begin: 0.96,
-                              end: 1,
-                            ).animate(movement),
-                            child: child,
-                          ),
-                        ),
+                        child: SlideTransition(position: offset, child: child),
                       );
                     },
                     child: KeyedSubtree(
