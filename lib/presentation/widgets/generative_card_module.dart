@@ -1,6 +1,5 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/app_spacing.dart';
 import '../../core/app_theme.dart';
@@ -25,8 +24,8 @@ class GenerativeCardModule extends StatelessWidget {
 
     // Check if this is raw A2UI JSON (has "widget" key)
     if (cardData.containsKey('widget') || cardData.containsKey('a2ui')) {
-      final jsonSource = cardData['a2ui'] as String? ??
-          _mapToJsonString(cardData);
+      final jsonSource =
+          cardData['a2ui'] as String? ?? _mapToJsonString(cardData);
       final result = renderer.render(jsonSource, context);
       if (result.isSuccess) {
         return result.widget!;
@@ -63,38 +62,33 @@ class GenerativeCardModule extends StatelessWidget {
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
-      duration: Motion.expressive,
+      duration: Motion.moderate,
       curve: Curves.easeOutCubic,
       builder: (context, value, child) {
         return Transform.translate(
-          offset: Offset(0, 20 * (1 - value)),
+          offset: Offset(0, 10 * (1 - value)),
           child: Opacity(
             opacity: value,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(Spacing.xxl),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                child: Container(
-                  width: double.infinity,
-                  padding: Spacing.cardPaddingLg,
-                  decoration: BoxDecoration(
-                    color: themeColor.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(Spacing.xxl),
-                    border: Border.all(
-                      color: themeColor.withValues(alpha: 0.25),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: themeColor.withValues(alpha: 0.1),
-                        blurRadius: 20,
-                        spreadRadius: -5,
-                      ),
-                    ],
-                  ),
-                  child: child,
+            child: Container(
+              width: double.infinity,
+              padding: Spacing.cardPaddingLg,
+              decoration: BoxDecoration(
+                color: themeColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(Spacing.xxl),
+                border: Border.all(
+                  color: themeColor.withValues(alpha: 0.22),
+                  width: 1.2,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: themeColor.withValues(alpha: 0.12),
+                    blurRadius: 22,
+                    offset: const Offset(0, 12),
+                    spreadRadius: -6,
+                  ),
+                ],
               ),
+              child: child,
             ),
           ),
         );
@@ -107,8 +101,14 @@ class GenerativeCardModule extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(Spacing.sm),
                 decoration: BoxDecoration(
-                  color: themeColor.withValues(alpha: 0.15),
+                  color: themeColor.withValues(alpha: 0.18),
                   shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: themeColor.withValues(alpha: 0.14),
+                      blurRadius: 16,
+                    ),
+                  ],
                 ),
                 child: Icon(headerIcon, color: themeColor, size: 20),
               ),
@@ -165,8 +165,8 @@ class GenerativeCardModule extends StatelessWidget {
                   : item.toString();
               final Map<String, dynamic>? taskPayload =
                   (item is Map && item['task_payload'] is Map)
-                      ? Map<String, dynamic>.from(item['task_payload'] as Map)
-                      : null;
+                  ? Map<String, dynamic>.from(item['task_payload'] as Map)
+                  : null;
               return Semantics(
                 label: text,
                 button: taskPayload != null,
@@ -175,10 +175,10 @@ class GenerativeCardModule extends StatelessWidget {
                   child: InkWell(
                     onTap: (taskPayload != null)
                         ? () => AddTaskSheet.show(
-                              context,
-                              initialTitle: taskPayload['title'],
-                              initialPriority: taskPayload['priority'],
-                            )
+                            context,
+                            initialTitle: taskPayload['title'],
+                            initialPriority: taskPayload['priority'],
+                          )
                         : null,
                     borderRadius: BorderRadius.circular(Spacing.md),
                     child: Container(
@@ -189,8 +189,9 @@ class GenerativeCardModule extends StatelessWidget {
                         border: Border.all(
                           color: taskPayload != null
                               ? themeColor.withValues(alpha: 0.15)
-                              : AppTheme.onSurfaceVariant
-                                  .withValues(alpha: 0.1),
+                              : AppTheme.onSurfaceVariant.withValues(
+                                  alpha: 0.1,
+                                ),
                         ),
                       ),
                       child: Row(

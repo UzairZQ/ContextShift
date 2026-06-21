@@ -16,10 +16,10 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
-  sdk: ^3.11.4
+  sdk: ^3.12.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -36,17 +36,19 @@ dependencies:
   cupertino_icons: ^1.0.8
   google_fonts: ^8.0.2
   http: ^1.6.0
-  lucide_icons: ^0.257.0
   shared_preferences: ^2.5.3
-  firebase_core: ^3.15.2
-  firebase_crashlytics: ^4.3.10
   drift: ^2.26.0
   sqlite3_flutter_libs: ^0.5.0
   path_provider: ^2.1.0
+  disk_space_plus: ^0.2.6
   path: ^1.9.0
   uuid: ^4.5.1
-  flutter_gemma: ^0.13.6
+  flutter_gemma: ^1.0.2
+  flutter_gemma_litertlm: ^1.0.2
   genui: ^0.9.2
+  lucide_icons_flutter: ^3.1.14+2
+  speech_to_text: ^7.4.0
+  json_schema_builder: ^0.1.5
 
 dev_dependencies:
   flutter_test:
@@ -66,14 +68,16 @@ flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
   image_path: "assets/screenshots/icon.png"
-  adaptive_background_color: "#FF8C96"
-  background_color: "#FF8C96"
+  adaptive_icon_background: "#100B19"
+  adaptive_icon_foreground: "assets/screenshots/icon.png"
+  adaptive_icon_foreground_inset: 16
+  background_color: "#100B19"
   theme_color: "#FF8C96"
   min_sdk_android: 21
   web:
     generate: true
     image_path: "assets/screenshots/icon.png"
-    background_color: "#FF8C96"
+    background_color: "#100B19"
     theme_color: "#FF8C96"
   windows:
     generate: true

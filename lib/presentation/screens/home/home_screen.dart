@@ -1,22 +1,25 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/ai_service.dart';
+import '../../../core/ai/action_executor.dart';
 import '../../../core/app_spacing.dart';
+import '../../../core/app_routes.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
+import '../../../core/local_llm/gemma_service.dart';
 import '../../../core/local_llm/model_tier.dart';
 import '../../../core/responsive.dart';
 import '../../../core/services/feature_manager.dart';
 import '../../../features/onboarding/widgets/model_download_screen.dart';
 import '../../widgets/focus/focus_module.dart';
 import '../../widgets/habits/habit_module.dart';
-import '../../widgets/notes/notes_module.dart';
 import '../../widgets/tasks/tasks_module.dart';
 import '../ai_dashboard/ai_dashboard_screen.dart';
 import '../chat/chat_screen.dart';
+import '../journal/journal_screen.dart';
 import '../settings/settings_screen.dart';
 import 'widgets/floating_nav_bar.dart';
 import 'widgets/home_tab.dart';
@@ -28,26 +31,17 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with TickerProviderStateMixin {
-  static const List<String> _defaultModuleOrder = [
-    'TasksModule',
-    'HabitModule',
-    'FocusTimerModule',
-    'NotesModule',
-  ];
-
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _currentIndex = 0;
   String _greeting = '';
   String? _aiInsight;
   String? _aiResponse;
   bool _isProcessingCommand = false;
   bool _isLoadingInsight = true;
+  bool _isAutoWarmingJarvis = false;
   int _focusMinutesToday = 0;
   String? _todayMood;
   Map<String, dynamic>? _generativeCardPayload;
-  List<String> _moduleOrder = _defaultModuleOrder;
-  String _layoutRefresher = '';
 
   final TextEditingController _commandController = TextEditingController();
   late final AnimationController _responseAnimController;
@@ -59,15 +53,46 @@ class _HomeScreenState extends State<HomeScreen>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
+    GemmaService.instance.statusRevision.addListener(_refreshJarvisStatus);
     _computeGreeting();
     _loadInitialData();
+    unawaited(_maybeWarmVerifiedJarvis());
   }
 
   @override
   void dispose() {
+    GemmaService.instance.statusRevision.removeListener(_refreshJarvisStatus);
     _responseAnimController.dispose();
     _commandController.dispose();
     super.dispose();
+  }
+
+  void _refreshJarvisStatus() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _maybeWarmVerifiedJarvis() async {
+    if (_isAutoWarmingJarvis || GemmaService.instance.isModelLoaded) return;
+    if (!FeatureManager.instance.hasVerifiedModel) return;
+
+    final model = FeatureManager.instance.resolveBestModelDef();
+    if (model == null) return;
+
+    debugPrint(
+      '[HomeScreen] Auto-warming verified JARVIS model: ${model.modelId}',
+    );
+    if (mounted) setState(() => _isAutoWarmingJarvis = true);
+    try {
+      await GemmaService.instance
+          .loadModel(model)
+          .timeout(const Duration(seconds: 60));
+      debugPrint('[HomeScreen] Verified JARVIS model warmed successfully');
+    } catch (error, stackTrace) {
+      debugPrint('[HomeScreen] Auto-warm JARVIS failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    } finally {
+      if (mounted) setState(() => _isAutoWarmingJarvis = false);
+    }
   }
 
   void _computeGreeting() {
@@ -112,7 +137,9 @@ class _HomeScreenState extends State<HomeScreen>
         _aiInsight = insight;
         _isLoadingInsight = false;
       });
-    } catch (e) {
+    } catch (error, stackTrace) {
+      debugPrint('[HomeScreen] Failed to load AI insight: $error');
+      debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       setState(() {
         _aiInsight =
@@ -124,7 +151,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _processCommand(String command) async {
     if (command.trim().isEmpty) return;
-    _commandController.clear();
 
     try {
       // If no model is available, route to download screen
@@ -137,15 +163,19 @@ class _HomeScreenState extends State<HomeScreen>
 
       // Route chat queries to the ChatScreen with hero animation
       if (!AiService.instance.isCommandQuery(command)) {
-        if (!mounted) return;
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ChatScreen(initialMessage: command),
-          ),
+        debugPrint(
+          '[HomeScreen] Opening JARVIS chat for model test. '
+          'modelLoaded=${GemmaService.instance.isModelLoaded}, '
+          'e2b=${FeatureManager.instance.isE2bAvailable}, '
+          'e4b=${FeatureManager.instance.isE4bAvailable}',
         );
+        if (!mounted) return;
+        await _pushChat(initialMessage: command);
+        _commandController.clear();
         return;
       }
 
+      _commandController.clear();
       if (mounted) setState(() => _isProcessingCommand = true);
       bool navigatedByAction = false;
       Map<String, dynamic>? nextGenerativeCardPayload;
@@ -182,10 +212,10 @@ class _HomeScreenState extends State<HomeScreen>
         if (result.greetingUpdate != null) {
           _greeting = result.greetingUpdate!;
         }
-        if (result.layoutOrder != null && result.layoutOrder!.isNotEmpty) {
-          _moduleOrder = result.layoutOrder!;
-          _layoutRefresher = DateTime.now().toIso8601String();
-          if (!navigatedByAction) _currentIndex = 0;
+        if (result.layoutOrder != null &&
+            result.layoutOrder!.isNotEmpty &&
+            !navigatedByAction) {
+          _currentIndex = 0;
         }
       });
       _responseAnimController.forward(from: 0);
@@ -194,7 +224,9 @@ class _HomeScreenState extends State<HomeScreen>
       Future.delayed(const Duration(seconds: 5), () {
         if (mounted) setState(() => _aiResponse = null);
       });
-    } catch (e) {
+    } catch (error, stackTrace) {
+      debugPrint('[HomeScreen] JARVIS command failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -216,23 +248,16 @@ class _HomeScreenState extends State<HomeScreen>
   }) async {
     switch (action.type) {
       case 'add_task':
-        await DatabaseService.instance.addTask(
-          title: action.params['title'] ?? '',
-          priority: action.params['priority'] ?? 'normal',
-        );
+        await ActionExecutor.instance.executeAll([action]);
         break;
       case 'add_habit':
-        await DatabaseService.instance.addHabit(
-          name: action.params['name'] ?? '',
-          icon: action.params['icon'] ?? '✨',
-        );
+        await ActionExecutor.instance.executeAll([action]);
         break;
       case 'add_note':
-        await DatabaseService.instance.addNote(
-          content: action.params['content'] ?? '',
-        );
+        await ActionExecutor.instance.executeAll([action]);
         break;
       case 'start_focus':
+        await ActionExecutor.instance.executeAll([action]);
         break;
       case 'show_dynamic_card':
         if (action.params.containsKey('card')) {
@@ -247,10 +272,15 @@ class _HomeScreenState extends State<HomeScreen>
           'tasks': 1,
           'habits': 2,
           'focus': 3,
-          'chat': 4,
+          'journal': 4,
+          'notes': 4,
+          'mood': 4,
         };
         final tab = action.params['tab'] as String?;
-        if (tab != null && tabMap.containsKey(tab)) {
+        if (tab == 'chat' || tab == 'jarvis') {
+          await _pushChat();
+          onNavigated();
+        } else if (tab != null && tabMap.containsKey(tab)) {
           _switchTab(tabMap[tab]!);
           onNavigated();
         }
@@ -298,7 +328,7 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() => _currentIndex = index);
     DatabaseService.instance.logEvent(
       eventType: 'tab_tap',
-      module: ['home', 'tasks', 'habits', 'focus', 'chat'][index],
+      module: ['home', 'tasks', 'habits', 'focus', 'journal'][index],
     );
   }
 
@@ -338,24 +368,88 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _openDashboard() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AiDashboardScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(SmoothPageRoute(builder: (_) => const AiDashboardScreen()));
   }
 
   void _openProfile() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SettingsScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(SmoothPageRoute(builder: (_) => const SettingsScreen()));
   }
 
-  void _openChat() {
+  Future<void> _openChat() async {
     final text = _commandController.text.trim();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChatScreen(
-          initialMessage: text.isNotEmpty ? text : null,
+    await _pushChat(initialMessage: text.isNotEmpty ? text : null);
+    _commandController.clear();
+  }
+
+  Future<void> _openEmptyChat() async {
+    debugPrint('[HomeScreen] Opening empty JARVIS chat from floating button');
+    try {
+      debugPrint('[HomeScreen] Pushing stable ChatScreen route...');
+      await Navigator.of(context).push<void>(
+        SmoothPageRoute<void>(
+          settings: const RouteSettings(name: 'jarvis_chat_fab'),
+          builder: (_) {
+            debugPrint('[HomeScreen] Building stable ChatScreen route');
+            return const ChatScreen(
+              startNewOnOpen: true,
+              enableInputHero: false,
+            );
+          },
         ),
+      );
+      debugPrint('[HomeScreen] Stable ChatScreen route closed');
+    } catch (error, stackTrace) {
+      debugPrint('[HomeScreen] Failed to open stable chat route: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chat screen could not open. Check debug logs.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _pushChat({
+    String? initialMessage,
+    bool startNewOnOpen = false,
+    bool enableInputHero = true,
+  }) {
+    return Navigator.of(context).push<void>(
+      PageRouteBuilder<void>(
+        transitionDuration: Motion.heroFlight,
+        reverseTransitionDuration: Motion.smoothScreenReverse,
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return ChatScreen(
+            initialMessage: initialMessage,
+            startNewOnOpen: startNewOnOpen,
+            enableInputHero: enableInputHero,
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Motion.smoothEnter,
+            reverseCurve: Motion.smoothExit,
+          );
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 0.028),
+            end: Offset.zero,
+          ).animate(curved);
+          final scale = Tween<double>(begin: 0.992, end: 1).animate(curved);
+          return ScaleTransition(
+            scale: scale,
+            child: FadeTransition(
+              opacity: curved,
+              child: SlideTransition(position: slide, child: child),
+            ),
+          );
+        },
       ),
     );
   }
@@ -366,66 +460,57 @@ class _HomeScreenState extends State<HomeScreen>
       _switchTab(3);
     } else if (module == 'TasksModule') {
       _switchTab(1);
-    }
-  }
-
-  void _handleSeeAll(String moduleName) {
-    switch (moduleName) {
-      case 'TasksModule':
-        _switchTab(1);
-      case 'HabitModule':
-        _switchTab(2);
-      case 'FocusTimerModule':
-        _switchTab(3);
-      case 'NotesModule':
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => _FullScreenModule(
-              title: 'Quick Notes',
-              child: const NotesModule(),
-            ),
-          ),
-        );
+    } else if (module == 'HabitModule') {
+      _switchTab(2);
+    } else if (module == 'NotesModule') {
+      _switchTab(4);
     }
   }
 
   Widget _buildBody() {
     return switch (_currentIndex) {
       0 => RefreshIndicator(
-          onRefresh: _loadInitialData,
-          child: HomeTab(
-            greeting: _greeting,
-            commandController: _commandController,
-            isJarvisOnline: true,
-            hasCheckedJarvisStatus: true,
-            isProcessingCommand: _isProcessingCommand,
-            offlineHint: '',
-            aiResponse: _aiResponse,
-            responseAnimation: _responseAnimController,
-            isLoadingInsight: _isLoadingInsight,
-            aiInsight: _aiInsight,
-            focusMinutesToday: _focusMinutesToday,
-            todayMood: _todayMood,
-            moduleOrder: _moduleOrder,
-            layoutRefresher: _layoutRefresher,
-            generativeCardPayload: _generativeCardPayload,
-            onOpenDashboard: _openDashboard,
-            onOpenProfile: _openProfile,
-            onOpenChat: _openChat,
-            onSeeAll: _handleSeeAll,
-            onGenerativeCardAction: _handleGenerativeCardAction,
-            onSubmitCommand: _processCommand,
-            onSelectMood: _saveMood,
-            onDismissResponse: () {
+        onRefresh: _loadInitialData,
+        child: HomeTab(
+          greeting: _greeting,
+          commandController: _commandController,
+          isJarvisOnline: GemmaService.instance.isModelLoaded,
+          hasCheckedJarvisStatus: true,
+          isProcessingCommand: _isProcessingCommand,
+          offlineHint: _isAutoWarmingJarvis
+              ? 'Warming up JARVIS...'
+              : FeatureManager.instance.hasVerifiedModel
+              ? 'JARVIS will wake up automatically'
+              : FeatureManager.instance.isE2bAvailable ||
+                    FeatureManager.instance.isE4bAvailable
+              ? 'Initialize JARVIS in Manage AI'
+              : 'Download JARVIS to chat',
+          aiResponse: _aiResponse,
+          responseAnimation: _responseAnimController,
+          isLoadingInsight: _isLoadingInsight,
+          aiInsight: _aiInsight,
+          focusMinutesToday: _focusMinutesToday,
+          todayMood: _todayMood,
+          generativeCardPayload: _generativeCardPayload,
+          onOpenDashboard: _openDashboard,
+          onOpenProfile: _openProfile,
+          onOpenChat: _openChat,
+          onOpenTasks: () => _switchTab(1),
+          onOpenHabits: () => _switchTab(2),
+          onOpenFocus: () => _switchTab(3),
+          onOpenJournal: () => _switchTab(4),
+          onGenerativeCardAction: _handleGenerativeCardAction,
+          onSubmitCommand: _processCommand,
+          onSelectMood: _saveMood,
+          onDismissResponse: () {
             if (mounted) setState(() => _aiResponse = null);
           },
-          isAuthGuest: DatabaseService.instance.isGuest,
         ),
       ),
       1 => const TasksModule(),
       2 => const HabitModule(),
       3 => const FocusTimerModule(),
-      4 => const ChatScreen(conversationId: null),
+      4 => JournalScreen(todayMood: _todayMood, onSelectMood: _saveMood),
       _ => const SizedBox.shrink(),
     };
   }
@@ -483,26 +568,41 @@ class _HomeScreenState extends State<HomeScreen>
                 child: ResponsiveWrapper(
                   maxWidth: 1000,
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 320),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
+                    duration: Motion.smoothTab,
+                    reverseDuration: Motion.complex,
+                    switchInCurve: Motion.smoothEnter,
+                    switchOutCurve: Motion.smoothExit,
                     layoutBuilder: (currentChild, previousChildren) {
                       return Stack(
                         alignment: Alignment.topCenter,
-                        children: <Widget>[
-                          ?currentChild,
-                          ...previousChildren,
-                        ],
+                        children: <Widget>[?currentChild, ...previousChildren],
                       );
                     },
                     transitionBuilder: (child, animation) {
+                      final movement = CurvedAnimation(
+                        parent: animation,
+                        curve: Motion.smoothEnter,
+                        reverseCurve: Motion.smoothExit,
+                      );
+                      final opacity = CurvedAnimation(
+                        parent: animation,
+                        curve: Motion.smoothEnter,
+                        reverseCurve: Motion.smoothExit,
+                      );
                       final offset = Tween<Offset>(
-                        begin: const Offset(0.04, 0),
+                        begin: const Offset(0.035, 0.015),
                         end: Offset.zero,
-                      ).animate(animation);
+                      ).animate(movement);
+                      final scale = Tween<double>(
+                        begin: 0.988,
+                        end: 1,
+                      ).animate(movement);
                       return FadeTransition(
-                        opacity: animation,
-                        child: SlideTransition(position: offset, child: child),
+                        opacity: opacity,
+                        child: SlideTransition(
+                          position: offset,
+                          child: ScaleTransition(scale: scale, child: child),
+                        ),
                       );
                     },
                     child: KeyedSubtree(
@@ -517,6 +617,22 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
       extendBody: true,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 88),
+        child: FloatingActionButton.extended(
+          heroTag: 'jarvis_chat_fab',
+          onPressed: _openEmptyChat,
+          backgroundColor: AppTheme.primary,
+          foregroundColor: Colors.black,
+          elevation: 0,
+          icon: const Icon(LucideIcons.messageCircle, size: 20),
+          label: const Text(
+            'Chat',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: FloatingNavBar(
         currentIndex: _currentIndex,
         onTap: _switchTab,
@@ -524,10 +640,10 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  void _openModelDownload() {
-    Navigator.push(
+  Future<void> _openModelDownload() async {
+    await Navigator.push(
       context,
-      MaterialPageRoute(
+      SmoothPageRoute(
         builder: (_) => ModelDownloadScreen(
           model: ModelDefinition.e2b,
           isOnboarding: false,
@@ -540,70 +656,8 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ),
     );
-  }
-}
-
-class _FullScreenModule extends StatelessWidget {
-  final String title;
-  final Widget child;
-
-  const _FullScreenModule({
-    required this.title,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [AppTheme.background, AppTheme.surfaceLow],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: EdgeInsets.only(
-                  left: Spacing.xs,
-                  right: Spacing.lg,
-                  top: Spacing.sm,
-                  bottom: Spacing.sm,
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(LucideIcons.arrowLeft,
-                          color: AppTheme.onSurface),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const SizedBox(width: Spacing.sm),
-                    Text(
-                      title,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: Responsive.horizontalPadding(context),
-                  ),
-                  child: child,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    if (!mounted) return;
+    setState(() {});
+    unawaited(_maybeWarmVerifiedJarvis());
   }
 }

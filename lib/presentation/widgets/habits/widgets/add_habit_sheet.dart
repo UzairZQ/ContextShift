@@ -10,7 +10,14 @@ class AddHabitSheet extends StatefulWidget {
   const AddHabitSheet({super.key, required this.nameController});
 
   static const List<String> icons = [
-    '🧘', '💪', '📚', '💧', '🏃', '🌙', '✍️', '🥗',
+    '🧘',
+    '💪',
+    '📚',
+    '💧',
+    '🏃',
+    '🌙',
+    '✍️',
+    '🥗',
   ];
 
   static void show(
@@ -40,10 +47,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
     final name = widget.nameController.text.trim();
     if (name.isEmpty) return;
     widget.nameController.clear();
-    await DatabaseService.instance.addHabit(
-      name: name,
-      icon: _selectedIcon,
-    );
+    await DatabaseService.instance.addHabit(name: name, icon: _selectedIcon);
     if (mounted) Navigator.pop(context);
   }
 
@@ -63,10 +67,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'New Habit',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              Text('New Habit', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 16),
               Wrap(
                 spacing: 12,

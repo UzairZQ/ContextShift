@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
@@ -54,24 +54,16 @@ class _HabitModuleState extends State<HabitModule> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Habits',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
+            Text('Habits', style: Theme.of(context).textTheme.headlineMedium),
             IconButton.filled(
               onPressed: _openAddHabitSheet,
               icon: const Icon(LucideIcons.plus, color: Colors.white),
-              style: IconButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-              ),
+              style: IconButton.styleFrom(backgroundColor: AppTheme.primary),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        _HabitContent(
-          stream: _habitsStream,
-          today: _todayString(),
-        ),
+        _HabitContent(stream: _habitsStream, today: _todayString()),
       ],
     );
   }
@@ -135,14 +127,13 @@ class _HabitGrid extends StatelessWidget {
       builder: (context, constraints) {
         final isWide = constraints.maxWidth > 550;
         Widget itemBuilder(Map<String, dynamic> h) {
-          final completedDates =
-              (h['completedDates'] as List<dynamic>?) ?? [];
+          final completedDates = (h['completedDates'] as List<dynamic>?) ?? [];
           final isDone = completedDates.contains(today);
           return HabitTile(
             habit: h,
             isDoneToday: isDone,
-            onToggle: (val) => DatabaseService.instance
-                .toggleHabitToday(h['id'], val),
+            onToggle: (val) =>
+                DatabaseService.instance.toggleHabitToday(h['id'], val),
           );
         }
 
@@ -150,8 +141,7 @@ class _HabitGrid extends StatelessWidget {
           return GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
@@ -184,11 +174,7 @@ class _HabitsEmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              LucideIcons.activity,
-              color: Colors.white24,
-              size: 48,
-            ),
+            const Icon(LucideIcons.activity, color: Colors.white24, size: 48),
             const SizedBox(height: 12),
             const Text(
               'No habits yet',

@@ -13,17 +13,19 @@ class AppTheme {
   static const Color tertiaryDim = Color(0xFFAE8AF7);
 
   // Surface hierarchy (layered depth)
-  static const Color surface = Color(0xFF0D0D1A);        // Base Layer
-  static const Color surfaceLow = Color(0xFF121220);      // Sectional Layer
+  static const Color surface = Color(0xFF0D0D1A); // Base Layer
+  static const Color surfaceLow = Color(0xFF121220); // Sectional Layer
   static const Color surfaceContainer = Color(0xFF181828); // Card Layer
-  static const Color surfaceHigh = Color(0xFF1E1E2F);     // Container High
-  static const Color surfaceHighest = Color(0xFF242437);   // Container Highest
-  static const Color surfaceBright = Color(0xFF2A2A3F);    // Highlight Layer
+  static const Color surfaceHigh = Color(0xFF1E1E2F); // Container High
+  static const Color surfaceHighest = Color(0xFF242437); // Container Highest
+  static const Color surfaceBright = Color(0xFF2A2A3F); // Highlight Layer
 
   // Text/Icon colors
   static const Color onSurface = Color(0xFFE9E6F9);
   static const Color onSurfaceVariant = Color(0xFFABA9BB);
-  static const Color outlineVariant = Color(0x26474656); // 15% opacity ghost border
+  static const Color outlineVariant = Color(
+    0x26474656,
+  ); // 15% opacity ghost border
 
   // Semantic colors
   static const Color success = Color(0xFF4CAF50);
@@ -122,14 +124,8 @@ class AppTheme {
           fontWeight: FontWeight.w600,
           color: onSurface,
         ),
-        bodyLarge: GoogleFonts.manrope(
-          fontSize: 16,
-          color: onSurfaceVariant,
-        ),
-        bodyMedium: GoogleFonts.manrope(
-          fontSize: 14,
-          color: onSurfaceVariant,
-        ),
+        bodyLarge: GoogleFonts.manrope(fontSize: 16, color: onSurfaceVariant),
+        bodyMedium: GoogleFonts.manrope(fontSize: 14, color: onSurfaceVariant),
         labelSmall: GoogleFonts.manrope(
           fontSize: 12,
           color: onSurfaceVariant,

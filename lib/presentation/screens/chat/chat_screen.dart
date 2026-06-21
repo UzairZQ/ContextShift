@@ -1,45 +1,110 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:speech_to_text/speech_recognition_error.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../../../core/ai_service.dart';
+import '../../../core/ai/action_executor.dart';
 import '../../../core/app_spacing.dart';
+import '../../../core/app_runtime.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
 import '../../../core/database/schema.dart';
+import '../../../core/genui/safe_renderer.dart';
+import '../../../core/genui/action_bus.dart';
+import '../../../core/genui/genui_runtime.dart';
+import '../../../core/genui/widget_node.dart';
+import '../../../core/local_llm/gemma_service.dart';
 import '../../../core/responsive.dart';
+import '../../../core/services/feature_manager.dart';
+import '../../widgets/generative_card_module.dart';
+import '../../widgets/genui/a2ui_surface_card.dart';
+import '../../widgets/jarvis_hero.dart';
+import '../../widgets/motion/wonderous_motion.dart';
 
 class ChatScreen extends StatefulWidget {
   final String? initialMessage;
   final int? conversationId;
+  final bool startNewOnOpen;
+  final bool enableInputHero;
 
   const ChatScreen({
     super.key,
     this.initialMessage,
     this.conversationId,
+    this.startNewOnOpen = false,
+    this.enableInputHero = true,
   });
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
+enum _JarvisIntent { chat, action, genui }
+
+@visibleForTesting
+bool shouldRouteChatMessageToGenUi(String message) {
+  final lower = message.trim().toLowerCase();
+  if (lower.length < 8) return false;
+
+  final mutatingCommand = RegExp(
+    r'\b(add|create|new|track|note|remember|write down|jot down|remind me|start|open|show)\b',
+  ).hasMatch(lower);
+  final explicitAppObject = RegExp(
+    r'\b(task|todo|habit|note|focus|pomodoro)\b',
+  ).hasMatch(lower);
+  if (mutatingCommand && explicitAppObject) return false;
+
+  final asksForDesignedOutput = RegExp(
+    r'\b(build|make|generate|design|create|draft|craft|give me|show me)\b',
+  ).hasMatch(lower);
+  final structuredDomain = RegExp(
+    r'\b(plan|planner|routine|workout|exercise|schedule|itinerary|dashboard|card|view|screen|widget|form|layout|checklist|program)\b',
+  ).hasMatch(lower);
+  return asksForDesignedOutput && structuredDomain;
+}
+
 class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
+  final _speech = stt.SpeechToText();
+  JarvisGenUiRuntime? _genUiRuntime;
   bool _isProcessing = false;
+  bool _speechReady = false;
+  bool _isListening = false;
+  String _dictationBaseText = '';
+  late final bool _forceComposer;
+  bool _loggedFirstBuild = false;
 
   int? _activeConversationId;
   List<ConversationTableData> _conversations = [];
   List<MessageTableData> _messages = [];
   StreamSubscription? _messagesSub;
+  StreamSubscription<WidgetAction>? _genUiActionSub;
 
   @override
   void initState() {
     super.initState();
+    debugPrint(
+      '[ChatScreen] initState start. '
+      'initialMessage=${widget.initialMessage?.trim().isNotEmpty == true}, '
+      'conversationId=${widget.conversationId}, '
+      'startNewOnOpen=${widget.startNewOnOpen}, '
+      'enableInputHero=${widget.enableInputHero}',
+    );
+    _forceComposer = widget.startNewOnOpen;
     _activeConversationId = widget.conversationId;
+    _genUiActionSub = GenUiActionBus.instance.actions.listen(
+      _handleGenUiAction,
+    );
     _loadConversations().then((_) {
+      debugPrint('[ChatScreen] Initial conversation load complete');
       if (widget.initialMessage != null && widget.initialMessage!.isNotEmpty) {
+        debugPrint('[ChatScreen] Sending initial message after load');
         _sendMessage(widget.initialMessage!);
       }
     });
@@ -47,32 +112,95 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    if (_speechReady) {
+      _speech.stop();
+    }
     _messageController.dispose();
     _scrollController.dispose();
     _messagesSub?.cancel();
+    _genUiActionSub?.cancel();
+    _genUiRuntime?.dispose();
     super.dispose();
   }
 
-  Future<void> _loadConversations() async {
-    final convs = await DatabaseService.instance.getAllConversations();
+  JarvisGenUiRuntime get _genUiRuntimeInstance {
+    return _genUiRuntime ??= JarvisGenUiRuntime();
+  }
+
+  Future<void> _handleGenUiAction(WidgetAction action) async {
+    final type = switch (action.action) {
+      'create_task' => 'add_task',
+      'create_habit' => 'add_habit',
+      'create_note' => 'add_note',
+      'start_focus' => 'start_focus',
+      _ => action.action,
+    };
+    const executableActions = {
+      'add_task',
+      'add_habit',
+      'add_note',
+      'start_focus',
+    };
+    if (!executableActions.contains(type)) {
+      final message =
+          action.params['message']?.toString().trim().isNotEmpty == true
+          ? action.params['message'].toString()
+          : 'The generated UI action was "${action.action}" with '
+                'context ${jsonEncode(action.params)}.';
+      await _sendMessage(message);
+      return;
+    }
+    await ActionExecutor.instance.executeAll([
+      AiAction(type: type, params: action.params),
+    ]);
     if (!mounted) return;
-    setState(() => _conversations = convs);
-    if (_activeConversationId == null && convs.isNotEmpty) {
-      _activeConversationId = convs.first.id;
-      _watchMessages();
+    _showMessage('Done');
+  }
+
+  Future<void> _loadConversations() async {
+    try {
+      debugPrint('[ChatScreen] Loading conversations...');
+      final convs = await DatabaseService.instance.getAllConversations();
+      debugPrint('[ChatScreen] Loaded ${convs.length} conversations');
+      if (!mounted) return;
+      setState(() => _conversations = convs);
+
+      final isNewPrompt = widget.initialMessage?.trim().isNotEmpty ?? false;
+      if (!isNewPrompt &&
+          !_forceComposer &&
+          _activeConversationId == null &&
+          convs.isNotEmpty) {
+        _activeConversationId = convs.first.id;
+        _watchMessages();
+      }
+    } catch (error, stackTrace) {
+      debugPrint('[ChatScreen] Failed to load conversations: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      _showMessage('Your conversations could not be loaded.');
     }
   }
 
   void _watchMessages() {
     _messagesSub?.cancel();
     if (_activeConversationId == null) return;
+    debugPrint('[ChatScreen] Watching messages for $_activeConversationId');
     _messagesSub = DatabaseService.instance
         .watchMessages(_activeConversationId!)
-        .listen((msgs) {
-      if (!mounted) return;
-      setState(() => _messages = msgs);
-      _scrollToBottom();
-    });
+        .listen(
+          (msgs) {
+            if (!mounted) return;
+            debugPrint(
+              '[ChatScreen] Message stream update: ${msgs.length} messages',
+            );
+            setState(() => _messages = msgs);
+            _scrollToBottom();
+          },
+          onError: (error, stackTrace) {
+            debugPrint('[ChatScreen] Message stream failed: $error');
+            debugPrintStack(stackTrace: stackTrace);
+          },
+        );
   }
 
   void _scrollToBottom() {
@@ -93,15 +221,23 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _startNewConversation() async {
-    final conv = await DatabaseService.instance.createConversation(
-      title: 'New Chat',
-    );
-    if (!mounted) return;
-    setState(() {
-      _conversations.insert(0, conv);
-      _activeConversationId = conv.id;
-    });
-    _watchMessages();
+    try {
+      final conv = await DatabaseService.instance.createConversation(
+        title: 'New Chat',
+      );
+      if (!mounted) return;
+      setState(() {
+        _conversations.insert(0, conv);
+        _activeConversationId = conv.id;
+        _messages = [];
+      });
+      _watchMessages();
+    } catch (error, stackTrace) {
+      debugPrint('[ChatScreen] Failed to create conversation: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) _showMessage('A new conversation could not be created.');
+      rethrow;
+    }
   }
 
   Future<void> _deleteConversation(int id) async {
@@ -110,8 +246,9 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       _conversations.removeWhere((c) => c.id == id);
       if (_activeConversationId == id) {
-        _activeConversationId =
-            _conversations.isNotEmpty ? _conversations.first.id : null;
+        _activeConversationId = _conversations.isNotEmpty
+            ? _conversations.first.id
+            : null;
         if (_activeConversationId != null) {
           _watchMessages();
         } else {
@@ -125,6 +262,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _sendMessage(String? text) async {
     final message = text ?? _messageController.text.trim();
     if (message.isEmpty) return;
+    if (_isListening) await _stopDictation();
     _messageController.clear();
 
     if (_activeConversationId == null) {
@@ -136,123 +274,449 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      final userMsg = await DatabaseService.instance.addMessage(
+      debugPrint(
+        '[ChatScreen] Send pressed. build=$appRuntimeBuild '
+        'conversation=$_activeConversationId, message="$message"',
+      );
+      await DatabaseService.instance.addMessage(
         conversationId: _activeConversationId!,
         role: 'user',
         content: message,
       );
-      setState(() => _messages = [..._messages, userMsg]);
 
-      final result = await AiService.instance.processCommand(
-        command: message,
-        userName: DatabaseService.instance.firstName,
-      );
+      final shouldUseGenUi = shouldRouteChatMessageToGenUi(message);
+      final isDirectCommand =
+          AiService.instance.isCommandQuery(message) && !shouldUseGenUi;
+      String response;
+      String? widgetJson;
 
-      final aiMsg = await DatabaseService.instance.addMessage(
+      if (isDirectCommand) {
+        final result = await AiService.instance.processCommand(
+          command: message,
+          userName: DatabaseService.instance.firstName,
+          conversationId: _activeConversationId,
+        );
+        final execution = await ActionExecutor.instance.executeAll(
+          result.actions,
+        );
+        response = result.response;
+        debugPrint('[ChatScreen] Direct command response: $response');
+        widgetJson = execution.generatedCard == null
+            ? _encodeWidgetPayload(result)
+            : jsonEncode(execution.generatedCard);
+      } else {
+        await _ensureJarvisReadyForChat(message);
+        final intent = _classifyJarvisIntent(message);
+        debugPrint('[ChatScreen] Route selected: $intent');
+        switch (intent) {
+          case _JarvisIntent.chat:
+            response = await _generatePlainJarvisReply(message);
+            debugPrint('[ChatScreen] Plain JARVIS response: $response');
+            widgetJson = null;
+          case _JarvisIntent.action:
+            final result = await AiService.instance.processCommand(
+              command: message,
+              userName: DatabaseService.instance.firstName,
+              conversationId: _activeConversationId,
+            );
+            final execution = await ActionExecutor.instance.executeAll(
+              result.actions,
+            );
+            response = result.response;
+            debugPrint('[ChatScreen] Action JARVIS response: $response');
+            widgetJson = execution.generatedCard == null
+                ? _encodeWidgetPayload(result)
+                : jsonEncode(execution.generatedCard);
+          case _JarvisIntent.genui:
+            final generation = await _genUiRuntimeInstance.generate(
+              userMessage: message,
+              conversationId: _activeConversationId,
+              timeout: const Duration(seconds: 45),
+            );
+            response = generation.text.isEmpty
+                ? 'I shaped that into an interactive view.'
+                : generation.text;
+            debugPrint(
+              '[ChatScreen] GenUI JARVIS response: $response '
+              'surfaces=${generation.surfaceIds}',
+            );
+            widgetJson =
+                generation.surfaceIds.isEmpty ||
+                    generation.rawA2ui.trim().isEmpty
+                ? null
+                : jsonEncode(generation.toPersistenceJson());
+        }
+      }
+
+      await DatabaseService.instance.addMessage(
         conversationId: _activeConversationId!,
         role: 'assistant',
-        content: result.response,
-        widgetJson: result.actions.isNotEmpty
-            ? result.actions
-                .map((a) => {'type': a.type, 'params': a.params})
-                .toList()
-                .toString()
-            : null,
+        content: response,
+        widgetJson: widgetJson,
       );
       if (!mounted) return;
-      setState(() => _messages = [..._messages, aiMsg]);
 
       if (_conversations.any((c) => c.id == _activeConversationId)) {
         await DatabaseService.instance.renameConversation(
           _activeConversationId!,
-          message.length > 40
-              ? '${message.substring(0, 40)}...'
-              : message,
+          message.length > 40 ? '${message.substring(0, 40)}...' : message,
         );
       }
-    } catch (e) {
-      if (!mounted) return;
-      final errMsg = await DatabaseService.instance.addMessage(
-        conversationId: _activeConversationId!,
-        role: 'assistant',
-        content: 'Sorry, I had trouble with that. Please try again.',
+    } catch (error, stackTrace) {
+      final diagnosticId = _diagnosticId();
+      debugPrint(
+        '[ChatScreen][$diagnosticId] Message send failed. '
+        'conversation=$_activeConversationId, '
+        'messageLength=${message.length}, '
+        'modelLoaded=${GemmaService.instance.isModelLoaded}, '
+        'activeModel=${GemmaService.instance.activeModelDef?.modelId}: $error',
       );
-      setState(() => _messages = [..._messages, errMsg]);
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      final conversationId = _activeConversationId;
+      if (conversationId != null) {
+        try {
+          await DatabaseService.instance.addMessage(
+            conversationId: conversationId,
+            role: 'assistant',
+            content: _diagnosticMessage(error, diagnosticId),
+          );
+        } catch (persistenceError, persistenceStack) {
+          debugPrint(
+            '[ChatScreen] Failed to persist error response: $persistenceError',
+          );
+          debugPrintStack(stackTrace: persistenceStack);
+        }
+      }
+      if (mounted) _showMessage('JARVIS could not complete that message.');
     } finally {
       if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _ensureJarvisReadyForChat(String message) async {
+    if (GemmaService.instance.isModelLoaded) return;
+
+    final model = FeatureManager.instance.resolveBestModelDef();
+    if (model == null) {
+      throw const GemmaException(
+        code: GemmaErrorCode.modelNotInstalled,
+        message: 'No local JARVIS model is marked as downloaded.',
+      );
+    }
+
+    debugPrint(
+      '[ChatScreen] Loading downloaded model before chat. '
+      'model=${model.modelId}, messageLength=${message.length}',
+    );
+    await GemmaService.instance
+        .loadModel(model)
+        .timeout(
+          const Duration(seconds: 60),
+          onTimeout: () => throw TimeoutException(
+            'Timed out while loading ${model.displayName}.',
+          ),
+        );
+  }
+
+  _JarvisIntent _classifyJarvisIntent(String message) {
+    debugPrint(
+      '[ChatScreen] Routing JARVIS intent locally. '
+      'messageLength=${message.length}, conversation=$_activeConversationId',
+    );
+    final lower = message.trim().toLowerCase();
+    if (shouldRouteChatMessageToGenUi(message)) {
+      debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.genui}');
+      return _JarvisIntent.genui;
+    }
+    if (lower.length <= 80 && _looksLikeConversation(lower)) {
+      debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.chat}');
+      return _JarvisIntent.chat;
+    }
+    if (AiService.instance.isCommandQuery(lower)) {
+      debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.action}');
+      return _JarvisIntent.action;
+    }
+    if (RegExp(
+      r'\b(ui|screen|card|view|dashboard|widget|form|layout|visual|interactive)\b',
+    ).hasMatch(lower)) {
+      debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.genui}');
+      return _JarvisIntent.genui;
+    }
+    debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.chat}');
+    return _JarvisIntent.chat;
+  }
+
+  bool _looksLikeConversation(String lower) {
+    if (RegExp(
+      r"^(hi|hello|hey|yo|salam|assalam|how are you|what'?s up|thanks|thank you)\b",
+    ).hasMatch(lower)) {
+      return true;
+    }
+    if (lower.endsWith('?')) return true;
+    return RegExp(
+      r'\b(who|what|why|how|when|where|explain|tell me|advice|think|feel|should i)\b',
+    ).hasMatch(lower);
+  }
+
+  Future<String> _generatePlainJarvisReply(String message) async {
+    debugPrint(
+      '[ChatScreen] Generating plain JARVIS reply. '
+      'messageLength=${message.length}, conversation=$_activeConversationId',
+    );
+    final prompt = [
+      'You are JARVIS inside ContextShift.',
+      'Reply naturally, warmly, and concisely.',
+      'Do not output JSON or UI markup.',
+      'User: $message',
+      'JARVIS:',
+    ].join('\n');
+    final response = await GemmaService.instance.generate(
+      prompt,
+      maxTokens: 80,
+      temperature: 0.3,
+      timeout: const Duration(seconds: 12),
+    );
+    final trimmed = response.trim();
+    if (trimmed.isEmpty) {
+      throw const GemmaException(
+        code: GemmaErrorCode.unknown,
+        message: 'JARVIS returned an empty chat response.',
+      );
+    }
+    return trimmed;
+  }
+
+  String _diagnosticId() {
+    return DateTime.now().millisecondsSinceEpoch.toRadixString(16);
+  }
+
+  String _diagnosticMessage(Object error, String diagnosticId) {
+    final errorText = error.toString();
+    final shortError = errorText.length > 240
+        ? '${errorText.substring(0, 240)}...'
+        : errorText;
+    return 'JARVIS hit an error before it could answer.\n'
+        'Diagnostic ID: $diagnosticId\n'
+        '$shortError\n\n'
+        'Please send this screen if it happens again.';
+  }
+
+  String? _encodeWidgetPayload(AiCommandResult result) {
+    for (final action in result.actions) {
+      if (action.type != 'show_dynamic_card') continue;
+      final card = action.params['card'];
+      if (card is Map) {
+        try {
+          return jsonEncode(Map<String, dynamic>.from(card));
+        } catch (error, stackTrace) {
+          debugPrint('[ChatScreen] Failed to encode GenUI payload: $error');
+          debugPrintStack(stackTrace: stackTrace);
+        }
+      }
+    }
+    return null;
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  Future<void> _toggleDictation() async {
+    if (_isProcessing) return;
+    if (_isListening) {
+      await _stopDictation();
+      return;
+    }
+    await _startDictation();
+  }
+
+  Future<void> _startDictation() async {
+    try {
+      if (!_speechReady) {
+        _speechReady = await _speech.initialize(
+          onError: _handleSpeechError,
+          onStatus: _handleSpeechStatus,
+          options: [
+            stt.SpeechToText.androidNoBluetooth,
+            stt.SpeechToText.iosNoBluetooth,
+          ],
+        );
+      }
+      if (!_speechReady) {
+        _showMessage('Dictation is not available on this device.');
+        return;
+      }
+
+      _dictationBaseText = _messageController.text.trim();
+      await _speech.listen(
+        onResult: _handleSpeechResult,
+        listenOptions: stt.SpeechListenOptions(
+          listenMode: stt.ListenMode.dictation,
+          partialResults: true,
+          autoPunctuation: true,
+          enableHapticFeedback: true,
+          pauseFor: const Duration(seconds: 4),
+          listenFor: const Duration(minutes: 2),
+          cancelOnError: true,
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _isListening = true);
+    } catch (error, stackTrace) {
+      debugPrint('[ChatScreen] Dictation failed to start: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) _showMessage('Dictation could not start.');
+    }
+  }
+
+  Future<void> _stopDictation() async {
+    if (_speechReady) await _speech.stop();
+    if (!mounted) return;
+    setState(() => _isListening = false);
+  }
+
+  void _handleSpeechResult(SpeechRecognitionResult result) {
+    final words = result.recognizedWords.trim();
+    final combined = [
+      if (_dictationBaseText.isNotEmpty) _dictationBaseText,
+      if (words.isNotEmpty) words,
+    ].join(' ');
+    _messageController.value = TextEditingValue(
+      text: combined,
+      selection: TextSelection.collapsed(offset: combined.length),
+    );
+  }
+
+  void _handleSpeechError(SpeechRecognitionError error) {
+    debugPrint('[ChatScreen] Dictation error: $error');
+    if (!mounted) return;
+    setState(() => _isListening = false);
+    if (error.permanent || error.errorMsg == 'error_permission') {
+      _showMessage('Microphone permission is needed for dictation.');
+    }
+  }
+
+  void _handleSpeechStatus(String status) {
+    debugPrint('[ChatScreen] Dictation status: $status');
+    if (!mounted) return;
+    if (status == stt.SpeechToText.notListeningStatus ||
+        status == stt.SpeechToText.doneStatus) {
+      setState(() => _isListening = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final showBackButton = Navigator.of(context).canPop();
-    final hasActiveConv = _activeConversationId != null;
+    final hasActiveConv = _activeConversationId != null || _forceComposer;
 
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [AppTheme.background, AppTheme.surfaceLow],
+    if (!_loggedFirstBuild) {
+      _loggedFirstBuild = true;
+      debugPrint(
+        '[ChatScreen] First build. '
+        'showBackButton=$showBackButton, hasActiveConv=$hasActiveConv, '
+        'activeConversationId=$_activeConversationId, forceComposer=$_forceComposer',
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      resizeToAvoidBottomInset: true,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [AppTheme.background, AppTheme.surfaceLow],
+          ),
         ),
-      ),
-      child: SafeArea(
-        top: !showBackButton,
-        bottom: false,
-        child: Column(
-          children: [
-            if (showBackButton)
-              _buildHeader(context, hasActiveConv)
-            else
-              SizedBox(
-                height: MediaQuery.of(context).padding.top + Spacing.lg,
+        child: SafeArea(
+          top: true,
+          bottom: false,
+          child: Column(
+            children: [
+              _buildHeader(
+                context,
+                hasActiveConv,
+                showBackButton: showBackButton,
               ),
-            Expanded(
-              child: hasActiveConv
-                  ? _buildChatView(context)
-                  : _buildConversationList(context),
-            ),
-            if (hasActiveConv) _buildInputBar(context),
-          ],
+              Expanded(
+                child: hasActiveConv
+                    ? _buildChatView(context)
+                    : _buildConversationList(context),
+              ),
+              if (hasActiveConv) _buildInputBar(context),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context, bool hasActiveConv) {
+  Widget _buildHeader(
+    BuildContext context,
+    bool hasActiveConv, {
+    required bool showBackButton,
+  }) {
     return Padding(
       padding: EdgeInsets.only(
-        left: Spacing.xs,
+        left: showBackButton ? Spacing.xs : Spacing.lg,
         right: Spacing.lg,
         top: Spacing.sm,
         bottom: Spacing.sm,
       ),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(LucideIcons.arrowLeft,
-                color: AppTheme.onSurface),
-            onPressed: () => Navigator.pop(context),
-          ),
+          if (showBackButton)
+            IconButton(
+              icon: const Icon(
+                LucideIcons.arrowLeft,
+                color: AppTheme.onSurface,
+              ),
+              onPressed: () => Navigator.pop(context),
+            )
+          else
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                LucideIcons.sparkles,
+                color: AppTheme.primary,
+                size: 20,
+              ),
+            ),
           const SizedBox(width: Spacing.sm),
           Expanded(
             child: Text(
               'JARVIS',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
           if (hasActiveConv)
             IconButton(
-              icon: const Icon(LucideIcons.plus,
-                  color: AppTheme.onSurfaceVariant, size: 20),
+              icon: const Icon(
+                LucideIcons.plus,
+                color: AppTheme.onSurfaceVariant,
+                size: 20,
+              ),
               onPressed: _startNewConversation,
               tooltip: 'New conversation',
             ),
           IconButton(
-            icon: const Icon(LucideIcons.trash2,
-                color: AppTheme.error, size: 20),
+            icon: const Icon(
+              LucideIcons.trash2,
+              color: AppTheme.error,
+              size: 20,
+            ),
             onPressed: _activeConversationId != null
                 ? () => _deleteConversation(_activeConversationId!)
                 : null,
@@ -269,14 +733,17 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.messageSquare,
-                size: 48, color: AppTheme.onSurfaceVariant.withValues(alpha: 0.3)),
+            Icon(
+              LucideIcons.messageSquare,
+              size: 48,
+              color: AppTheme.onSurfaceVariant.withValues(alpha: 0.3),
+            ),
             const SizedBox(height: Spacing.lg),
             Text(
               'No conversations yet',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
-                  ),
+                color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
+              ),
             ),
             const SizedBox(height: Spacing.xl),
             _GlassButton(
@@ -315,21 +782,24 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.sparkles,
-                size: 48, color: AppTheme.primary.withValues(alpha: 0.4)),
+            Icon(
+              LucideIcons.sparkles,
+              size: 48,
+              color: AppTheme.primary.withValues(alpha: 0.4),
+            ),
             const SizedBox(height: Spacing.lg),
             Text(
               'Ask me anything',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.onSurfaceVariant,
-                  ),
+                color: AppTheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: Spacing.sm),
             Text(
               'I can help with tasks, habits, focus, and more',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
-                  ),
+                color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
+              ),
             ),
           ],
         ),
@@ -352,10 +822,16 @@ class _ChatScreenState extends State<ChatScreen> {
         }
         final msg = _messages[index];
         final isUser = msg.role == 'user';
-        return _MessageBubble(
-          message: msg.content,
-          isUser: isUser,
-          timestamp: msg.createdAt,
+        return WonderousReveal(
+          key: ValueKey(msg.id),
+          begin: Offset(isUser ? 0.08 : -0.08, 0.03),
+          child: _MessageBubble(
+            message: msg.content,
+            isUser: isUser,
+            timestamp: msg.createdAt,
+            widgetJson: msg.widgetJson,
+            onWidgetAction: (label) => _sendMessage(label),
+          ),
         );
       },
     );
@@ -372,10 +848,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         child: Container(
           margin: EdgeInsets.only(bottom: Spacing.xs),
-          padding: EdgeInsets.symmetric(
-            horizontal: Spacing.xl,
-            vertical: 4,
-          ),
+          padding: EdgeInsets.symmetric(horizontal: Spacing.xl, vertical: 4),
           decoration: AppTheme.glassmorphism(
             tint: AppTheme.surfaceHighest,
             borderRadius: 999,
@@ -401,6 +874,28 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
               SizedBox(width: Spacing.sm),
+              Semantics(
+                label: _isListening ? 'Stop dictation' : 'Start dictation',
+                toggled: _isListening,
+                child: IconButton(
+                  onPressed: _isProcessing ? null : _toggleDictation,
+                  icon: Icon(
+                    _isListening ? LucideIcons.micOff : LucideIcons.mic,
+                    color: _isListening
+                        ? AppTheme.accent
+                        : AppTheme.onSurfaceVariant,
+                    size: 18,
+                  ),
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(36, 36),
+                    backgroundColor: _isListening
+                        ? AppTheme.accent.withValues(alpha: 0.12)
+                        : Colors.transparent,
+                  ),
+                  tooltip: _isListening ? 'Stop dictation' : 'Dictate',
+                ),
+              ),
+              SizedBox(width: Spacing.xs),
               _isProcessing
                   ? const SizedBox(
                       width: 20,
@@ -430,8 +925,14 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
 
-    return widget.conversationId == null
-        ? Hero(tag: 'jarvis_bar', child: bar)
+    return widget.enableInputHero
+        ? Hero(
+            tag: JarvisHero.tag,
+            createRectTween: JarvisHero.createRectTween,
+            flightShuttleBuilder: JarvisHero.flightShuttleBuilder,
+            transitionOnUserGestures: true,
+            child: RepaintBoundary(child: bar),
+          )
         : bar;
   }
 }
@@ -465,9 +966,7 @@ class _ConversationTile extends StatelessWidget {
               : AppTheme.surfaceContainer,
           borderRadius: BorderRadius.circular(16),
           border: isActive
-              ? Border.all(
-                  color: AppTheme.primary.withValues(alpha: 0.2),
-                )
+              ? Border.all(color: AppTheme.primary.withValues(alpha: 0.2))
               : null,
         ),
         child: Row(
@@ -475,9 +974,7 @@ class _ConversationTile extends StatelessWidget {
             Icon(
               LucideIcons.messageSquare,
               size: 18,
-              color: isActive
-                  ? AppTheme.primary
-                  : AppTheme.onSurfaceVariant,
+              color: isActive ? AppTheme.primary : AppTheme.onSurfaceVariant,
             ),
             const SizedBox(width: Spacing.md),
             Expanded(
@@ -538,27 +1035,30 @@ class _MessageBubble extends StatelessWidget {
   final String message;
   final bool isUser;
   final DateTime timestamp;
+  final String? widgetJson;
+  final ValueChanged<String> onWidgetAction;
 
   const _MessageBubble({
     required this.message,
     required this.isUser,
     required this.timestamp,
+    required this.widgetJson,
+    required this.onWidgetAction,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(
-        top: Spacing.xs,
-        bottom: Spacing.xs,
-      ),
+      padding: EdgeInsets.only(top: Spacing.xs, bottom: Spacing.xs),
       child: Column(
-        crossAxisAlignment:
-            isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isUser
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           Container(
             constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.8,
+              maxWidth:
+                  MediaQuery.of(context).size.width * (isUser ? 0.8 : 0.9),
             ),
             padding: EdgeInsets.symmetric(
               horizontal: Spacing.lg,
@@ -578,13 +1078,24 @@ class _MessageBubble extends StatelessWidget {
                     )
                   : null,
             ),
-            child: Text(
-              message,
-              style: TextStyle(
-                color: isUser ? AppTheme.onSurface : AppTheme.onSurfaceVariant,
-                fontSize: 14,
-                height: 1.5,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: isUser
+                        ? AppTheme.onSurface
+                        : AppTheme.onSurfaceVariant,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+                if (!isUser && widgetJson != null) ...[
+                  const SizedBox(height: Spacing.md),
+                  _buildGeneratedContent(context),
+                ],
+              ],
             ),
           ),
           SizedBox(height: 2),
@@ -600,6 +1111,38 @@ class _MessageBubble extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildGeneratedContent(BuildContext context) {
+    try {
+      final decoded = jsonDecode(widgetJson!);
+      if (decoded is Map) {
+        final card = Map<String, dynamic>.from(decoded);
+        if (card['format'] == 'a2ui-v0.9' && card['raw'] is String) {
+          return A2uiSurfaceCard(
+            rawA2ui: card['raw'] as String,
+            onAction: (action) {
+              GenUiActionBus.instance.emit(action);
+            },
+          );
+        }
+        return GenerativeCardModule(
+          cardData: card,
+          onAction: () =>
+              onWidgetAction(card['action_label'] as String? ?? 'Continue'),
+        );
+      }
+      debugPrint(
+        '[ChatScreen] Ignoring non-object GenUI payload: ${decoded.runtimeType}',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('[ChatScreen] Invalid stored GenUI JSON: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+
+    return SafeRenderer.buildFallbackWidget(
+      'This older interactive response could not be displayed.',
     );
   }
 
@@ -625,9 +1168,9 @@ class _ThinkingBubble extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: AppTheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(20).copyWith(
-            bottomLeft: const Radius.circular(4),
-          ),
+          borderRadius: BorderRadius.circular(
+            20,
+          ).copyWith(bottomLeft: const Radius.circular(4)),
           border: Border.all(
             color: AppTheme.onSurfaceVariant.withValues(alpha: 0.08),
           ),
@@ -655,8 +1198,7 @@ class _Dot extends StatefulWidget {
   State<_Dot> createState() => _DotState();
 }
 
-class _DotState extends State<_Dot>
-    with SingleTickerProviderStateMixin {
+class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 

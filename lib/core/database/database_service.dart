@@ -12,8 +12,7 @@ import 'package:uuid/uuid.dart';
 
 import 'schema.dart';
 
-/// Singleton service that mirrors [FirebaseService]'s API exactly,
-/// backed by a local Drift (SQLite) database.
+/// Singleton service backed by a local Drift (SQLite) database.
 class DatabaseService {
   DatabaseService._();
   static final DatabaseService instance = DatabaseService._();
@@ -37,21 +36,19 @@ class DatabaseService {
     _db = AppDatabase(_openConnection());
 
     // Ensure a UserPreferences row exists
-    final existing = await (_db.select(_db.userPreferencesTable)
-          ..where((t) => t.deviceId.equals(_deviceId)))
-        .getSingleOrNull();
+    final existing = await (_db.select(
+      _db.userPreferencesTable,
+    )..where((t) => t.deviceId.equals(_deviceId))).getSingleOrNull();
     if (existing == null) {
-      await _db.into(_db.userPreferencesTable).insert(
-            UserPreferencesTableCompanion.insert(
-              deviceId: _deviceId,
-            ),
-          );
+      await _db
+          .into(_db.userPreferencesTable)
+          .insert(UserPreferencesTableCompanion.insert(deviceId: _deviceId));
     }
 
     // Cache profile
-    _cachedProfile = await (_db.select(_db.profileTable)
-          ..where((t) => t.userId.equals(_deviceId)))
-        .getSingleOrNull();
+    _cachedProfile = await (_db.select(
+      _db.profileTable,
+    )..where((t) => t.userId.equals(_deviceId))).getSingleOrNull();
 
     _initialized = true;
     debugPrint('DatabaseService: initialized with deviceId=$_deviceId');
@@ -108,11 +105,16 @@ class DatabaseService {
     final uid = _deviceId;
     final finalName = (name ?? _cachedProfile?.name ?? 'Traveler').trim();
 
-    await _db.into(_db.profileTable).insert(
+    await _db
+        .into(_db.profileTable)
+        .insert(
           ProfileTableCompanion.insert(
             userId: uid,
             name: finalName,
-            firstName: firstName ?? _cachedProfile?.firstName ?? finalName.split(' ').first,
+            firstName:
+                firstName ??
+                _cachedProfile?.firstName ??
+                finalName.split(' ').first,
             lastName: Value(lastName?.trim()),
             focusRole: Value(focusRole?.trim()),
             interests: Value(interests != null ? jsonEncode(interests) : null),
@@ -125,9 +127,9 @@ class DatabaseService {
           mode: InsertMode.insertOrReplace,
         );
 
-    _cachedProfile = await (_db.select(_db.profileTable)
-          ..where((t) => t.userId.equals(uid)))
-        .getSingleOrNull();
+    _cachedProfile = await (_db.select(
+      _db.profileTable,
+    )..where((t) => t.userId.equals(uid))).getSingleOrNull();
 
     debugPrint('DatabaseService: saved profile for $uid');
   }
@@ -158,7 +160,9 @@ class DatabaseService {
     Map<String, dynamic>? metadata,
   }) async {
     try {
-      await _db.into(_db.behaviorEventTable).insert(
+      await _db
+          .into(_db.behaviorEventTable)
+          .insert(
             BehaviorEventTableCompanion.insert(
               userId: _deviceId,
               eventType: eventType,
@@ -174,11 +178,12 @@ class DatabaseService {
 
   Future<List<Map<String, dynamic>>> getRecentEvents({int limit = 50}) async {
     try {
-      final rows = await (_db.select(_db.behaviorEventTable)
-            ..where((t) => t.userId.equals(_deviceId))
-            ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
-            ..limit(limit))
-          .get();
+      final rows =
+          await (_db.select(_db.behaviorEventTable)
+                ..where((t) => t.userId.equals(_deviceId))
+                ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+                ..limit(limit))
+              .get();
 
       return rows.map(_eventToMap).toList();
     } catch (e) {
@@ -192,8 +197,7 @@ class DatabaseService {
       'userId': event.userId,
       'eventType': event.eventType,
       'module': event.module,
-      'metadata':
-          jsonDecode(event.metadata) as Map<String, dynamic>? ?? {},
+      'metadata': jsonDecode(event.metadata) as Map<String, dynamic>? ?? {},
       'timestamp': event.timestamp,
     };
   }
@@ -206,19 +210,21 @@ class DatabaseService {
       final todayStr =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-      final profile = await (_db.select(_db.profileTable)
-            ..where((t) => t.userId.equals(_deviceId)))
-          .getSingleOrNull();
+      final profile = await (_db.select(
+        _db.profileTable,
+      )..where((t) => t.userId.equals(_deviceId))).getSingleOrNull();
 
-      final topTasks = await (_db.select(_db.taskTable)
-            ..where((t) =>
-                t.userId.equals(_deviceId) & t.done.equals(false))
-            ..limit(3))
-          .get();
+      final topTasks =
+          await (_db.select(_db.taskTable)
+                ..where(
+                  (t) => t.userId.equals(_deviceId) & t.done.equals(false),
+                )
+                ..limit(3))
+              .get();
 
-      final allHabits = await (_db.select(_db.habitTable)
-            ..where((t) => t.userId.equals(_deviceId)))
-          .get();
+      final allHabits = await (_db.select(
+        _db.habitTable,
+      )..where((t) => t.userId.equals(_deviceId))).get();
 
       final missingHabits = <String>[];
       for (final h in allHabits) {
@@ -228,26 +234,30 @@ class DatabaseService {
         }
       }
 
-      final notes = await (_db.select(_db.noteTable)
-            ..where((t) => t.userId.equals(_deviceId))
-            ..limit(5))
-          .get();
+      final notes =
+          await (_db.select(_db.noteTable)
+                ..where((t) => t.userId.equals(_deviceId))
+                ..limit(5))
+              .get();
       final sortedNotes = [...notes]
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      final recentNote =
-          sortedNotes.isNotEmpty ? sortedNotes.first.content : null;
+      final recentNote = sortedNotes.isNotEmpty
+          ? sortedNotes.first.content
+          : null;
 
-      final commands = await (_db.select(_db.aiCommandTable)
-            ..where((t) => t.userId.equals(_deviceId))
-            ..limit(5))
-          .get();
+      final commands =
+          await (_db.select(_db.aiCommandTable)
+                ..where((t) => t.userId.equals(_deviceId))
+                ..limit(5))
+              .get();
       final sortedCommands = [...commands]
         ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-      final events = await (_db.select(_db.behaviorEventTable)
-            ..where((t) => t.userId.equals(_deviceId))
-            ..limit(10))
-          .get();
+      final events =
+          await (_db.select(_db.behaviorEventTable)
+                ..where((t) => t.userId.equals(_deviceId))
+                ..limit(10))
+              .get();
       final sortedEvents = [...events]
         ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
@@ -281,12 +291,12 @@ class DatabaseService {
 
   Future<Map<String, dynamic>> buildInsightStats() async {
     try {
-      final tasks = await (_db.select(_db.taskTable)
-            ..where((t) => t.userId.equals(_deviceId)))
-          .get();
-      final habits = await (_db.select(_db.habitTable)
-            ..where((t) => t.userId.equals(_deviceId)))
-          .get();
+      final tasks = await (_db.select(
+        _db.taskTable,
+      )..where((t) => t.userId.equals(_deviceId))).get();
+      final habits = await (_db.select(
+        _db.habitTable,
+      )..where((t) => t.userId.equals(_deviceId))).get();
       final focusMinutes = await getTodayFocusMinutes();
       final todayMood = await _getTodayMoodRaw();
       final todayStr = _todayString();
@@ -304,9 +314,7 @@ class DatabaseService {
         'total_habits': habits.length,
         'completed_habits_today': completedHabits,
         'focus_minutes_today': focusMinutes,
-        'current_streak': computeStreak(
-          habits.map(_habitToMap).toList(),
-        ),
+        'current_streak': computeStreak(habits.map(_habitToMap).toList()),
         'today_mood': todayMood,
       };
     } catch (e) {
@@ -331,7 +339,9 @@ class DatabaseService {
     String due = 'Today',
     List<Map<String, dynamic>> subtasks = const [],
   }) async {
-    await _db.into(_db.taskTable).insert(
+    await _db
+        .into(_db.taskTable)
+        .insert(
           TaskTableCompanion.insert(
             userId: _deviceId,
             title: title,
@@ -344,8 +354,7 @@ class DatabaseService {
     await logEvent(eventType: 'task_created', module: 'tasks');
   }
 
-  Future<void> updateTask(
-      String taskId, Map<String, dynamic> updates) async {
+  Future<void> updateTask(String taskId, Map<String, dynamic> updates) async {
     final id = int.parse(taskId);
 
     // Build companion from the updates map
@@ -370,18 +379,16 @@ class DatabaseService {
           : const Value.absent(),
     );
 
-    await (_db.update(_db.taskTable)..where((t) => t.id.equals(id)))
-        .write(updated);
+    await (_db.update(
+      _db.taskTable,
+    )..where((t) => t.id.equals(id))).write(updated);
   }
 
   Future<void> toggleTask(String taskId, bool isDone) async {
     final id = int.parse(taskId);
     await (_db.update(_db.taskTable)..where((t) => t.id.equals(id))).write(
-          TaskTableCompanion(
-            done: Value(isDone),
-            updatedAt: Value(DateTime.now()),
-          ),
-        );
+      TaskTableCompanion(done: Value(isDone), updatedAt: Value(DateTime.now())),
+    );
     await logEvent(
       eventType: isDone ? 'task_completed' : 'task_uncompleted',
       module: 'tasks',
@@ -416,9 +423,10 @@ class DatabaseService {
         .map((rows) => rows.map(_habitToMap).toList());
   }
 
-  Future<void> addHabit(
-      {required String name, required String icon}) async {
-    await _db.into(_db.habitTable).insert(
+  Future<void> addHabit({required String name, required String icon}) async {
+    await _db
+        .into(_db.habitTable)
+        .insert(
           HabitTableCompanion.insert(
             userId: _deviceId,
             name: name,
@@ -432,9 +440,9 @@ class DatabaseService {
   Future<void> toggleHabitToday(String habitId, bool isDone) async {
     final id = int.parse(habitId);
     final today = _todayString();
-    final habit = await (_db.select(_db.habitTable)
-          ..where((t) => t.id.equals(id)))
-        .getSingle();
+    final habit = await (_db.select(
+      _db.habitTable,
+    )..where((t) => t.id.equals(id))).getSingle();
 
     final dates = jsonDecode(habit.completedDates) as List<dynamic>? ?? [];
     if (isDone) {
@@ -444,10 +452,8 @@ class DatabaseService {
     }
 
     await (_db.update(_db.habitTable)..where((t) => t.id.equals(id))).write(
-          HabitTableCompanion(
-            completedDates: Value(jsonEncode(dates)),
-          ),
-        );
+      HabitTableCompanion(completedDates: Value(jsonEncode(dates))),
+    );
     await logEvent(
       eventType: isDone ? 'habit_completed' : 'habit_uncompleted',
       module: 'habits',
@@ -461,8 +467,7 @@ class DatabaseService {
       'userId': h.userId,
       'name': h.name,
       'icon': h.icon,
-      'completedDates':
-          jsonDecode(h.completedDates) as List<dynamic>? ?? [],
+      'completedDates': jsonDecode(h.completedDates) as List<dynamic>? ?? [],
       'createdAt': h.createdAt,
     };
   }
@@ -470,7 +475,9 @@ class DatabaseService {
   // ── Focus Sessions ───────────────────────────────────────────
 
   Future<String> startFocusSession({int durationMinutes = 25}) async {
-    final id = await _db.into(_db.focusSessionTable).insert(
+    final id = await _db
+        .into(_db.focusSessionTable)
+        .insert(
           FocusSessionTableCompanion.insert(
             userId: _deviceId,
             durationMinutes: durationMinutes,
@@ -487,22 +494,25 @@ class DatabaseService {
 
   Future<void> completeFocusSession(String sessionId) async {
     final id = int.parse(sessionId);
-    await (_db.update(_db.focusSessionTable)
-          ..where((t) => t.id.equals(id))).write(
-        FocusSessionTableCompanion(
-          completedAt: Value(DateTime.now()),
-          completed: const Value(true),
-        ));
+    await (_db.update(
+      _db.focusSessionTable,
+    )..where((t) => t.id.equals(id))).write(
+      FocusSessionTableCompanion(
+        completedAt: Value(DateTime.now()),
+        completed: const Value(true),
+      ),
+    );
     await logEvent(eventType: 'focus_completed', module: 'focus');
   }
 
   Future<int> getTodayFocusMinutes() async {
     try {
       final todayStr = _todayString();
-      final sessions = await (_db.select(_db.focusSessionTable)
-            ..where((t) =>
-                t.userId.equals(_deviceId) & t.completed.equals(true)))
-          .get();
+      final sessions =
+          await (_db.select(_db.focusSessionTable)..where(
+                (t) => t.userId.equals(_deviceId) & t.completed.equals(true),
+              ))
+              .get();
 
       int total = 0;
       for (final s in sessions) {
@@ -532,12 +542,11 @@ class DatabaseService {
         .map((rows) => rows.map(_noteToMap).toList());
   }
 
-  Future<void> addNote({
-    required String content,
-    List<String>? tags,
-  }) async {
+  Future<void> addNote({required String content, List<String>? tags}) async {
     final now = DateTime.now();
-    await _db.into(_db.noteTable).insert(
+    await _db
+        .into(_db.noteTable)
+        .insert(
           NoteTableCompanion.insert(
             userId: _deviceId,
             content: content,
@@ -567,12 +576,12 @@ class DatabaseService {
       content: Value(content),
       updatedAt: Value(DateTime.now()),
       tags: tags != null ? Value(jsonEncode(tags)) : const Value.absent(),
-      summary:
-          summary != null ? Value(summary) : const Value.absent(),
+      summary: summary != null ? Value(summary) : const Value.absent(),
     );
 
-    await (_db.update(_db.noteTable)..where((t) => t.id.equals(id)))
-        .write(companion);
+    await (_db.update(
+      _db.noteTable,
+    )..where((t) => t.id.equals(id))).write(companion);
     await logEvent(eventType: 'note_updated', module: 'notes');
   }
 
@@ -591,7 +600,9 @@ class DatabaseService {
   // ── Mood Tracking ────────────────────────────────────────────
 
   Future<void> saveMood(String mood) async {
-    await _db.into(_db.moodEntryTable).insert(
+    await _db
+        .into(_db.moodEntryTable)
+        .insert(
           MoodEntryTableCompanion.insert(
             userId: _deviceId,
             mood: Value(mood),
@@ -609,11 +620,13 @@ class DatabaseService {
   Future<String?> _getTodayMoodRaw() async {
     try {
       final todayStr = _todayString();
-      final row = await (_db.select(_db.moodEntryTable)
-            ..where((t) =>
-                t.userId.equals(_deviceId) & t.date.equals(todayStr))
-            ..limit(1))
-          .getSingleOrNull();
+      final row =
+          await (_db.select(_db.moodEntryTable)
+                ..where(
+                  (t) => t.userId.equals(_deviceId) & t.date.equals(todayStr),
+                )
+                ..limit(1))
+              .getSingleOrNull();
       return row?.mood;
     } catch (e) {
       return null;
@@ -639,9 +652,7 @@ class DatabaseService {
       'score': m.score,
       'date': m.date,
       'note': m.note,
-      'tags': m.tags != null
-          ? jsonDecode(m.tags!) as List<dynamic>? ?? []
-          : [],
+      'tags': m.tags != null ? jsonDecode(m.tags!) as List<dynamic>? ?? [] : [],
       'timestamp': m.timestamp,
     };
   }
@@ -653,7 +664,9 @@ class DatabaseService {
     required String response,
     List<Map<String, dynamic>>? actions,
   }) async {
-    await _db.into(_db.aiCommandTable).insert(
+    await _db
+        .into(_db.aiCommandTable)
+        .insert(
           AiCommandTableCompanion.insert(
             userId: _deviceId,
             command: command,
@@ -664,8 +677,7 @@ class DatabaseService {
         );
   }
 
-  Stream<List<Map<String, dynamic>>> watchAiCommands(
-      {int limit = 20}) {
+  Stream<List<Map<String, dynamic>>> watchAiCommands({int limit = 20}) {
     return (_db.select(_db.aiCommandTable)
           ..where((t) => t.userId.equals(_deviceId))
           ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
@@ -699,7 +711,9 @@ class DatabaseService {
     String? modelTier,
   }) async {
     final now = DateTime.now();
-    final id = await _db.into(_db.conversationTable).insert(
+    final id = await _db
+        .into(_db.conversationTable)
+        .insert(
           ConversationTableCompanion.insert(
             userId: _deviceId,
             title: title,
@@ -708,28 +722,30 @@ class DatabaseService {
             updatedAt: now,
           ),
         );
-    final conv = await (_db.select(_db.conversationTable)
-          ..where((t) => t.id.equals(id)))
-        .getSingle();
+    final conv = await (_db.select(
+      _db.conversationTable,
+    )..where((t) => t.id.equals(id))).getSingle();
     return conv;
   }
 
   Future<void> renameConversation(int id, String title) async {
-    await (_db.update(_db.conversationTable)
-          ..where((t) => t.id.equals(id))).write(
-        ConversationTableCompanion(
-          title: Value(title),
-          updatedAt: Value(DateTime.now()),
-        ));
+    await (_db.update(
+      _db.conversationTable,
+    )..where((t) => t.id.equals(id))).write(
+      ConversationTableCompanion(
+        title: Value(title),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
   }
 
   Future<void> deleteConversation(int id) async {
-    await (_db.delete(_db.messageTable)
-          ..where((t) => t.conversationId.equals(id)))
-        .go();
-    await (_db.delete(_db.conversationTable)
-          ..where((t) => t.id.equals(id)))
-        .go();
+    await (_db.delete(
+      _db.messageTable,
+    )..where((t) => t.conversationId.equals(id))).go();
+    await (_db.delete(
+      _db.conversationTable,
+    )..where((t) => t.id.equals(id))).go();
   }
 
   Stream<List<MessageTableData>> watchMessages(int conversationId) {
@@ -752,7 +768,9 @@ class DatabaseService {
     required String content,
     String? widgetJson,
   }) async {
-    final id = await _db.into(_db.messageTable).insert(
+    final id = await _db
+        .into(_db.messageTable)
+        .insert(
           MessageTableCompanion.insert(
             conversationId: conversationId,
             role: role,
@@ -763,13 +781,11 @@ class DatabaseService {
         );
     // Touch conversation updatedAt
     await (_db.update(_db.conversationTable)
-          ..where((t) => t.id.equals(conversationId))).write(
-        ConversationTableCompanion(
-          updatedAt: Value(DateTime.now()),
-        ));
-    final msg = await (_db.select(_db.messageTable)
-          ..where((t) => t.id.equals(id)))
-        .getSingle();
+          ..where((t) => t.id.equals(conversationId)))
+        .write(ConversationTableCompanion(updatedAt: Value(DateTime.now())));
+    final msg = await (_db.select(
+      _db.messageTable,
+    )..where((t) => t.id.equals(id))).getSingle();
     return msg;
   }
 

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
 
@@ -65,9 +65,9 @@ class InsightCard extends StatelessWidget {
               : Text(
                   insight ?? 'No insight available.',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppTheme.onSurface,
-                        height: 1.5,
-                      ),
+                    color: AppTheme.onSurface,
+                    height: 1.5,
+                  ),
                 ),
         ],
       ),

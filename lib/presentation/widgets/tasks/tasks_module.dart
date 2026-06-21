@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/app_spacing.dart';
 import '../../../core/app_theme.dart';
@@ -16,13 +16,12 @@ class TasksModule extends StatefulWidget {
     String? initialTitle,
     String? initialPriority,
     List<String>? initialSubtasks,
-  }) =>
-      AddTaskSheet.show(
-        context,
-        initialTitle: initialTitle,
-        initialPriority: initialPriority,
-        initialSubtasks: initialSubtasks,
-      );
+  }) => AddTaskSheet.show(
+    context,
+    initialTitle: initialTitle,
+    initialPriority: initialPriority,
+    initialSubtasks: initialSubtasks,
+  );
 
   @override
   State<TasksModule> createState() => _TasksModuleState();
@@ -70,9 +69,9 @@ class _TasksModuleState extends State<TasksModule> {
                   Text(
                     'Active Intentions',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.5,
-                        ),
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                    ),
                   ),
                 ],
               ),

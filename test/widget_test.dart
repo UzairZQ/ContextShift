@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('Generative card renders AI content', (WidgetTester tester) async {
+  testWidgets('Generative card renders AI content', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.darkTheme,
@@ -38,10 +40,15 @@ void main() {
       ),
     );
 
-    await tester.pumpAndSettle();
+    // Ambient cinematic animations intentionally keep ticking, so avoid
+    // pumpAndSettle here and advance past the entrance reveal instead.
+    await tester.pump(const Duration(milliseconds: 900));
 
     expect(find.text('Adaptive Plan'), findsOneWidget);
-    expect(find.text('A short plan generated from your Jarvis prompt.'), findsOneWidget);
+    expect(
+      find.text('A short plan generated from your Jarvis prompt.'),
+      findsOneWidget,
+    );
     expect(find.text('Pick the most important outcome'), findsOneWidget);
     expect(find.text('START FOCUS'), findsOneWidget);
   });

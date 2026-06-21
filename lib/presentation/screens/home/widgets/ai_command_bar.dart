@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
+import '../../../widgets/jarvis_hero.dart';
 
 class AiCommandBar extends StatefulWidget {
   final TextEditingController controller;
@@ -54,7 +55,7 @@ class _AiCommandBarState extends State<AiCommandBar> {
 
   String get _hintText {
     if (!widget.hasCheckedStatus) return 'Checking JARVIS status...';
-    return widget.isOnline ? 'Tell JARVIS what to do...' : widget.offlineHint;
+    return widget.isOnline ? 'Tell JARVIS what to do' : widget.offlineHint;
   }
 
   TextStyle get _hintStyle {
@@ -62,11 +63,13 @@ class _AiCommandBarState extends State<AiCommandBar> {
       color: widget.isOnline
           ? AppTheme.onSurfaceVariant.withValues(alpha: 0.4)
           : (widget.hasCheckedStatus
-              ? AppTheme.warning.withValues(alpha: 0.75)
-              : AppTheme.onSurfaceVariant.withValues(alpha: 0.55)),
+                ? AppTheme.warning.withValues(alpha: 0.75)
+                : AppTheme.onSurfaceVariant.withValues(alpha: 0.55)),
       fontStyle: (widget.isOnline || !widget.hasCheckedStatus)
           ? FontStyle.normal
           : FontStyle.italic,
+      fontSize: widget.isOnline ? 13 : 12,
+      height: 1.15,
     );
     if (!widget.hasCheckedStatus) {
       return base.copyWith(fontStyle: FontStyle.italic);
@@ -77,59 +80,64 @@ class _AiCommandBarState extends State<AiCommandBar> {
   @override
   Widget build(BuildContext context) {
     return Hero(
-      tag: 'jarvis_bar',
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          margin: EdgeInsets.only(top: Spacing.xl),
-          padding: EdgeInsets.symmetric(horizontal: Spacing.xl, vertical: 4),
-          decoration: AppTheme.glassmorphism(
-            tint: AppTheme.surfaceHighest,
-            borderRadius: 999,
-          ),
-          child: TextField(
-            controller: widget.controller,
-            enabled: true,
-            textInputAction: TextInputAction.send,
-            style: const TextStyle(color: AppTheme.onSurface),
-            decoration: InputDecoration(
-          icon: Icon(
-            _leadingIcon,
-            color: _leadingColor,
-            size: 20,
-          ),
-          hintText: _hintText,
-          hintStyle: _hintStyle,
-          border: InputBorder.none,
-          suffixIcon: widget.isProcessing
-              ? const Padding(
-                  padding: EdgeInsets.all(Spacing.md),
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppTheme.primary,
-                    ),
-                  ),
-                )
-              : Semantics(
-                  label: 'Send command',
-                  child: IconButton(
-                    onPressed: _handleSend,
-                    icon: Icon(
-                      widget.isOnline
-                          ? LucideIcons.send
-                          : LucideIcons.wifiOff,
-                      color: widget.isOnline
-                          ? AppTheme.primary
-                          : AppTheme.warning.withValues(alpha: 0.9),
-                      size: 18,
-                    ),
-                  ),
-                ),
-        ),
-        onSubmitted: (_) => _handleSend(),
+      tag: JarvisHero.tag,
+      createRectTween: JarvisHero.createRectTween,
+      flightShuttleBuilder: JarvisHero.flightShuttleBuilder,
+      transitionOnUserGestures: true,
+      child: RepaintBoundary(
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: Container(
+            margin: EdgeInsets.only(top: Spacing.xl),
+            padding: EdgeInsets.symmetric(horizontal: Spacing.xl, vertical: 4),
+            decoration: AppTheme.glassmorphism(
+              tint: AppTheme.surfaceHighest,
+              borderRadius: 999,
+            ),
+            child: TextField(
+              controller: widget.controller,
+              enabled: true,
+              maxLines: 1,
+              textAlignVertical: TextAlignVertical.center,
+              textInputAction: TextInputAction.send,
+              style: const TextStyle(color: AppTheme.onSurface, fontSize: 14),
+              decoration: InputDecoration(
+                icon: Icon(_leadingIcon, color: _leadingColor, size: 20),
+                hintText: _hintText,
+                hintStyle: _hintStyle,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                border: InputBorder.none,
+                suffixIcon: widget.isProcessing
+                    ? const Padding(
+                        padding: EdgeInsets.all(Spacing.md),
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppTheme.primary,
+                          ),
+                        ),
+                      )
+                    : Semantics(
+                        label: 'Send command',
+                        child: IconButton(
+                          onPressed: _handleSend,
+                          icon: Icon(
+                            widget.isOnline
+                                ? LucideIcons.send
+                                : LucideIcons.wifiOff,
+                            color: widget.isOnline
+                                ? AppTheme.primary
+                                : AppTheme.warning.withValues(alpha: 0.9),
+                            size: 18,
+                          ),
+                        ),
+                      ),
+              ),
+              onSubmitted: (_) => _handleSend(),
+            ),
           ),
         ),
       ),

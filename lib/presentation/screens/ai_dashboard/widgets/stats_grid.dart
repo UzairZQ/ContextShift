@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
 import '../../../../core/database/database_service.dart';
@@ -29,8 +29,9 @@ class StatsGrid extends StatelessWidget {
               crossAxisCount: 2,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              childAspectRatio:
-                  MediaQuery.of(context).size.width < 380 ? 1.18 : 1.32,
+              childAspectRatio: MediaQuery.of(context).size.width < 380
+                  ? 1.18
+                  : 1.32,
               children: [
                 DashStatCard(
                   value: '$tasksDone',

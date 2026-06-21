@@ -1,8 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../core/app_routes.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/local_llm/model_downloader.dart';
 import '../../../core/local_llm/model_tier.dart';
@@ -29,8 +30,12 @@ class _ModelManagementTileState extends State<ModelManagementTile> {
     debugPrint('[ModelManagementTile] Refreshing download status...');
     setState(() => _loading = true);
     try {
-      final e2b = await ModelDownloader.instance.isModelDownloaded(ModelDefinition.e2b);
-      final e4b = await ModelDownloader.instance.isModelDownloaded(ModelDefinition.e4b);
+      final e2b = await ModelDownloader.instance.isModelDownloaded(
+        ModelDefinition.e2b,
+      );
+      final e4b = await ModelDownloader.instance.isModelDownloaded(
+        ModelDefinition.e4b,
+      );
       debugPrint('[ModelManagementTile] E2B: $e2b, E4B: $e4b');
       if (mounted) {
         setState(() {
@@ -138,7 +143,10 @@ class _ModelManagementTileState extends State<ModelManagementTile> {
   Widget _buildActionButton(ModelDefinition model, bool isDownloaded) {
     if (isDownloaded) {
       return PopupMenuButton<String>(
-        icon: const Icon(LucideIcons.moreVertical, color: AppTheme.onSurfaceVariant),
+        icon: const Icon(
+          LucideIcons.moreVertical,
+          color: AppTheme.onSurfaceVariant,
+        ),
         color: AppTheme.surfaceHigh,
         onSelected: (value) async {
           if (value == 'delete') {
@@ -146,8 +154,10 @@ class _ModelManagementTileState extends State<ModelManagementTile> {
               context: context,
               builder: (ctx) => AlertDialog(
                 backgroundColor: AppTheme.background,
-                title: const Text('Delete Model?',
-                    style: TextStyle(color: AppTheme.onSurface)),
+                title: const Text(
+                  'Delete Model?',
+                  style: TextStyle(color: AppTheme.onSurface),
+                ),
                 content: Text(
                   'Delete ${model.displayName} (${model.downloadSizeFormatted})? '
                   'It will need to be re-downloaded.',
@@ -160,8 +170,10 @@ class _ModelManagementTileState extends State<ModelManagementTile> {
                   ),
                   TextButton(
                     onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text('Delete',
-                        style: TextStyle(color: AppTheme.error)),
+                    child: const Text(
+                      'Delete',
+                      style: TextStyle(color: AppTheme.error),
+                    ),
                   ),
                 ],
               ),
@@ -208,10 +220,12 @@ class _ModelManagementTileState extends State<ModelManagementTile> {
 
     return ElevatedButton(
       onPressed: () {
-        debugPrint('[ModelManagementTile] Navigate to download: ${model.displayName}');
+        debugPrint(
+          '[ModelManagementTile] Navigate to download: ${model.displayName}',
+        );
         Navigator.push(
           context,
-          MaterialPageRoute(
+          SmoothPageRoute(
             builder: (_) => ModelDownloadScreen(
               model: model,
               isOnboarding: false,
@@ -227,12 +241,12 @@ class _ModelManagementTileState extends State<ModelManagementTile> {
         backgroundColor: AppTheme.primary,
         foregroundColor: AppTheme.onSurface,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
-      child: const Text('Download',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      child: const Text(
+        'Download',
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      ),
     );
   }
 }

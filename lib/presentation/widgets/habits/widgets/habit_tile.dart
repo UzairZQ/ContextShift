@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
 
@@ -36,10 +36,7 @@ class HabitTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Text(
-              habit['icon'] ?? '✅',
-              style: const TextStyle(fontSize: 24),
-            ),
+            Text(habit['icon'] ?? '✅', style: const TextStyle(fontSize: 24)),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -79,11 +76,7 @@ class HabitTile extends StatelessWidget {
                 ),
               ),
               child: isDoneToday
-                  ? const Icon(
-                      LucideIcons.check,
-                      color: Colors.green,
-                      size: 14,
-                    )
+                  ? const Icon(LucideIcons.check, color: Colors.green, size: 14)
                   : null,
             ),
           ],

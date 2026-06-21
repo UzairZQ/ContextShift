@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../core/app_theme.dart';
 
@@ -28,7 +27,7 @@ class GoogleSignInButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(LucideIcons.chrome, color: Colors.white, size: 20),
+            const Icon(Icons.g_mobiledata, color: Colors.white, size: 28),
             const SizedBox(width: 12),
             Text(
               'Continue with Google',

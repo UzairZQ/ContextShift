@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
 import '../../../../core/database/database_service.dart';
@@ -88,9 +88,7 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
     await DatabaseService.instance.addTask(
       title: title,
       priority: _priority,
-      subtasks: _subtasks
-          .map((s) => {'title': s, 'completed': false})
-          .toList(),
+      subtasks: _subtasks.map((s) => {'title': s, 'completed': false}).toList(),
     );
     if (mounted) Navigator.pop(context);
   }
@@ -110,10 +108,7 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'New Task',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              Text('New Task', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 16),
               TextField(
                 controller: _titleController,
@@ -202,10 +197,7 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
                   Expanded(
                     child: TextField(
                       controller: _subtaskController,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
                       decoration: const InputDecoration(
                         hintText: 'Add a subtask...',
                         hintStyle: TextStyle(color: Colors.white24),

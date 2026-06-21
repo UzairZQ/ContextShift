@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_gemma_litertlm/flutter_gemma_litertlm.dart';
 
 import 'model_tier.dart';
 
@@ -26,7 +27,8 @@ class GemmaException implements Exception {
   });
 
   @override
-  String toString() => 'GemmaException[$code]: $message${detail != null ? '\n  Detail: $detail' : ''}';
+  String toString() =>
+      'GemmaException[$code]: $message${detail != null ? '\n  Detail: $detail' : ''}';
 }
 
 class GemmaService {
@@ -39,6 +41,7 @@ class GemmaService {
   ModelDefinition? _activeModelDef;
   InferenceModel? _model;
   InferenceChat? _chat;
+  final ValueNotifier<int> statusRevision = ValueNotifier<int>(0);
 
   bool get isInitialized => _initialized;
   bool get isModelLoaded => _modelLoaded;
@@ -53,7 +56,7 @@ class GemmaService {
 
     debugPrint('[GemmaService] Initializing FlutterGemma...');
     try {
-      await FlutterGemma.initialize();
+      await FlutterGemma.initialize(inferenceEngines: [LiteRtLmEngine()]);
       _initialized = true;
       debugPrint('[GemmaService] FlutterGemma initialized successfully');
     } catch (e, stack) {
@@ -76,7 +79,9 @@ class GemmaService {
     }
 
     if (_modelLoaded && _activeModelTier == model.tier) {
-      debugPrint('[GemmaService] Model already loaded: ${model.displayName}, skipping');
+      debugPrint(
+        '[GemmaService] Model already loaded: ${model.displayName}, skipping',
+      );
       return;
     }
 
@@ -90,35 +95,46 @@ class GemmaService {
       if (!isInstalled) {
         throw GemmaException(
           code: GemmaErrorCode.modelNotInstalled,
-          message: 'Model ${model.displayName} is not installed. Download it first.',
+          message:
+              'Model ${model.displayName} is not installed. Download it first.',
           detail: 'Model ID: ${model.modelId}',
         );
       }
 
+      await _activateInstalledModel(model);
+
       debugPrint('[GemmaService] Creating inference model...');
+      debugPrint(
+        '[GemmaService] Native getActiveModel start: '
+        'backend=gpu, model=${model.modelId}, maxTokens=${model.maxTokens}',
+      );
       _model = await FlutterGemma.getActiveModel(
         maxTokens: model.maxTokens,
         preferredBackend: PreferredBackend.gpu,
       );
+      debugPrint('[GemmaService] Native getActiveModel complete');
 
-      _chat = InferenceChat(
-        sessionCreator: () => _model!.createSession(),
-        maxTokens: model.maxTokens,
-        tokenBuffer: 500,
+      debugPrint('[GemmaService] Creating chat session...');
+      _chat = await _model!.createChat(
         modelType: model.modelType,
+        tokenBuffer: 500,
+        maxOutputTokens: 256,
       );
-
-      await _chat!.initSession();
+      debugPrint('[GemmaService] Chat session initialized');
 
       _activeModelTier = model.tier;
       _activeModelDef = model;
       _modelLoaded = true;
+      _notifyStatusChanged();
 
-      debugPrint('[GemmaService] Model loaded successfully: ${model.displayName}');
+      debugPrint(
+        '[GemmaService] Model loaded successfully: ${model.displayName}',
+      );
     } catch (e, stack) {
       debugPrint('[GemmaService] Failed to load model: $e');
       debugPrint('[GemmaService]   Stack: $stack');
       _modelLoaded = false;
+      _notifyStatusChanged();
 
       if (e is GemmaException) rethrow;
 
@@ -126,7 +142,8 @@ class GemmaService {
       if (errMsg.contains('oom') || errMsg.contains('out of memory')) {
         throw GemmaException(
           code: GemmaErrorCode.oomError,
-          message: 'Model ${model.displayName} requires ${model.minRamFormatted} RAM. '
+          message:
+              'Model ${model.displayName} requires ${model.minRamFormatted} RAM. '
               'Your device may not have enough memory.',
           detail: e.toString(),
         );
@@ -140,61 +157,124 @@ class GemmaService {
     }
   }
 
-  Future<String> generate(String prompt, {
+  Future<void> _activateInstalledModel(ModelDefinition model) async {
+    debugPrint(
+      '[GemmaService] Activating installed model metadata: ${model.modelId}',
+    );
+    await FlutterGemma.installModel(
+      modelType: model.modelType,
+      fileType: model.fileType,
+    ).fromNetwork(model.downloadUrl, foreground: false).install();
+    debugPrint('[GemmaService] Installed model metadata activated');
+  }
+
+  Future<String> generate(
+    String prompt, {
     int maxTokens = 512,
     double temperature = 0.1,
     Duration timeout = const Duration(seconds: 15),
   }) async {
-    debugPrint('[GemmaService] Generate called');
-    debugPrint('[GemmaService]   Prompt: "${prompt.length > 100 ? '${prompt.substring(0, 100)}...' : prompt}"');
-    debugPrint('[GemmaService]   Max tokens: $maxTokens');
-    debugPrint('[GemmaService]   Temperature: $temperature');
+    final requestId = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
+    debugPrint('[GemmaService][$requestId] Generate called');
+    debugPrint(
+      '[GemmaService][$requestId]   Prompt: "${prompt.length > 220 ? '${prompt.substring(0, 220)}...' : prompt}"',
+    );
+    debugPrint('[GemmaService][$requestId]   Max output tokens: $maxTokens');
+    debugPrint('[GemmaService][$requestId]   Temperature: $temperature');
+    debugPrint(
+      '[GemmaService][$requestId]   Active model: ${_activeModelDef?.modelId}, '
+      'tier=$_activeModelTier, loaded=$_modelLoaded',
+    );
 
-    if (!_modelLoaded || _chat == null) {
+    if (!_modelLoaded || _model == null) {
       throw GemmaException(
         code: GemmaErrorCode.modelNotLoaded,
         message: 'No model loaded. Call loadModel() first.',
       );
     }
 
+    InferenceModelSession? session;
     try {
-      final message = Message(text: prompt, isUser: true);
-      await _chat!.addQuery(message);
-
-      final response = await _chat!.generateChatResponse().timeout(timeout);
-
-      if (response is TextResponse) {
-        final result = response.token;
-        debugPrint('[GemmaService] Generated response (${result.length} chars)');
-        return result;
-      }
-
-      debugPrint('[GemmaService] Unexpected response type: ${response.runtimeType}');
-      return '';
+      debugPrint('[GemmaService][$requestId] Opening one-shot session...');
+      session = await _model!.openSession(
+        temperature: temperature,
+        topK: 1,
+        maxOutputTokens: maxTokens,
+      );
+      debugPrint(
+        '[GemmaService][$requestId] Session opened; sending prompt...',
+      );
+      await session.addQueryChunk(Message(text: prompt, isUser: true));
+      debugPrint(
+        '[GemmaService][$requestId] Waiting for native response '
+        '(timeout=${timeout.inSeconds}s)...',
+      );
+      final result = await session.getResponse().timeout(timeout);
+      debugPrint(
+        '[GemmaService][$requestId] Generated response (${result.length} chars): '
+        '${result.length > 1200 ? '${result.substring(0, 1200)}...' : result}',
+      );
+      return result;
     } on TimeoutException {
-      debugPrint('[GemmaService] Generation timed out after $timeout');
+      debugPrint(
+        '[GemmaService][$requestId] Generation timed out after $timeout',
+      );
+      await session?.stopGeneration();
       throw GemmaException(
         code: GemmaErrorCode.inferenceTimeout,
         message: 'Model took too long to respond (>${timeout.inSeconds}s)',
       );
     } catch (e, stack) {
-      debugPrint('[GemmaService] Generation error: $e');
-      debugPrint('[GemmaService]   Stack: $stack');
+      debugPrint('[GemmaService][$requestId] Generation error: $e');
+      debugPrint('[GemmaService][$requestId]   Stack: $stack');
 
       final errMsg = e.toString().toLowerCase();
       if (errMsg.contains('oom') || errMsg.contains('out of memory')) {
         throw GemmaException(
           code: GemmaErrorCode.oomError,
-          message: 'Out of memory during inference. Try a shorter prompt or restart the app.',
+          message:
+              'Out of memory during inference. Try a shorter prompt or restart the app.',
           detail: e.toString(),
         );
       }
 
       rethrow;
+    } finally {
+      try {
+        await session?.close();
+        debugPrint('[GemmaService][$requestId] Session closed');
+      } catch (closeError, closeStack) {
+        debugPrint(
+          '[GemmaService][$requestId] Session close failed: $closeError',
+        );
+        debugPrintStack(stackTrace: closeStack);
+      }
     }
   }
 
-  Stream<String> generateStream(String prompt, {
+  Future<String> runHealthCheck(ModelDefinition model) async {
+    debugPrint('[GemmaService] Running health check for ${model.modelId}');
+    await loadModel(model);
+    final response = await generate(
+      'Health check. Reply with exactly: OK',
+      maxTokens: 32,
+      temperature: 0,
+      timeout: const Duration(seconds: 20),
+    );
+    final trimmed = response.trim();
+    if (trimmed.isEmpty) {
+      throw const GemmaException(
+        code: GemmaErrorCode.unknown,
+        message: 'Health check returned an empty response.',
+      );
+    }
+    debugPrint('[GemmaService] Health check response: $trimmed');
+    await clearChat();
+    return trimmed;
+  }
+
+  Stream<String> generateStream(
+    String prompt, {
     int maxTokens = 512,
     double temperature = 0.1,
   }) async* {
@@ -232,11 +312,16 @@ class GemmaService {
       _modelLoaded = false;
       _activeModelTier = null;
       _activeModelDef = null;
+      _notifyStatusChanged();
       debugPrint('[GemmaService] Model disposed');
     } catch (e, stack) {
       debugPrint('[GemmaService] Error disposing model: $e');
       debugPrint('[GemmaService]   Stack: $stack');
     }
+  }
+
+  void _notifyStatusChanged() {
+    statusRevision.value += 1;
   }
 
   Future<void> dispose() async {
