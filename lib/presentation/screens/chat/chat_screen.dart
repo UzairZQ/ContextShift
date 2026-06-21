@@ -25,8 +25,14 @@ import '../../widgets/motion/wonderous_motion.dart';
 class ChatScreen extends StatefulWidget {
   final String? initialMessage;
   final int? conversationId;
+  final bool startNewOnOpen;
 
-  const ChatScreen({super.key, this.initialMessage, this.conversationId});
+  const ChatScreen({
+    super.key,
+    this.initialMessage,
+    this.conversationId,
+    this.startNewOnOpen = false,
+  });
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -106,6 +112,11 @@ class _ChatScreenState extends State<ChatScreen> {
       final convs = await DatabaseService.instance.getAllConversations();
       if (!mounted) return;
       setState(() => _conversations = convs);
+
+      if (widget.startNewOnOpen && _activeConversationId == null) {
+        await _startNewConversation();
+        return;
+      }
 
       final isNewPrompt = widget.initialMessage?.trim().isNotEmpty ?? false;
       if (!isNewPrompt && _activeConversationId == null && convs.isNotEmpty) {

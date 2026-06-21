@@ -401,6 +401,8 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
         case DownloadState.completed:
           title = _healthCheckPassed
               ? 'JARVIS is ready'
+              : GemmaService.instance.isModelLoaded
+              ? 'JARVIS is initialized'
               : 'JARVIS is downloaded';
         case DownloadState.failed:
           title = 'That didn\'t land';
@@ -443,6 +445,8 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
         case DownloadState.completed:
           subtitle = _healthCheckPassed
               ? 'Your private, on-device assistant passed its health check.'
+              : GemmaService.instance.isModelLoaded
+              ? 'The model is active on this device. Run a health check to verify responses.'
               : 'The file is on your phone. Initialize and health-check it before using JARVIS.';
         case DownloadState.failed:
           subtitle =

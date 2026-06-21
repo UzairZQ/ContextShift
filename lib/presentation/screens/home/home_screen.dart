@@ -384,13 +384,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _commandController.clear();
   }
 
-  Future<void> _pushChat({String? initialMessage}) {
+  Future<void> _openEmptyChat() async {
+    debugPrint('[HomeScreen] Opening empty JARVIS chat from floating button');
+    await _pushChat(startNewOnOpen: true);
+  }
+
+  Future<void> _pushChat({
+    String? initialMessage,
+    bool startNewOnOpen = false,
+  }) {
     return Navigator.of(context).push<void>(
       PageRouteBuilder<void>(
         transitionDuration: Motion.expressive,
         reverseTransitionDuration: Motion.complex,
         pageBuilder: (context, animation, secondaryAnimation) {
-          return ChatScreen(initialMessage: initialMessage);
+          return ChatScreen(
+            initialMessage: initialMessage,
+            startNewOnOpen: startNewOnOpen,
+          );
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           final curved = CurvedAnimation(
@@ -573,6 +584,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       ),
       extendBody: true,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 88),
+        child: FloatingActionButton.extended(
+          heroTag: 'jarvis_chat_fab',
+          onPressed: _openEmptyChat,
+          backgroundColor: AppTheme.primary,
+          foregroundColor: Colors.black,
+          elevation: 0,
+          icon: const Icon(LucideIcons.messageCircle, size: 20),
+          label: const Text(
+            'Chat',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: FloatingNavBar(
         currentIndex: _currentIndex,
         onTap: _switchTab,
