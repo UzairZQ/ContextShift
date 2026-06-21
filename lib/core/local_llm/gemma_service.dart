@@ -99,6 +99,8 @@ class GemmaService {
         );
       }
 
+      await _activateInstalledModel(model);
+
       debugPrint('[GemmaService] Creating inference model...');
       debugPrint(
         '[GemmaService] Native getActiveModel start: '
@@ -153,6 +155,22 @@ class GemmaService {
         detail: e.toString(),
       );
     }
+  }
+
+  Future<void> _activateInstalledModel(ModelDefinition model) async {
+    if (FlutterGemma.hasActiveModel()) {
+      debugPrint('[GemmaService] FlutterGemma already has an active model');
+      return;
+    }
+
+    debugPrint(
+      '[GemmaService] Activating installed model metadata: ${model.modelId}',
+    );
+    await FlutterGemma.installModel(
+      modelType: model.modelType,
+      fileType: model.fileType,
+    ).fromNetwork(model.downloadUrl, foreground: false).install();
+    debugPrint('[GemmaService] Installed model metadata activated');
   }
 
   Future<String> generate(

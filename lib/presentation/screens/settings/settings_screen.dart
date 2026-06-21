@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/app_spacing.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
+import '../../../core/local_llm/gemma_service.dart';
 import '../../../core/local_llm/model_tier.dart';
 import '../../../core/responsive.dart';
 import '../../../core/services/feature_manager.dart';
@@ -69,6 +70,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  String _modelStatusSubtitle() {
+    if (GemmaService.instance.isModelLoaded) {
+      final active = GemmaService.instance.activeModelDef?.displayName;
+      return active == null ? 'JARVIS model active' : '$active model active';
+    }
+    if (FeatureManager.instance.isE4bAvailable) {
+      return 'E4B downloaded, activation pending';
+    }
+    if (FeatureManager.instance.isE2bAvailable) {
+      return 'E2B downloaded, activation pending';
+    }
+    return 'No model downloaded';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -95,16 +110,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Row(
                       children: [
                         IconButton(
-                          icon: const Icon(LucideIcons.arrowLeft,
-                              color: AppTheme.onSurface),
+                          icon: const Icon(
+                            LucideIcons.arrowLeft,
+                            color: AppTheme.onSurface,
+                          ),
                           onPressed: () => Navigator.pop(context),
                         ),
                         const SizedBox(width: Spacing.sm),
                         Text(
                           'Settings',
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineSmall
+                          style: Theme.of(context).textTheme.headlineSmall
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ],
@@ -134,10 +149,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: Spacing.xl),
                     SizedBox(
                       width: double.infinity,
-                      child: _GlassButton(
-                        label: 'Save',
-                        onTap: _saveProfile,
-                      ),
+                      child: _GlassButton(label: 'Save', onTap: _saveProfile),
                     ),
                     const SizedBox(height: Spacing.section),
                     _sectionHeader('Model & AI'),
@@ -145,11 +157,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _SettingsTile(
                       icon: LucideIcons.downloadCloud,
                       title: 'Manage AI model',
-                      subtitle: FeatureManager.instance.isE4bAvailable
-                          ? 'E4B premium model active'
-                          : (FeatureManager.instance.isE2bAvailable
-                              ? 'E2B model active'
-                              : 'No model downloaded'),
+                      subtitle: _modelStatusSubtitle(),
                       onTap: () {
                         Navigator.push(
                           context,
@@ -239,10 +247,7 @@ class _GlassTextField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: Spacing.lg,
-            vertical: 2,
-          ),
+          padding: EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: 2),
           decoration: AppTheme.glassmorphism(
             tint: error != null
                 ? AppTheme.error.withValues(alpha: 0.08)
@@ -281,10 +286,7 @@ class _GlassTextField extends StatelessWidget {
             padding: const EdgeInsets.only(left: Spacing.sm, top: Spacing.xs),
             child: Text(
               error!,
-              style: const TextStyle(
-                color: AppTheme.error,
-                fontSize: 11,
-              ),
+              style: const TextStyle(color: AppTheme.error, fontSize: 11),
             ),
           ),
       ],
