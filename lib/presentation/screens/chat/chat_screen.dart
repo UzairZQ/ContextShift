@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/ai_service.dart';
 import '../../../core/ai/action_executor.dart';
 import '../../../core/app_spacing.dart';
+import '../../../core/app_runtime.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
 import '../../../core/database/schema.dart';
@@ -201,6 +202,10 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _isProcessing = true);
 
     try {
+      debugPrint(
+        '[ChatScreen] Send pressed. build=$appRuntimeBuild '
+        'conversation=$_activeConversationId, message="$message"',
+      );
       await DatabaseService.instance.addMessage(
         conversationId: _activeConversationId!,
         role: 'user',
@@ -221,15 +226,18 @@ class _ChatScreenState extends State<ChatScreen> {
           result.actions,
         );
         response = result.response;
+        debugPrint('[ChatScreen] Direct command response: $response');
         widgetJson = execution.generatedCard == null
             ? _encodeWidgetPayload(result)
             : jsonEncode(execution.generatedCard);
       } else {
         await _ensureJarvisReadyForChat(message);
         final intent = _classifyJarvisIntent(message);
+        debugPrint('[ChatScreen] Route selected: $intent');
         switch (intent) {
           case _JarvisIntent.chat:
             response = await _generatePlainJarvisReply(message);
+            debugPrint('[ChatScreen] Plain JARVIS response: $response');
             widgetJson = null;
           case _JarvisIntent.action:
             final result = await AiService.instance.processCommand(
@@ -241,6 +249,7 @@ class _ChatScreenState extends State<ChatScreen> {
               result.actions,
             );
             response = result.response;
+            debugPrint('[ChatScreen] Action JARVIS response: $response');
             widgetJson = execution.generatedCard == null
                 ? _encodeWidgetPayload(result)
                 : jsonEncode(execution.generatedCard);
@@ -253,6 +262,10 @@ class _ChatScreenState extends State<ChatScreen> {
             response = generation.text.isEmpty
                 ? 'I shaped that into an interactive view.'
                 : generation.text;
+            debugPrint(
+              '[ChatScreen] GenUI JARVIS response: $response '
+              'surfaces=${generation.surfaceIds}',
+            );
             widgetJson =
                 generation.surfaceIds.isEmpty ||
                     generation.rawA2ui.trim().isEmpty
@@ -334,7 +347,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   _JarvisIntent _classifyJarvisIntent(String message) {
     debugPrint(
-      '[ChatScreen] Classifying JARVIS intent. '
+      '[ChatScreen] Routing JARVIS intent locally. '
       'messageLength=${message.length}, conversation=$_activeConversationId',
     );
     final lower = message.trim().toLowerCase();
@@ -342,12 +355,17 @@ class _ChatScreenState extends State<ChatScreen> {
       debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.chat}');
       return _JarvisIntent.chat;
     }
-    if (AiService.instance.isCommandQuery(lower)) return _JarvisIntent.action;
+    if (AiService.instance.isCommandQuery(lower)) {
+      debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.action}');
+      return _JarvisIntent.action;
+    }
     if (RegExp(
       r'\b(ui|screen|card|view|dashboard|widget|form|layout|visual|interactive)\b',
     ).hasMatch(lower)) {
+      debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.genui}');
       return _JarvisIntent.genui;
     }
+    debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.chat}');
     return _JarvisIntent.chat;
   }
 

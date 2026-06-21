@@ -174,12 +174,17 @@ class GemmaService {
     double temperature = 0.1,
     Duration timeout = const Duration(seconds: 15),
   }) async {
-    debugPrint('[GemmaService] Generate called');
+    final requestId = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
+    debugPrint('[GemmaService][$requestId] Generate called');
     debugPrint(
-      '[GemmaService]   Prompt: "${prompt.length > 100 ? '${prompt.substring(0, 100)}...' : prompt}"',
+      '[GemmaService][$requestId]   Prompt: "${prompt.length > 220 ? '${prompt.substring(0, 220)}...' : prompt}"',
     );
-    debugPrint('[GemmaService]   Max tokens: $maxTokens');
-    debugPrint('[GemmaService]   Temperature: $temperature');
+    debugPrint('[GemmaService][$requestId]   Max output tokens: $maxTokens');
+    debugPrint('[GemmaService][$requestId]   Temperature: $temperature');
+    debugPrint(
+      '[GemmaService][$requestId]   Active model: ${_activeModelDef?.modelId}, '
+      'tier=$_activeModelTier, loaded=$_modelLoaded',
+    );
 
     if (!_modelLoaded || _model == null) {
       throw GemmaException(
@@ -190,25 +195,38 @@ class GemmaService {
 
     InferenceModelSession? session;
     try {
+      debugPrint('[GemmaService][$requestId] Opening one-shot session...');
       session = await _model!.openSession(
         temperature: temperature,
         topK: 1,
         maxOutputTokens: maxTokens,
       );
+      debugPrint(
+        '[GemmaService][$requestId] Session opened; sending prompt...',
+      );
       await session.addQueryChunk(Message(text: prompt, isUser: true));
+      debugPrint(
+        '[GemmaService][$requestId] Waiting for native response '
+        '(timeout=${timeout.inSeconds}s)...',
+      );
       final result = await session.getResponse().timeout(timeout);
-      debugPrint('[GemmaService] Generated response (${result.length} chars)');
+      debugPrint(
+        '[GemmaService][$requestId] Generated response (${result.length} chars): '
+        '${result.length > 1200 ? '${result.substring(0, 1200)}...' : result}',
+      );
       return result;
     } on TimeoutException {
-      debugPrint('[GemmaService] Generation timed out after $timeout');
+      debugPrint(
+        '[GemmaService][$requestId] Generation timed out after $timeout',
+      );
       await session?.stopGeneration();
       throw GemmaException(
         code: GemmaErrorCode.inferenceTimeout,
         message: 'Model took too long to respond (>${timeout.inSeconds}s)',
       );
     } catch (e, stack) {
-      debugPrint('[GemmaService] Generation error: $e');
-      debugPrint('[GemmaService]   Stack: $stack');
+      debugPrint('[GemmaService][$requestId] Generation error: $e');
+      debugPrint('[GemmaService][$requestId]   Stack: $stack');
 
       final errMsg = e.toString().toLowerCase();
       if (errMsg.contains('oom') || errMsg.contains('out of memory')) {
@@ -222,7 +240,15 @@ class GemmaService {
 
       rethrow;
     } finally {
-      await session?.close();
+      try {
+        await session?.close();
+        debugPrint('[GemmaService][$requestId] Session closed');
+      } catch (closeError, closeStack) {
+        debugPrint(
+          '[GemmaService][$requestId] Session close failed: $closeError',
+        );
+        debugPrintStack(stackTrace: closeStack);
+      }
     }
   }
 

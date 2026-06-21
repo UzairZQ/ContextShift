@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'core/app_runtime.dart';
 import 'core/app_theme.dart';
 import 'core/database/database_service.dart';
 import 'core/local_llm/gemma_service.dart';
@@ -16,6 +17,7 @@ void main() {
   runZonedGuarded<Future<void>>(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
+      debugPrint('[Runtime] ContextShift build=$appRuntimeBuild');
 
       FlutterError.onError = (details) {
         FlutterError.presentError(details);
