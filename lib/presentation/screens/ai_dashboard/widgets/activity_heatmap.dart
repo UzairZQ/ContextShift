@@ -83,8 +83,9 @@ class ActivityHeatmap extends StatelessWidget {
                           boxShadow: count > 0
                               ? [
                                   BoxShadow(
-                                    color: AppTheme.primary
-                                        .withValues(alpha: opacity * 0.4),
+                                    color: AppTheme.primary.withValues(
+                                      alpha: opacity * 0.4,
+                                    ),
                                     blurRadius: 4,
                                   ),
                                 ]

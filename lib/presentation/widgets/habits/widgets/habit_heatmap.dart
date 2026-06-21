@@ -82,8 +82,9 @@ class HabitHeatmap extends StatelessWidget {
                       boxShadow: count > 0
                           ? [
                               BoxShadow(
-                                color: AppTheme.primary
-                                    .withValues(alpha: opacity * 0.5),
+                                color: AppTheme.primary.withValues(
+                                  alpha: opacity * 0.5,
+                                ),
                                 blurRadius: 4,
                                 spreadRadius: 1,
                               ),

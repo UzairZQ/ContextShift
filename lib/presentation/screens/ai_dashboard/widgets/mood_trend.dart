@@ -11,10 +11,7 @@ class MoodTrend extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Mood Trend',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        Text('Mood Trend', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 12),
         StreamBuilder<List<Map<String, dynamic>>>(
           stream: DatabaseService.instance.watchMoods(days: 7),
@@ -28,8 +25,9 @@ class MoodTrend extends StatelessWidget {
             return Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
-              decoration:
-                  AppTheme.cardDecoration(color: AppTheme.surfaceContainer),
+              decoration: AppTheme.cardDecoration(
+                color: AppTheme.surfaceContainer,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: moods.reversed.take(7).map((m) {
@@ -44,8 +42,9 @@ class MoodTrend extends StatelessWidget {
                       Text(
                         dayPart,
                         style: TextStyle(
-                          color: AppTheme.onSurfaceVariant
-                              .withValues(alpha: 0.4),
+                          color: AppTheme.onSurfaceVariant.withValues(
+                            alpha: 0.4,
+                          ),
                           fontSize: 10,
                         ),
                       ),

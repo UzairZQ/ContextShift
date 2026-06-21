@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
@@ -37,10 +37,10 @@ class HomeHeader extends StatelessWidget {
                 Text(
                   'ContextShift',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        letterSpacing: -1,
-                        fontWeight: FontWeight.w900,
-                        fontSize: Responsive.isMobile(context) ? 28 : 36,
-                      ),
+                    letterSpacing: -1,
+                    fontWeight: FontWeight.w900,
+                    fontSize: Responsive.isMobile(context) ? 28 : 36,
+                  ),
                 ),
                 Text(
                   '${DatabaseService.instance.firstName}\'s Sanctuary',

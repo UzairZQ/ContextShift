@@ -46,9 +46,7 @@ class HabitProgress extends StatelessWidget {
             child: LinearProgressIndicator(
               value: total == 0 ? 0 : doneCount / total,
               backgroundColor: AppTheme.surface,
-              valueColor: const AlwaysStoppedAnimation(
-                AppTheme.primary,
-              ),
+              valueColor: const AlwaysStoppedAnimation(AppTheme.primary),
               minHeight: 6,
             ),
           ),

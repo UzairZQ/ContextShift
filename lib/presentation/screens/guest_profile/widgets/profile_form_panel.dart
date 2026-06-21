@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
 
@@ -168,10 +168,7 @@ class _ErrorBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppTheme.error.withValues(alpha: 0.24)),
       ),
-      child: Text(
-        message,
-        style: const TextStyle(color: AppTheme.error),
-      ),
+      child: Text(message, style: const TextStyle(color: AppTheme.error)),
     );
   }
 }

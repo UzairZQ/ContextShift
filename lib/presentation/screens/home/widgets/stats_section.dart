@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
@@ -45,8 +45,7 @@ class StatsSection extends StatelessWidget {
               crossAxisCount: Responsive.isMobile(context) ? 2 : 4,
               crossAxisSpacing: Spacing.md,
               mainAxisSpacing: Spacing.md,
-              childAspectRatio:
-                  Responsive.isMobile(context) ? 1.38 : 1.55,
+              childAspectRatio: Responsive.isMobile(context) ? 1.38 : 1.55,
               children: [
                 _StatCard(
                   value: '$tasksDone/$totalTasks',
@@ -66,8 +65,7 @@ class StatsSection extends StatelessWidget {
                   value: '${focusMinutesToday}m',
                   label: 'Focus Today',
                   icon: LucideIcons.timer,
-                  progress:
-                      (focusMinutesToday / 120).clamp(0, 1).toDouble(),
+                  progress: (focusMinutesToday / 120).clamp(0, 1).toDouble(),
                   color: AppTheme.primary,
                 ),
                 _StatCard(

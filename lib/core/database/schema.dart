@@ -41,8 +41,7 @@ class TaskTable extends Table {
   TextColumn get userId => text()();
   TextColumn get title => text()();
   BoolColumn get done => boolean().withDefault(const Constant(false))();
-  TextColumn get priority =>
-      text().withDefault(const Constant('normal'))();
+  TextColumn get priority => text().withDefault(const Constant('normal'))();
   TextColumn get due => text().withDefault(const Constant('Today'))();
   TextColumn get subtasks => text().withDefault(const Constant('[]'))();
   DateTimeColumn get createdAt => dateTime()();
@@ -56,8 +55,7 @@ class HabitTable extends Table {
   TextColumn get userId => text()();
   TextColumn get name => text()();
   TextColumn get icon => text()();
-  TextColumn get completedDates =>
-      text().withDefault(const Constant('[]'))();
+  TextColumn get completedDates => text().withDefault(const Constant('[]'))();
   DateTimeColumn get createdAt => dateTime()();
 }
 
@@ -69,8 +67,7 @@ class FocusSessionTable extends Table {
   IntColumn get durationMinutes => integer()();
   DateTimeColumn get startedAt => dateTime()();
   DateTimeColumn? get completedAt => dateTime().nullable()();
-  BoolColumn get completed =>
-      boolean().withDefault(const Constant(false))();
+  BoolColumn get completed => boolean().withDefault(const Constant(false))();
 }
 
 // ── Notes ──────────────────────────────────────────────────────

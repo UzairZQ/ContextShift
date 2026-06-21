@@ -32,11 +32,15 @@ class MoodCheckIn extends StatelessWidget {
           const SizedBox(height: Spacing.md),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: _moods.map((mood) => _MoodButton(
-                  emoji: mood,
-                  isSelected: selectedMood == mood,
-                  onTap: () => onSelect(mood),
-                )).toList(),
+            children: _moods
+                .map(
+                  (mood) => _MoodButton(
+                    emoji: mood,
+                    isSelected: selectedMood == mood,
+                    onTap: () => onSelect(mood),
+                  ),
+                )
+                .toList(),
           ),
         ],
       ),

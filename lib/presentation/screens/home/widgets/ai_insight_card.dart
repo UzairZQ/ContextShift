@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
@@ -34,8 +34,7 @@ class AiInsightCard extends StatelessWidget {
               ],
             ),
             borderRadius: BorderRadius.circular(20),
-            border:
-                Border.all(color: AppTheme.primary.withValues(alpha: 0.15)),
+            border: Border.all(color: AppTheme.primary.withValues(alpha: 0.15)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -51,9 +50,9 @@ class AiInsightCard extends StatelessWidget {
                   Text(
                     'AI Insight',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: AppTheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      color: AppTheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const Spacer(),
                   const Icon(
@@ -76,9 +75,8 @@ class AiInsightCard extends StatelessWidget {
                   : Text(
                       insight ?? 'Tap to view your AI dashboard.',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color:
-                                AppTheme.onSurface.withValues(alpha: 0.9),
-                          ),
+                        color: AppTheme.onSurface.withValues(alpha: 0.9),
+                      ),
                     ),
             ],
           ),

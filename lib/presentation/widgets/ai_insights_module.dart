@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/app_theme.dart';
 
 class AiInsightsModule extends StatelessWidget {
@@ -9,7 +9,8 @@ class AiInsightsModule extends StatelessWidget {
   const AiInsightsModule({
     super.key,
     this.adaptations = 12,
-    this.insightText = "Based on your patterns, Focus Timer is most used at 9AM",
+    this.insightText =
+        "Based on your patterns, Focus Timer is most used at 9AM",
   });
 
   @override
@@ -27,15 +28,29 @@ class AiInsightsModule extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(LucideIcons.sparkles, color: AppTheme.primary, size: 20),
+              const Icon(
+                LucideIcons.sparkles,
+                color: AppTheme.primary,
+                size: 20,
+              ),
               const SizedBox(width: 8),
-              Text("AI Insight", style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppTheme.primary)),
+              Text(
+                "AI Insight",
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(color: AppTheme.primary),
+              ),
             ],
           ),
           const SizedBox(height: 12),
           Text(insightText, style: Theme.of(context).textTheme.bodyLarge),
           const SizedBox(height: 16),
-          Text("Adapted layouts $adaptations times this month", style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white54)),
+          Text(
+            "Adapted layouts $adaptations times this month",
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: Colors.white54),
+          ),
         ],
       ),
     );

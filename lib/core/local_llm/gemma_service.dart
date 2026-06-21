@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
+import 'package:flutter_gemma_litertlm/flutter_gemma_litertlm.dart';
 
 import 'model_tier.dart';
 
@@ -54,7 +55,7 @@ class GemmaService {
 
     debugPrint('[GemmaService] Initializing FlutterGemma...');
     try {
-      await FlutterGemma.initialize();
+      await FlutterGemma.initialize(inferenceEngines: [LiteRtLmEngine()]);
       _initialized = true;
       debugPrint('[GemmaService] FlutterGemma initialized successfully');
     } catch (e, stack) {

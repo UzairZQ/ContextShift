@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
 import '../../../../core/database/database_service.dart';
@@ -12,10 +12,7 @@ class CommandHistory extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Command History',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        Text('Command History', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 12),
         StreamBuilder<List<Map<String, dynamic>>>(
           stream: DatabaseService.instance.watchAiCommands(limit: 5),
@@ -25,7 +22,9 @@ class CommandHistory extends StatelessWidget {
             }
 
             return Column(
-              children: snapshot.data!.map((cmd) => _HistoryItem(cmd: cmd)).toList(),
+              children: snapshot.data!
+                  .map((cmd) => _HistoryItem(cmd: cmd))
+                  .toList(),
             );
           },
         ),

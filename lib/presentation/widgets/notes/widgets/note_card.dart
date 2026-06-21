@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
 import '../../../../core/database/database_service.dart';
@@ -78,8 +78,7 @@ class NoteCard extends StatelessWidget {
             right: -8,
             top: -8,
             child: IconButton(
-              onPressed: () =>
-                  DatabaseService.instance.deleteNote(note['id']),
+              onPressed: () => DatabaseService.instance.deleteNote(note['id']),
               icon: const Icon(
                 LucideIcons.trash2,
                 size: 14,

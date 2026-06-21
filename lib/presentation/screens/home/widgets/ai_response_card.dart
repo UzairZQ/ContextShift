@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
@@ -34,18 +34,24 @@ class AiResponseCard extends StatelessWidget {
               color: AppTheme.primary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                  color: AppTheme.primary.withValues(alpha: 0.2)),
+                color: AppTheme.primary.withValues(alpha: 0.2),
+              ),
             ),
             child: Row(
               children: [
-                const Icon(LucideIcons.sparkles,
-                    color: AppTheme.primary, size: 18),
+                const Icon(
+                  LucideIcons.sparkles,
+                  color: AppTheme.primary,
+                  size: 18,
+                ),
                 SizedBox(width: Spacing.md),
                 Expanded(
                   child: Text(
                     message,
                     style: const TextStyle(
-                        color: AppTheme.onSurface, fontSize: 14),
+                      color: AppTheme.onSurface,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
                 Semantics(

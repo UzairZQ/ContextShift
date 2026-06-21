@@ -53,7 +53,7 @@ class ModelDefinition {
     downloadSizeMb: 2590,
     minRamMb: 4096,
     requiresPurchase: false,
-    modelType: ModelType.general,
+    modelType: ModelType.gemma4,
     fileType: ModelFileType.litertlm,
     maxTokens: 2048,
   );
@@ -67,7 +67,7 @@ class ModelDefinition {
     downloadSizeMb: 3660,
     minRamMb: 8192,
     requiresPurchase: true,
-    modelType: ModelType.general,
+    modelType: ModelType.gemma4,
     fileType: ModelFileType.litertlm,
     maxTokens: 4096,
   );

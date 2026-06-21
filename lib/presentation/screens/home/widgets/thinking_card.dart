@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
@@ -29,15 +29,15 @@ class ThinkingCard extends StatelessWidget {
                   Text(
                     'JARVIS is working on it...',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: AppTheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      color: AppTheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   Text(
                     'Building a generative command module based on your prompt.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
-                        ),
+                      color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
+                    ),
                   ),
                 ],
               ),
@@ -63,10 +63,8 @@ class _ThinkingPulseState extends State<ThinkingPulse>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: Motion.pulse,
-    )..repeat(reverse: true);
+    _controller = AnimationController(vsync: this, duration: Motion.pulse)
+      ..repeat(reverse: true);
   }
 
   @override

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
 import '../../../core/ai_service.dart';
@@ -96,8 +96,7 @@ class _NotesModuleState extends State<NotesModule> {
                 return GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate:
-                      SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: _gridColumns(constraints.maxWidth),
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
@@ -106,8 +105,7 @@ class _NotesModuleState extends State<NotesModule> {
                   itemCount: notes.length,
                   itemBuilder: (context, index) => NoteCard(
                     note: notes[index],
-                    isSummarizing:
-                        _summarizingIds[notes[index]['id']] ?? false,
+                    isSummarizing: _summarizingIds[notes[index]['id']] ?? false,
                     onSummarize: () => _summarize(
                       notes[index]['id'],
                       notes[index]['content'] ?? '',

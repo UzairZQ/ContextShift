@@ -14,7 +14,7 @@ class Responsive {
   static double horizontalPadding(BuildContext context) {
     double width = MediaQuery.of(context).size.width;
     if (width > 1200) return width * 0.25; // Large desktop
-    if (width > 800) return width * 0.15;  // Tablet
+    if (width > 800) return width * 0.15; // Tablet
     return 20.0; // Mobile
   }
 }
