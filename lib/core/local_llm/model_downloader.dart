@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:disk_space_plus/disk_space_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
 
+import '../services/device_storage_service.dart';
 import 'model_tier.dart';
 
 enum DownloadErrorCode {
@@ -173,15 +173,15 @@ class ModelDownloader {
 
   Future<bool> hasSufficientStorage(ModelDefinition model) async {
     try {
-      final freeMb = await DiskSpacePlus().getFreeDiskSpace;
-      if (freeMb == null) {
+      final storage = await DeviceStorageService.instance.getStorageInfo();
+      final availableBytes = storage.availableBytes;
+      if (availableBytes == null) {
         throw const DownloadException(
           code: DownloadErrorCode.unknown,
           message: 'Device did not report available storage.',
         );
       }
 
-      final availableBytes = (freeMb * 1024 * 1024).round();
       final neededBytes = (model.downloadSizeMb + 500) * 1024 * 1024;
       final hasSpace = availableBytes > neededBytes;
 
@@ -205,16 +205,14 @@ class ModelDownloader {
 
   Future<Map<String, dynamic>> _getStorageInfo() async {
     try {
-      final diskSpace = DiskSpacePlus();
-      final availableMb = await diskSpace.getFreeDiskSpace;
-      final totalMb = await diskSpace.getTotalDiskSpace;
-      final availableBytes = ((availableMb ?? 0) * 1024 * 1024).round();
+      final storage = await DeviceStorageService.instance.getStorageInfo();
+      final availableBytes = storage.availableBytes;
       return {
-        'available': availableMb == null
+        'available': availableBytes == null
             ? 'unknown'
             : _formatBytes(availableBytes),
-        'availableMb': availableMb?.round() ?? 0,
-        'totalMb': totalMb?.round() ?? 0,
+        'availableMb': storage.availableMb,
+        'totalMb': storage.totalMb,
       };
     } catch (e, stackTrace) {
       debugPrint('[ModelDownloader] Failed to read storage details: $e');
