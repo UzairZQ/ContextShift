@@ -70,6 +70,32 @@ class JarvisGenUiRuntime {
     int? conversationId,
     Duration timeout = const Duration(seconds: 45),
   }) async {
+    final plannedMessage = _withPlanningInstruction(userMessage);
+    final first = await _generateOnce(
+      userMessage: plannedMessage,
+      conversationId: conversationId,
+      timeout: timeout,
+    );
+    if (first.surfaceIds.isNotEmpty && first.rawA2ui.trim().isNotEmpty) {
+      return first;
+    }
+
+    final repaired = await _generateOnce(
+      userMessage: _withRepairInstruction(userMessage),
+      conversationId: conversationId,
+      timeout: timeout,
+    );
+    if (repaired.surfaceIds.isNotEmpty || repaired.text.isNotEmpty) {
+      return repaired;
+    }
+    return first;
+  }
+
+  Future<GenUiGeneration> _generateOnce({
+    required String userMessage,
+    int? conversationId,
+    required Duration timeout,
+  }) async {
     _rawResponse.clear();
     _latestText = '';
     _conversationId = conversationId;
@@ -107,9 +133,15 @@ class JarvisGenUiRuntime {
             'You are JARVIS, a warm, concise, action-oriented private guide.',
             'Respond with short useful text and create a surface only when '
                 'interactive or structured UI is genuinely useful.',
+            'Before creating UI, silently infer the user intent, the needed '
+                'data, and the most helpful component structure. Ask a brief '
+                'clarifying question only when a useful UI cannot be made.',
             'When creating a surface, avoid pre-made templates. Build a fresh '
                 'composition from the available catalog components that fits '
                 'the user prompt and any local ContextShift data.',
+            'Use jarvisMemory, recentConversation, tasks, habits, notes, mood, '
+                'and focus data when relevant. Prefer specific user context '
+                'over generic advice.',
             'If the user asks for a plan, routine, workout, dashboard, card, '
                 'screen, checklist, program, or visual structure, create an '
                 'A2UI surface unless a plain chat answer is clearly better.',
@@ -157,5 +189,26 @@ class JarvisGenUiRuntime {
     conversation.dispose();
     transport.dispose();
     controller.dispose();
+  }
+
+  String _withPlanningInstruction(String userMessage) {
+    return '''
+Think silently before answering.
+1. Identify the user's real request.
+2. Decide whether an interactive/structured surface is useful.
+3. Choose only the catalog widgets/components needed.
+4. Build a fresh composition grounded in the provided ContextShift data.
+
+User request: $userMessage
+''';
+  }
+
+  String _withRepairInstruction(String userMessage) {
+    return '''
+Your previous response did not create a valid visible A2UI surface.
+Create one valid, compact surface now using the available catalog. Use plain text only if the request truly does not need UI.
+
+User request: $userMessage
+''';
   }
 }

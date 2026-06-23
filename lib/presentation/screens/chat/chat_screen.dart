@@ -9,6 +9,8 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../../../core/ai_service.dart';
 import '../../../core/ai/action_executor.dart';
+import '../../../core/ai/context_provider.dart';
+import '../../../core/ai/jarvis_memory_service.dart';
 import '../../../core/app_spacing.dart';
 import '../../../core/app_runtime.dart';
 import '../../../core/app_theme.dart';
@@ -69,7 +71,9 @@ bool shouldRouteChatMessageToGenUi(String message) {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _messageController = TextEditingController();
+  final _conversationSearchController = TextEditingController();
   final _scrollController = ScrollController();
   final _speech = stt.SpeechToText();
   JarvisGenUiRuntime? _genUiRuntime;
@@ -77,6 +81,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _speechReady = false;
   bool _isListening = false;
   String _dictationBaseText = '';
+  String _conversationQuery = '';
   late final bool _forceComposer;
   bool _loggedFirstBuild = false;
 
@@ -98,6 +103,11 @@ class _ChatScreenState extends State<ChatScreen> {
     );
     _forceComposer = widget.startNewOnOpen;
     _activeConversationId = widget.conversationId;
+    _conversationSearchController.addListener(() {
+      setState(() {
+        _conversationQuery = _conversationSearchController.text.trim();
+      });
+    });
     _genUiActionSub = GenUiActionBus.instance.actions.listen(
       _handleGenUiAction,
     );
@@ -115,6 +125,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_speechReady) {
       _speech.stop();
     }
+    _conversationSearchController.dispose();
     _messageController.dispose();
     _scrollController.dispose();
     _messagesSub?.cancel();
@@ -354,6 +365,11 @@ class _ChatScreenState extends State<ChatScreen> {
         content: response,
         widgetJson: widgetJson,
       );
+      await JarvisMemoryService.instance.recordTurn(
+        conversationId: _activeConversationId!,
+        userMessage: message,
+        assistantResponse: response,
+      );
       if (!mounted) return;
 
       if (_conversations.any((c) => c.id == _activeConversationId)) {
@@ -465,11 +481,11 @@ class _ChatScreenState extends State<ChatScreen> {
       'messageLength=${message.length}, conversation=$_activeConversationId',
     );
     final prompt = [
-      'You are JARVIS inside ContextShift.',
-      'Reply naturally, warmly, and concisely.',
+      await ContextProvider.instance.buildChat(
+        userMessage: message,
+        conversationId: _activeConversationId,
+      ),
       'Do not output JSON or UI markup.',
-      'User: $message',
-      'JARVIS:',
     ].join('\n');
     final response = await GemmaService.instance.generate(
       prompt,
@@ -522,6 +538,15 @@ class _ChatScreenState extends State<ChatScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
+  }
+
+  String _formatConversationDate(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    return '${dt.month}/${dt.day}/${dt.year}';
   }
 
   Future<void> _toggleDictation() async {
@@ -623,8 +648,10 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: AppTheme.background,
       resizeToAvoidBottomInset: true,
+      drawer: _buildConversationDrawer(context),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -704,6 +731,16 @@ class _ChatScreenState extends State<ChatScreen> {
           if (hasActiveConv)
             IconButton(
               icon: const Icon(
+                LucideIcons.menu,
+                color: AppTheme.onSurfaceVariant,
+                size: 20,
+              ),
+              onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+              tooltip: 'Conversation history',
+            ),
+          if (hasActiveConv)
+            IconButton(
+              icon: const Icon(
                 LucideIcons.plus,
                 color: AppTheme.onSurfaceVariant,
                 size: 20,
@@ -728,6 +765,19 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildConversationList(BuildContext context) {
+    final query = _conversationQuery.toLowerCase();
+    final conversations = query.isEmpty
+        ? _conversations
+        : _conversations
+              .where(
+                (conv) =>
+                    conv.title.toLowerCase().contains(query) ||
+                    _formatConversationDate(
+                      conv.updatedAt,
+                    ).toLowerCase().contains(query),
+              )
+              .toList();
+
     if (_conversations.isEmpty) {
       return Center(
         child: Column(
@@ -756,23 +806,139 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
+    if (conversations.isEmpty) {
+      return Center(
+        child: Text(
+          'No matching chats',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
+          ),
+        ),
+      );
+    }
+
     return ListView.separated(
       padding: EdgeInsets.symmetric(
         horizontal: Responsive.horizontalPadding(context),
         vertical: Spacing.sm,
       ),
-      itemCount: _conversations.length,
+      itemCount: conversations.length,
       separatorBuilder: (_, _) => const SizedBox(height: Spacing.sm),
       itemBuilder: (context, index) {
-        final conv = _conversations[index];
+        final conv = conversations[index];
         final isActive = conv.id == _activeConversationId;
         return _ConversationTile(
           conversation: conv,
           isActive: isActive,
-          onTap: () => _selectConversation(conv.id),
+          onTap: () async {
+            if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+              Navigator.of(context).pop();
+            }
+            await _selectConversation(conv.id);
+          },
           onDelete: () => _deleteConversation(conv.id),
         );
       },
+    );
+  }
+
+  Widget _buildConversationDrawer(BuildContext context) {
+    return Drawer(
+      backgroundColor: AppTheme.surfaceLow,
+      child: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                Spacing.lg,
+                Spacing.lg,
+                Spacing.lg,
+                Spacing.md,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      LucideIcons.sparkles,
+                      color: AppTheme.primary,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: Spacing.md),
+                  Expanded(
+                    child: Text(
+                      'Chats',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(LucideIcons.messageSquarePlus, size: 19),
+                    color: AppTheme.primary,
+                    onPressed: () async {
+                      Navigator.of(context).pop();
+                      await _startNewConversation();
+                    },
+                    tooltip: 'New conversation',
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: Spacing.md),
+                decoration: AppTheme.glassmorphism(
+                  tint: AppTheme.surfaceHighest,
+                  borderRadius: 14,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      LucideIcons.search,
+                      size: 17,
+                      color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
+                    ),
+                    const SizedBox(width: Spacing.sm),
+                    Expanded(
+                      child: TextField(
+                        controller: _conversationSearchController,
+                        style: const TextStyle(color: AppTheme.onSurface),
+                        decoration: InputDecoration(
+                          hintText: 'Search chats',
+                          hintStyle: TextStyle(
+                            color: AppTheme.onSurfaceVariant.withValues(
+                              alpha: 0.5,
+                            ),
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    if (_conversationQuery.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(LucideIcons.x, size: 16),
+                        color: AppTheme.onSurfaceVariant,
+                        onPressed: _conversationSearchController.clear,
+                        tooltip: 'Clear search',
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: Spacing.md),
+            Expanded(child: _buildConversationList(context)),
+          ],
+        ),
+      ),
     );
   }
 

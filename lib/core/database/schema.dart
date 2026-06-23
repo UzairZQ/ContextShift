@@ -128,6 +128,30 @@ class ConversationTable extends Table {
   DateTimeColumn get updatedAt => dateTime()();
 }
 
+// ── Conversation Memory (Jarvis long context) ──────────────────
+
+class ConversationMemoryTable extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get conversationId => integer().unique()();
+  TextColumn get summary => text().withDefault(const Constant(''))();
+  TextColumn get openQuestions => text().withDefault(const Constant('[]'))();
+  DateTimeColumn get updatedAt => dateTime()();
+}
+
+// ── Learned User Memory (Jarvis profile/context) ───────────────
+
+class JarvisMemoryTable extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get userId => text()();
+  TextColumn get kind => text()();
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+  RealColumn get confidence => real().withDefault(const Constant(0.65))();
+  TextColumn? get source => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+}
+
 // ── Messages (Jarvis chat messages) ────────────────────────────
 
 class MessageTable extends Table {
@@ -153,6 +177,8 @@ class MessageTable extends Table {
     AiCommandTable,
     BehaviorEventTable,
     ConversationTable,
+    ConversationMemoryTable,
+    JarvisMemoryTable,
     MessageTable,
   ],
 )
@@ -160,7 +186,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration {
@@ -181,6 +207,10 @@ class AppDatabase extends _$AppDatabase {
           await customStatement(
             'UPDATE profile_table SET focus_role = focus_area WHERE focus_role IS NULL AND focus_area IS NOT NULL',
           );
+        }
+        if (from < 3) {
+          await m.createTable(conversationMemoryTable);
+          await m.createTable(jarvisMemoryTable);
         }
       },
     );

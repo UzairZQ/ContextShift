@@ -60,8 +60,8 @@ class Motion {
   /// 350ms — moderate transitions
   static const Duration moderate = Duration(milliseconds: 350);
 
-  /// 400ms — complex transitions
-  static const Duration complex = Duration(milliseconds: 400);
+  /// 520ms — complex transitions
+  static const Duration complex = Duration(milliseconds: 520);
 
   /// 600ms — expressive transitions (hero, cards)
   static const Duration expressive = Duration(milliseconds: 600);
@@ -72,8 +72,8 @@ class Motion {
   /// 540ms — smooth reverse full-screen transitions
   static const Duration smoothScreenReverse = Duration(milliseconds: 540);
 
-  /// 460ms — tab/page content swaps
-  static const Duration smoothTab = Duration(milliseconds: 460);
+  /// 720ms — deliberate tab/page content swaps
+  static const Duration smoothTab = Duration(milliseconds: 720);
 
   /// 780ms — shared element flights
   static const Duration heroFlight = Duration(milliseconds: 780);
