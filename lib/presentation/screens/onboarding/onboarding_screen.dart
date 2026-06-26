@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
@@ -76,30 +77,38 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     final page = _pages[_currentPage];
 
-    return Scaffold(
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppTheme.background,
-              AppTheme.surfaceLow,
-              page.accent.withValues(alpha: 0.06),
-              page.accent.withValues(alpha: 0.16),
-            ],
-            stops: const [0, 0.48, 0.74, 1],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarBrightness: Brightness.dark,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: AppTheme.background,
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: AppTheme.background,
+        body: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppTheme.background,
+                AppTheme.surfaceLow,
+                page.accent.withValues(alpha: 0.06),
+                page.accent.withValues(alpha: 0.16),
+              ],
+              stops: const [0, 0.48, 0.74, 1],
+            ),
           ),
-        ),
-        child: SafeArea(
           child: Stack(
             children: [
               Positioned(
-                top: -80,
-                right: -40,
+                top: -110,
+                right: -42,
                 child: _BreathingOrb(
                   color: page.accent,
-                  size: 240,
+                  size: 260,
                   travel: const Offset(-18, 22),
                 ),
               ),
@@ -123,106 +132,112 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   delay: const Duration(milliseconds: 720),
                 ),
               ),
-              Column(
-                children: [
-                  WonderousReveal(
-                    begin: const Offset(0, -0.05),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                      child: Row(
-                        children: [
-                          Text(
-                            'ContextShift',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                          const Spacer(),
-                          PressableScale(
-                            onTap: widget.onComplete,
-                            pressedScale: 0.94,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 9,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.06),
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.08),
-                                ),
-                              ),
-                              child: const Text('Skip'),
+              SafeArea(
+                child: Column(
+                  children: [
+                    WonderousReveal(
+                      begin: const Offset(0, -0.05),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                        child: Row(
+                          children: [
+                            Text(
+                              'ContextShift',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w800),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: PageView.builder(
-                      controller: _pageController,
-                      itemCount: _pages.length,
-                      onPageChanged: (index) {
-                        setState(() => _currentPage = index);
-                      },
-                      itemBuilder: (context, index) => OnboardingPageView(
-                        page: _pages[index],
-                        controller: _pageController,
-                        index: index,
-                      ),
-                    ),
-                  ),
-                  WonderousReveal(
-                    delay: const Duration(milliseconds: 180),
-                    begin: const Offset(0, 0.04),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                      child: Column(
-                        children: [
-                          PageIndicator(
-                            count: _pages.length,
-                            currentIndex: _currentPage,
-                            activeColor: page.accent,
-                          ),
-                          const SizedBox(height: 18),
-                          PressableScale(
-                            onTap: _next,
-                            pressedScale: 0.965,
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 340),
-                              curve: Curves.easeOutCubic,
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 18),
-                              decoration: BoxDecoration(
-                                color: page.accent,
-                                borderRadius: BorderRadius.circular(18),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: page.accent.withValues(alpha: 0.26),
-                                    blurRadius: 28,
-                                    offset: const Offset(0, 14),
+                            const Spacer(),
+                            PressableScale(
+                              onTap: widget.onComplete,
+                              pressedScale: 0.94,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 9,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.06),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.08),
                                   ),
-                                ],
+                                ),
+                                child: const Text('Skip'),
                               ),
-                              child: Text(
-                                _currentPage == _pages.length - 1
-                                    ? 'Build my space'
-                                    : 'Next',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.black,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 16,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: PageView.builder(
+                        controller: _pageController,
+                        itemCount: _pages.length,
+                        onPageChanged: (index) {
+                          setState(() => _currentPage = index);
+                        },
+                        itemBuilder: (context, index) => OnboardingPageView(
+                          page: _pages[index],
+                          controller: _pageController,
+                          index: index,
+                        ),
+                      ),
+                    ),
+                    WonderousReveal(
+                      delay: const Duration(milliseconds: 180),
+                      begin: const Offset(0, 0.04),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                        child: Column(
+                          children: [
+                            PageIndicator(
+                              count: _pages.length,
+                              currentIndex: _currentPage,
+                              activeColor: page.accent,
+                            ),
+                            const SizedBox(height: 18),
+                            PressableScale(
+                              onTap: _next,
+                              pressedScale: 0.965,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 340),
+                                curve: Curves.easeOutCubic,
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 18,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: page.accent,
+                                  borderRadius: BorderRadius.circular(18),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: page.accent.withValues(
+                                        alpha: 0.26,
+                                      ),
+                                      blurRadius: 28,
+                                      offset: const Offset(0, 14),
+                                    ),
+                                  ],
+                                ),
+                                child: Text(
+                                  _currentPage == _pages.length - 1
+                                      ? 'Build my space'
+                                      : 'Next',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 16,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
