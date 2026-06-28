@@ -26,37 +26,38 @@ class StatsGrid extends StatelessWidget {
             return GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
               crossAxisCount: 2,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
               childAspectRatio: MediaQuery.of(context).size.width < 380
-                  ? 1.18
-                  : 1.32,
+                  ? 1.04
+                  : 1.18,
               children: [
                 DashStatCard(
                   value: '$tasksDone',
-                  label: 'Tasks Completed',
+                  label: 'Tasks closed',
                   sublabel: 'All time',
                   icon: LucideIcons.checkCircle,
-                  color: Colors.blue,
+                  color: AppTheme.intelligence,
                 ),
                 DashStatCard(
                   value: '${focusMinutes}m',
-                  label: 'Focus Today',
+                  label: 'Focus today',
                   sublabel: 'Deep work',
                   icon: LucideIcons.timer,
                   color: AppTheme.primary,
                 ),
                 DashStatCard(
                   value: '$streak',
-                  label: 'Day Streak',
+                  label: 'Day streak',
                   sublabel: 'Consistency',
                   icon: LucideIcons.flame,
                   color: AppTheme.warning,
                 ),
                 DashStatCard(
                   value: '${habits.length}',
-                  label: 'Active Habits',
+                  label: 'Active habits',
                   sublabel: 'Tracking',
                   icon: LucideIcons.activity,
                   color: AppTheme.success,

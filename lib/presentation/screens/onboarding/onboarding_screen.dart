@@ -23,34 +23,34 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   static const List<OnboardingPageData> _pages = [
     OnboardingPageData(
-      eyebrow: 'Capture the chaos',
-      title: 'Too much in your head?\nDrop it here.',
+      eyebrow: 'Private capture',
+      title: 'Your thoughts stay\nwith you.',
       body:
-          'Write the messy version. JARVIS helps turn scattered thoughts, overdue tasks, and half-made plans into one clear next move.',
+          'Drop the messy version without performing for a cloud timeline. JARVIS turns scattered thoughts, overdue tasks, and half-made plans into one clear next move on your device.',
       icon: LucideIcons.sparkles,
       accent: AppTheme.primary,
     ),
     OnboardingPageData(
-      eyebrow: 'One place to restart',
-      title: 'Find the next move.\nNot another list.',
+      eyebrow: 'Personal context',
+      title: 'One private map\nof your day.',
       body:
-          'Tasks, habits, notes, focus, and mood finally work together. Open the app and see what matters now, without rebuilding your day.',
+          'Tasks, habits, notes, focus, and mood work together as your context. Open the app and see what matters now, without rebuilding your day from memory.',
       icon: LucideIcons.compass,
       accent: AppTheme.warning,
     ),
     OnboardingPageData(
-      eyebrow: 'Private by default',
-      title: 'Built to work\noffline.',
+      eyebrow: 'On-device JARVIS',
+      title: 'Useful even when\nthe signal dies.',
       body:
-          'On a train, in a tunnel, or hiding from bad Wi-Fi, your workspace still works. JARVIS runs on your phone, so a weak signal never breaks your flow.',
+          'On a train, in a tunnel, or away from Wi-Fi, your workspace still works. JARVIS runs locally when the model is installed, so your flow is not rented from a network.',
       icon: LucideIcons.wifiOff,
       accent: AppTheme.success,
     ),
     OnboardingPageData(
       eyebrow: 'Yours means yours',
-      title: 'Your life isn\'t\ntraining data.',
+      title: 'Your life is not\ntraining data.',
       body:
-          'Your plans, moods, notes, and conversations stay on your device. No cloud history to sell. No audience. Just a private space that helps.',
+          'Your plans, moods, notes, and conversations are treated as personal context, not content. No audience. No public feed. Just a private system that gets more useful as you use it.',
       icon: LucideIcons.shield,
       accent: AppTheme.tertiary,
     ),

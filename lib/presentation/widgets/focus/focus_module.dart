@@ -111,13 +111,30 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text(
-          '🎉 Focus session complete! Great work!',
-          style: TextStyle(color: Colors.white),
+        content: Row(
+          children: [
+            const Icon(
+              LucideIcons.timerReset,
+              color: AppTheme.primary,
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Focus session complete. Great work.',
+                style: Theme.of(context).snackBarTheme.contentTextStyle,
+              ),
+            ),
+          ],
         ),
-        backgroundColor: Colors.black87,
+        backgroundColor: AppTheme.surfaceHigh.withValues(alpha: 0.96),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 0,
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 112),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: AppTheme.primary.withValues(alpha: 0.28)),
+        ),
       ),
     );
   }

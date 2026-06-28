@@ -5,10 +5,14 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/ai_service.dart';
 import '../../../core/ai/action_executor.dart';
+import '../../../core/ai/generated_ui_action_mapper.dart';
+import '../../../core/ai/jarvis_intent_router.dart';
 import '../../../core/app_spacing.dart';
 import '../../../core/app_routes.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
+import '../../../core/genui/genui_runtime.dart';
+import '../../../core/genui/widget_node.dart';
 import '../../../core/local_llm/gemma_service.dart';
 import '../../../core/local_llm/model_tier.dart';
 import '../../../core/responsive.dart';
@@ -33,6 +37,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _currentIndex = 0;
+  int _previousIndex = 0;
   String _greeting = '';
   String? _aiInsight;
   String? _aiResponse;
@@ -41,9 +46,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _isAutoWarmingJarvis = false;
   int _focusMinutesToday = 0;
   String? _todayMood;
-  Map<String, dynamic>? _generativeCardPayload;
+  String? _activeSurfaceRawA2ui;
 
   final TextEditingController _commandController = TextEditingController();
+  JarvisGenUiRuntime? _homeGenUiRuntime;
   late final AnimationController _responseAnimController;
 
   @override
@@ -62,6 +68,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     GemmaService.instance.statusRevision.removeListener(_refreshJarvisStatus);
+    _homeGenUiRuntime?.dispose();
     _responseAnimController.dispose();
     _commandController.dispose();
     super.dispose();
@@ -69,6 +76,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _refreshJarvisStatus() {
     if (mounted) setState(() {});
+  }
+
+  JarvisGenUiRuntime get _homeGenUiRuntimeInstance {
+    return _homeGenUiRuntime ??= JarvisGenUiRuntime();
   }
 
   Future<void> _maybeWarmVerifiedJarvis() async {
@@ -153,18 +164,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (command.trim().isEmpty) return;
 
     try {
-      // If no model is available, route to download screen
-      if (!FeatureManager.instance.isE2bAvailable &&
+      final intentDecision = await JarvisIntentRouter.instance.classify(
+        message: command,
+      );
+      debugPrint(
+        '[HomeScreen] Intent=${intentDecision.intent} '
+        'fromModel=${intentDecision.fromModel} '
+        'reason=${intentDecision.reason}',
+      );
+
+      if (intentDecision.intent != JarvisIntent.action &&
+          !FeatureManager.instance.isE2bAvailable &&
           !FeatureManager.instance.isE4bAvailable) {
         if (!mounted) return;
         _openModelDownload();
         return;
       }
 
-      // Route chat queries to the ChatScreen with hero animation
-      if (!AiService.instance.isCommandQuery(command)) {
+      if (intentDecision.intent == JarvisIntent.chat) {
         debugPrint(
-          '[HomeScreen] Opening JARVIS chat for model test. '
+          '[HomeScreen] Opening JARVIS chat. '
           'modelLoaded=${GemmaService.instance.isModelLoaded}, '
           'e2b=${FeatureManager.instance.isE2bAvailable}, '
           'e4b=${FeatureManager.instance.isE4bAvailable}',
@@ -178,7 +197,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _commandController.clear();
       if (mounted) setState(() => _isProcessingCommand = true);
       bool navigatedByAction = false;
-      Map<String, dynamic>? nextGenerativeCardPayload;
+
+      if (intentDecision.intent == JarvisIntent.genui) {
+        await _ensureJarvisReadyForHome(command);
+        final generation = await _homeGenUiRuntimeInstance.generate(
+          userMessage: command,
+          timeout: const Duration(seconds: 45),
+        );
+
+        final response = generation.text.isEmpty
+            ? 'I shaped that into an interactive view.'
+            : generation.text;
+        await DatabaseService.instance.saveAiCommand(
+          command: command,
+          response: response,
+          actions: [
+            {'type': 'a2ui_surface', 'surface_ids': generation.surfaceIds},
+          ],
+        );
+        if (!mounted) return;
+        setState(() {
+          _aiResponse = response;
+          _activeSurfaceRawA2ui =
+              generation.surfaceIds.isEmpty || generation.rawA2ui.trim().isEmpty
+              ? null
+              : generation.rawA2ui;
+          _currentIndex = 0;
+        });
+        _responseAnimController.forward(from: 0);
+        _showResponseSnackBar(response);
+        return;
+      }
 
       final result = await AiService.instance.processCommand(
         command: command,
@@ -191,9 +240,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         await _executeAction(
           action,
           onNavigated: () => navigatedByAction = true,
-          onGenerativeCard: (payload) {
-            nextGenerativeCardPayload = payload;
-          },
         );
       }
 
@@ -208,13 +254,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (!mounted) return;
       setState(() {
         _aiResponse = result.response;
-        _generativeCardPayload = nextGenerativeCardPayload;
         if (result.greetingUpdate != null) {
           _greeting = result.greetingUpdate!;
         }
-        if (result.layoutOrder != null &&
-            result.layoutOrder!.isNotEmpty &&
-            !navigatedByAction) {
+        if (!navigatedByAction) {
           _currentIndex = 0;
         }
       });
@@ -244,7 +287,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _executeAction(
     AiAction action, {
     required VoidCallback onNavigated,
-    required ValueChanged<Map<String, dynamic>> onGenerativeCard,
   }) async {
     switch (action.type) {
       case 'add_task':
@@ -258,13 +300,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         break;
       case 'start_focus':
         await ActionExecutor.instance.executeAll([action]);
-        break;
-      case 'show_dynamic_card':
-        if (action.params.containsKey('card')) {
-          onGenerativeCard(
-            Map<String, dynamic>.from(action.params['card'] as Map),
-          );
-        }
         break;
       case 'navigate':
         const tabMap = {
@@ -288,12 +323,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _ensureJarvisReadyForHome(String message) async {
+    debugPrint(
+      '[HomeScreen] Loading downloaded model before generation. '
+      'messageLength=${message.length}',
+    );
+    try {
+      await GemmaService.instance.loadBestAvailableModel();
+    } on GemmaException catch (error) {
+      if (error.code == GemmaErrorCode.modelNotInstalled) _openModelDownload();
+      rethrow;
+    }
+  }
+
   void _showResponseSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            const Icon(LucideIcons.sparkles, color: AppTheme.primary, size: 18),
+            const Icon(
+              LucideIcons.radio,
+              color: AppTheme.intelligence,
+              size: 18,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -307,7 +359,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ],
         ),
-        backgroundColor: Colors.black.withValues(alpha: 0.8),
+        backgroundColor: AppTheme.surfaceHigh.withValues(alpha: 0.96),
         behavior: SnackBarBehavior.floating,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -325,7 +377,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _switchTab(int index) {
     if (_currentIndex == index) return;
-    setState(() => _currentIndex = index);
+    setState(() {
+      _previousIndex = _currentIndex;
+      _currentIndex = index;
+    });
     DatabaseService.instance.logEvent(
       eventType: 'tab_tap',
       module: ['home', 'tasks', 'habits', 'focus', 'journal'][index],
@@ -352,7 +407,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ],
         ),
-        backgroundColor: Colors.black.withValues(alpha: 0.8),
+        backgroundColor: AppTheme.surfaceHigh.withValues(alpha: 0.96),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
@@ -438,33 +493,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             reverseCurve: Motion.smoothExit,
           );
           final slide = Tween<Offset>(
-            begin: const Offset(0, 0.028),
+            begin: const Offset(0, 0.08),
             end: Offset.zero,
           ).animate(curved);
-          final scale = Tween<double>(begin: 0.992, end: 1).animate(curved);
+          final scale = Tween<double>(begin: 0.968, end: 1).animate(curved);
           return ScaleTransition(
             scale: scale,
-            child: FadeTransition(
-              opacity: curved,
-              child: SlideTransition(position: slide, child: child),
-            ),
+            child: SlideTransition(position: slide, child: child),
           );
         },
       ),
     );
   }
 
-  void _handleGenerativeCardAction() {
-    final module = _generativeCardPayload?['action_module'] as String?;
-    if (module == 'FocusTimerModule') {
-      _switchTab(3);
-    } else if (module == 'TasksModule') {
-      _switchTab(1);
-    } else if (module == 'HabitModule') {
-      _switchTab(2);
-    } else if (module == 'NotesModule') {
-      _switchTab(4);
+  Future<void> _handleHomeSurfaceAction(WidgetAction action) async {
+    final aiAction = GeneratedUiActionMapper.toAiAction(action);
+    if (aiAction == null) {
+      final message = GeneratedUiActionMapper.continuationMessage(action);
+      if (message != null && message.isNotEmpty) {
+        await _pushChat(initialMessage: message);
+      }
+      return;
     }
+    await ActionExecutor.instance.executeAll([aiAction]);
+    if (!mounted) return;
+    _showResponseSnackBar('Done');
   }
 
   Widget _buildBody() {
@@ -491,7 +544,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           aiInsight: _aiInsight,
           focusMinutesToday: _focusMinutesToday,
           todayMood: _todayMood,
-          generativeCardPayload: _generativeCardPayload,
+          activeSurfaceRawA2ui: _activeSurfaceRawA2ui,
           onOpenDashboard: _openDashboard,
           onOpenProfile: _openProfile,
           onOpenChat: _openChat,
@@ -499,7 +552,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           onOpenHabits: () => _switchTab(2),
           onOpenFocus: () => _switchTab(3),
           onOpenJournal: () => _switchTab(4),
-          onGenerativeCardAction: _handleGenerativeCardAction,
+          onSurfaceAction: (action) =>
+              unawaited(_handleHomeSurfaceAction(action)),
           onSubmitCommand: _processCommand,
           onSelectMood: _saveMood,
           onDismissResponse: () {
@@ -518,6 +572,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -543,7 +598,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       const SizedBox(width: Spacing.sm),
                       const Expanded(
                         child: Text(
-                          'Download AI model for JARVIS features',
+                          'Download local model for JARVIS',
                           style: TextStyle(
                             fontSize: 13,
                             color: AppTheme.warning,
@@ -569,7 +624,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   maxWidth: 1000,
                   child: AnimatedSwitcher(
                     duration: Motion.smoothTab,
-                    reverseDuration: Motion.complex,
+                    reverseDuration: Motion.smoothTab,
                     switchInCurve: Motion.smoothEnter,
                     switchOutCurve: Motion.smoothExit,
                     layoutBuilder: (currentChild, previousChildren) {
@@ -579,30 +634,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       );
                     },
                     transitionBuilder: (child, animation) {
+                      final childKey = child.key;
+                      final childIndex = childKey is ValueKey<int>
+                          ? childKey.value
+                          : _currentIndex;
+                      final movingForward = _currentIndex > _previousIndex;
+                      final isCurrent = childIndex == _currentIndex;
                       final movement = CurvedAnimation(
                         parent: animation,
                         curve: Motion.smoothEnter,
                         reverseCurve: Motion.smoothExit,
                       );
-                      final opacity = CurvedAnimation(
-                        parent: animation,
-                        curve: Motion.smoothEnter,
-                        reverseCurve: Motion.smoothExit,
-                      );
                       final offset = Tween<Offset>(
-                        begin: const Offset(0.035, 0.015),
+                        begin: Offset(
+                          isCurrent
+                              ? (movingForward ? 0.16 : -0.16)
+                              : (movingForward ? -0.10 : 0.10),
+                          0,
+                        ),
                         end: Offset.zero,
                       ).animate(movement);
                       final scale = Tween<double>(
-                        begin: 0.988,
+                        begin: isCurrent ? 0.97 : 0.99,
                         end: 1,
                       ).animate(movement);
-                      return FadeTransition(
-                        opacity: opacity,
-                        child: SlideTransition(
-                          position: offset,
-                          child: ScaleTransition(scale: scale, child: child),
-                        ),
+                      return SlideTransition(
+                        position: offset,
+                        child: ScaleTransition(scale: scale, child: child),
                       );
                     },
                     child: KeyedSubtree(

@@ -29,9 +29,9 @@ class FloatingNavBar extends StatelessWidget {
       child: Container(
         margin: EdgeInsets.only(left: Spacing.xl, right: Spacing.xl, bottom: 4),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: AppTheme.glassmorphism(
-          tint: AppTheme.surfaceHighest,
-          opacity: 0.90,
+        decoration: AppTheme.contextPanel(
+          color: AppTheme.surfaceHighest.withValues(alpha: 0.94),
+          accent: AppTheme.intelligence,
           borderRadius: 999,
         ),
         child: Row(
@@ -58,7 +58,7 @@ class FloatingNavBar extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: isActive
-                            ? AppTheme.primary.withValues(alpha: 0.18)
+                            ? AppTheme.intelligence.withValues(alpha: 0.14)
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(999),
                       ),
@@ -69,7 +69,7 @@ class FloatingNavBar extends StatelessWidget {
                             item.icon,
                             size: 24,
                             color: isActive
-                                ? AppTheme.primary
+                                ? AppTheme.intelligence
                                 : AppTheme.onSurfaceVariant.withValues(
                                     alpha: 0.6,
                                   ),
@@ -85,7 +85,7 @@ class FloatingNavBar extends StatelessWidget {
                                   ? FontWeight.w800
                                   : FontWeight.w500,
                               color: isActive
-                                  ? AppTheme.primary
+                                  ? AppTheme.intelligence
                                   : AppTheme.onSurfaceVariant.withValues(
                                       alpha: 0.6,
                                     ),

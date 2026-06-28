@@ -25,9 +25,9 @@ class ProfileFormPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: AppTheme.glassmorphism(
-        tint: AppTheme.surfaceHighest,
-        opacity: 0.84,
+      decoration: AppTheme.contextPanel(
+        color: AppTheme.surfaceHighest.withValues(alpha: 0.92),
+        accent: AppTheme.intelligence,
         borderRadius: 28,
       ),
       child: Column(
@@ -58,7 +58,7 @@ class ProfileFormPanel extends StatelessWidget {
           _FormInput(
             controller: supportNeedController,
             hint: 'Overwhelm, planning, remembering, consistency...',
-            icon: LucideIcons.sparkles,
+            icon: LucideIcons.radio,
             maxLines: 3,
           ),
           const SizedBox(height: 24),

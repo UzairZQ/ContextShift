@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
-import '../../../core/ai_service.dart';
 import '../../../core/database/database_service.dart';
 import 'widgets/note_card.dart';
 import 'widgets/note_input.dart';
@@ -17,7 +16,6 @@ class NotesModule extends StatefulWidget {
 
 class _NotesModuleState extends State<NotesModule> {
   final _noteController = TextEditingController();
-  final Map<String, bool> _summarizingIds = {};
   bool _isAdding = false;
 
   void _toggleAdd() {
@@ -31,20 +29,6 @@ class _NotesModuleState extends State<NotesModule> {
     if (!mounted) return;
     _noteController.clear();
     setState(() => _isAdding = false);
-  }
-
-  Future<void> _summarize(String noteId, String content) async {
-    if (_summarizingIds[noteId] ?? false) return;
-    setState(() => _summarizingIds[noteId] = true);
-    final summary = await AiService.instance.summarizeNote(content);
-    if (summary != null) {
-      await DatabaseService.instance.updateNote(
-        noteId,
-        content,
-        summary: summary,
-      );
-    }
-    if (mounted) setState(() => _summarizingIds[noteId] = false);
   }
 
   @override
@@ -103,14 +87,7 @@ class _NotesModuleState extends State<NotesModule> {
                     childAspectRatio: 1.1,
                   ),
                   itemCount: notes.length,
-                  itemBuilder: (context, index) => NoteCard(
-                    note: notes[index],
-                    isSummarizing: _summarizingIds[notes[index]['id']] ?? false,
-                    onSummarize: () => _summarize(
-                      notes[index]['id'],
-                      notes[index]['content'] ?? '',
-                    ),
-                  ),
+                  itemBuilder: (context, index) => NoteCard(note: notes[index]),
                 );
               },
             );

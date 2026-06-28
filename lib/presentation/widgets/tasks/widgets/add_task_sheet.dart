@@ -78,7 +78,7 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
   Color _priorityColor(String p) {
     if (p == 'high') return AppTheme.primary;
     if (p == 'medium') return Colors.amber;
-    return Colors.blue;
+    return AppTheme.tertiary;
   }
 
   Future<void> _submit() async {

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:flutter_gemma_litertlm/flutter_gemma_litertlm.dart';
 
+import '../services/feature_manager.dart';
 import 'model_tier.dart';
 
 enum GemmaErrorCode {
@@ -43,7 +44,6 @@ class GemmaService {
   InferenceChat? _chat;
   final ValueNotifier<int> statusRevision = ValueNotifier<int>(0);
 
-  bool get isInitialized => _initialized;
   bool get isModelLoaded => _modelLoaded;
   ModelTier? get activeModelTier => _activeModelTier;
   ModelDefinition? get activeModelDef => _activeModelDef;
@@ -155,6 +155,22 @@ class GemmaService {
         detail: e.toString(),
       );
     }
+  }
+
+  Future<void> loadBestAvailableModel({
+    Duration timeout = const Duration(seconds: 60),
+  }) async {
+    if (isModelLoaded) return;
+
+    final model = FeatureManager.instance.resolveBestModelDef();
+    if (model == null) {
+      throw const GemmaException(
+        code: GemmaErrorCode.modelNotInstalled,
+        message: 'No local JARVIS model is marked as downloaded.',
+      );
+    }
+
+    await loadModel(model).timeout(timeout);
   }
 
   Future<void> _activateInstalledModel(ModelDefinition model) async {

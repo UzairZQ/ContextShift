@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/app_theme.dart';
+import '../../../../core/database/database_service.dart';
 
 class HabitHeatmap extends StatelessWidget {
   final List<Map<String, dynamic>> habits;
@@ -61,8 +62,7 @@ class HabitHeatmap extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List.generate(28, (index) {
                   final day = now.subtract(Duration(days: 27 - index));
-                  final dayStr =
-                      '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+                  final dayStr = DatabaseService.dateKey(day);
                   final count = dailyCounts[dayStr] ?? 0;
 
                   double opacity = 0.05;

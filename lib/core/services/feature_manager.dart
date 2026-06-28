@@ -6,14 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../local_llm/model_downloader.dart';
 import '../local_llm/model_tier.dart';
 
-enum Feature {
-  e4bInference,
-  unlimitedChatHistory,
-  customPersonality,
-  weeklyReview,
-  advancedInsights,
-}
-
 class FeatureManager {
   FeatureManager._();
   static final FeatureManager instance = FeatureManager._();
@@ -34,8 +26,6 @@ class FeatureManager {
   bool get isE2bDownloaded => _e2bDownloaded;
   bool get isE4bVerified => _e4bVerified;
   bool get isE2bVerified => _e2bVerified;
-  bool get isInitialized => _initialized;
-
   bool get isE4bAvailable => _hasPurchasedE4b && _e4bDownloaded;
   bool get isE2bAvailable => _e2bDownloaded;
 
@@ -113,16 +103,6 @@ class FeatureManager {
     return tier != null && isModelVerified(tier);
   }
 
-  bool hasFeature(Feature feature) {
-    return switch (feature) {
-      Feature.e4bInference => isE4bAvailable,
-      Feature.unlimitedChatHistory => isE4bAvailable,
-      Feature.customPersonality => isE4bAvailable,
-      Feature.weeklyReview => isE4bAvailable,
-      Feature.advancedInsights => isE4bAvailable,
-    };
-  }
-
   ModelTier? resolveBestModel() {
     if (isE4bAvailable) return ModelTier.e4b;
     if (isE2bAvailable) return ModelTier.e2b;
@@ -133,16 +113,6 @@ class FeatureManager {
     final tier = resolveBestModel();
     if (tier == null) return null;
     return ModelDefinition.fromTier(tier);
-  }
-
-  void reset() {
-    _hasPurchasedE4b = false;
-    _e4bDownloaded = false;
-    _e2bDownloaded = false;
-    _e4bVerified = false;
-    _e2bVerified = false;
-    _initialized = false;
-    debugPrint('[FeatureManager] Reset');
   }
 
   Future<void> _persistE4bPurchase(bool purchased) async {

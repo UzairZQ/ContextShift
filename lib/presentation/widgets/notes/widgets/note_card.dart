@@ -6,15 +6,8 @@ import '../../../../core/database/database_service.dart';
 
 class NoteCard extends StatelessWidget {
   final Map<String, dynamic> note;
-  final bool isSummarizing;
-  final VoidCallback onSummarize;
 
-  const NoteCard({
-    super.key,
-    required this.note,
-    required this.isSummarizing,
-    required this.onSummarize,
-  });
+  const NoteCard({super.key, required this.note});
 
   @override
   Widget build(BuildContext context) {
@@ -28,63 +21,57 @@ class NoteCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.outlineVariant),
       ),
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (summary != null) _Summary(text: summary),
               Expanded(
-                child: Text(
-                  note['content'] ?? '',
-                  style: TextStyle(
-                    color: summary != null ? Colors.white60 : Colors.white,
-                    fontSize: 14,
-                  ),
-                  maxLines: summary != null ? 3 : 5,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                child: summary != null
+                    ? _Summary(text: summary)
+                    : const SizedBox.shrink(),
               ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      tags.map((t) => '#$t').join(' '),
-                      style: const TextStyle(
-                        color: AppTheme.primary,
-                        fontSize: 10,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: isSummarizing ? null : onSummarize,
-                    child: Icon(
-                      LucideIcons.sparkles,
-                      size: 14,
-                      color: isSummarizing
-                          ? AppTheme.primary
-                          : AppTheme.primary.withValues(alpha: 0.4),
-                    ),
-                  ),
-                ],
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Delete note',
+                onPressed: () =>
+                    DatabaseService.instance.deleteNote(note['id']),
+                icon: const Icon(
+                  LucideIcons.trash2,
+                  size: 16,
+                  color: Colors.white38,
+                ),
               ),
             ],
           ),
-          Positioned(
-            right: -8,
-            top: -8,
-            child: IconButton(
-              onPressed: () => DatabaseService.instance.deleteNote(note['id']),
-              icon: const Icon(
-                LucideIcons.trash2,
-                size: 14,
-                color: Colors.white24,
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 2),
+              child: Text(
+                note['content'] ?? '',
+                style: TextStyle(
+                  color: summary != null ? Colors.white60 : Colors.white,
+                  fontSize: 14,
+                ),
+                maxLines: summary != null ? 3 : 5,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  tags.map((t) => '#$t').join(' '),
+                  style: const TextStyle(color: AppTheme.primary, fontSize: 10),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -100,9 +87,11 @@ class _Summary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 8, right: 8),
       child: Text(
         text,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
         style: const TextStyle(
           color: AppTheme.primary,
           fontSize: 13,

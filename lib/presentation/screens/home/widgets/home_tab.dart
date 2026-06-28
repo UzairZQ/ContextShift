@@ -4,8 +4,10 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
 import '../../../../core/database/database_service.dart';
+import '../../../../core/genui/widget_node.dart';
 import '../../../../core/responsive.dart';
-import '../../../widgets/generative_card_module.dart';
+import '../../../shared/context_shift_primitives.dart';
+import '../../../widgets/genui/a2ui_surface_card.dart';
 import '../../../widgets/motion/wonderous_motion.dart';
 import 'ai_command_bar.dart';
 import 'ai_insight_card.dart';
@@ -26,7 +28,7 @@ class HomeTab extends StatelessWidget {
   final String? aiInsight;
   final int focusMinutesToday;
   final String? todayMood;
-  final Map<String, dynamic>? generativeCardPayload;
+  final String? activeSurfaceRawA2ui;
   final VoidCallback onOpenDashboard;
   final VoidCallback onOpenProfile;
   final VoidCallback onOpenChat;
@@ -34,7 +36,7 @@ class HomeTab extends StatelessWidget {
   final VoidCallback onOpenHabits;
   final VoidCallback onOpenFocus;
   final VoidCallback onOpenJournal;
-  final VoidCallback onGenerativeCardAction;
+  final ValueChanged<WidgetAction> onSurfaceAction;
   final ValueChanged<String> onSubmitCommand;
   final ValueChanged<String> onSelectMood;
   final VoidCallback onDismissResponse;
@@ -53,7 +55,7 @@ class HomeTab extends StatelessWidget {
     required this.aiInsight,
     required this.focusMinutesToday,
     required this.todayMood,
-    required this.generativeCardPayload,
+    required this.activeSurfaceRawA2ui,
     required this.onOpenDashboard,
     required this.onOpenProfile,
     required this.onOpenChat,
@@ -61,7 +63,7 @@ class HomeTab extends StatelessWidget {
     required this.onOpenHabits,
     required this.onOpenFocus,
     required this.onOpenJournal,
-    required this.onGenerativeCardAction,
+    required this.onSurfaceAction,
     required this.onSubmitCommand,
     required this.onSelectMood,
     required this.onDismissResponse,
@@ -111,13 +113,13 @@ class HomeTab extends StatelessWidget {
             onOpenJournal: onOpenJournal,
             onSelectMood: onSelectMood,
           ),
-          if (generativeCardPayload != null) ...[
+          if (activeSurfaceRawA2ui != null) ...[
             const SizedBox(height: 14),
             WonderousReveal(
               delay: const Duration(milliseconds: 120),
-              child: GenerativeCardModule(
-                cardData: generativeCardPayload!,
-                onAction: onGenerativeCardAction,
+              child: _ActiveSurfaceFrame(
+                rawA2ui: activeSurfaceRawA2ui!,
+                onAction: onSurfaceAction,
               ),
             ),
           ],
@@ -161,16 +163,16 @@ class _HeroCommandPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(28),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
             AppTheme.surfaceContainer.withValues(alpha: 0.92),
-            AppTheme.surfaceHigh.withValues(alpha: 0.72),
-            AppTheme.primary.withValues(alpha: 0.18),
+            AppTheme.surfaceHigh.withValues(alpha: 0.74),
+            AppTheme.primary.withValues(alpha: 0.08),
           ],
         ),
         border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
@@ -182,80 +184,80 @@ class _HeroCommandPanel extends StatelessWidget {
           ),
         ],
       ),
-      child: Stack(
-        clipBehavior: Clip.none,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned(
-            right: -46,
-            top: -42,
-            child: Container(
-              width: 150,
-              height: 150,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppTheme.primary.withValues(alpha: 0.18),
-                    AppTheme.primary.withValues(alpha: 0),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            left: -50,
-            bottom: -70,
-            child: Container(
-              width: 130,
-              height: 130,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppTheme.tertiary.withValues(alpha: 0.1),
-                    AppTheme.tertiary.withValues(alpha: 0),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Column(
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 2),
-                      child: Text(
-                        greeting,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              height: 1.16,
-                              fontSize: Responsive.isMobile(context) ? 22 : 28,
-                              letterSpacing: -0.55,
-                            ),
-                      ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 2, top: 1, bottom: 2),
+                  child: Text(
+                    greeting,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      height: 1.16,
+                      fontSize: Responsive.isMobile(context) ? 22 : 28,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  _StatusPill(isOnline: isJarvisOnline),
-                ],
+                ),
               ),
-              const SizedBox(height: 16),
-              AiCommandBar(
-                controller: commandController,
-                isOnline: isJarvisOnline,
-                isProcessing: isProcessingCommand,
-                hasCheckedStatus: hasCheckedJarvisStatus,
-                offlineHint: offlineHint,
-                onSubmit: onSubmitCommand,
-                onTap: onOpenChat,
+              const SizedBox(width: 12),
+              _StatusPill(isOnline: isJarvisOnline),
+            ],
+          ),
+          const SizedBox(height: 14),
+          AiCommandBar(
+            controller: commandController,
+            isOnline: isJarvisOnline,
+            isProcessing: isProcessingCommand,
+            hasCheckedStatus: hasCheckedJarvisStatus,
+            offlineHint: offlineHint,
+            onSubmit: onSubmitCommand,
+            onTap: onOpenChat,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActiveSurfaceFrame extends StatelessWidget {
+  final String rawA2ui;
+  final ValueChanged<WidgetAction> onAction;
+
+  const _ActiveSurfaceFrame({required this.rawA2ui, required this.onAction});
+
+  @override
+  Widget build(BuildContext context) {
+    return ContextPanel(
+      padding: const EdgeInsets.all(14),
+      color: AppTheme.surfaceContainer.withValues(alpha: 0.82),
+      accent: AppTheme.intelligence,
+      radius: 24,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                LucideIcons.sparkles,
+                size: 16,
+                color: AppTheme.intelligence,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Active surface',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: AppTheme.onSurface,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          A2uiSurfaceCard(rawA2ui: rawA2ui, onAction: onAction),
         ],
       ),
     );
@@ -270,7 +272,8 @@ class _StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: (isOnline ? AppTheme.success : AppTheme.warning).withValues(
           alpha: 0.12,
@@ -287,15 +290,15 @@ class _StatusPill extends StatelessWidget {
         children: [
           Icon(
             isOnline ? LucideIcons.zap : LucideIcons.wifiOff,
-            size: 13,
+            size: 12,
             color: isOnline ? AppTheme.success : AppTheme.warning,
           ),
           const SizedBox(width: 6),
           Text(
-            isOnline ? 'Local' : 'Setup',
+            isOnline ? 'On device' : 'Setup',
             style: TextStyle(
               color: isOnline ? AppTheme.success : AppTheme.warning,
-              fontSize: 11,
+              fontSize: 10.5,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -357,7 +360,7 @@ class _HomeSnapshotBuilder extends StatelessWidget {
                         onOpenJournal: onOpenJournal,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     WonderousReveal(
                       delay: const Duration(milliseconds: 100),
                       child: _GlanceGrid(
@@ -368,7 +371,7 @@ class _HomeSnapshotBuilder extends StatelessWidget {
                         onOpenJournal: onOpenJournal,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                     WonderousReveal(
                       delay: const Duration(milliseconds: 140),
                       child: _MoodMicroCheckIn(
@@ -444,8 +447,7 @@ class _TodaySnapshot {
   }
 
   static String _todayString() {
-    final now = DateTime.now();
-    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    return DatabaseService.todayKey();
   }
 
   double get taskProgress => totalTasks == 0 ? 0 : completedTasks / totalTasks;
@@ -493,7 +495,7 @@ class _TodaySnapshot {
     }
     if (focusMinutesToday < 25) return LucideIcons.timer;
     if (todayMood == null || noteCount == 0) return LucideIcons.bookOpen;
-    return LucideIcons.sparkles;
+    return LucideIcons.radio;
   }
 }
 

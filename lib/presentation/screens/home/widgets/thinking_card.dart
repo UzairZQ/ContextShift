@@ -14,8 +14,9 @@ class ThinkingCard extends StatelessWidget {
       child: Container(
         margin: EdgeInsets.only(bottom: Spacing.lg),
         padding: EdgeInsets.all(Spacing.xl),
-        decoration: AppTheme.glassmorphism(
-          tint: AppTheme.primary.withValues(alpha: 0.1),
+        decoration: AppTheme.contextPanel(
+          color: AppTheme.surfaceContainer,
+          accent: AppTheme.intelligence,
           borderRadius: 20,
         ),
         child: Row(
@@ -27,14 +28,14 @@ class ThinkingCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'JARVIS is working on it...',
+                    'JARVIS is shaping the view...',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: AppTheme.primary,
+                      color: AppTheme.intelligence,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   Text(
-                    'Building a generative command module based on your prompt.',
+                    'Reading the request and your local context.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
                     ),
@@ -83,18 +84,18 @@ class _ThinkingPulseState extends State<ThinkingPulse>
           height: 40,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: AppTheme.primary.withValues(alpha: 0.1),
+            color: AppTheme.intelligence.withValues(alpha: 0.1),
             border: Border.all(
-              color: AppTheme.primary.withValues(
+              color: AppTheme.intelligence.withValues(
                 alpha: 0.2 + (0.3 * _controller.value),
               ),
               width: 1,
             ),
           ),
           child: Icon(
-            LucideIcons.sparkles,
+            LucideIcons.radio,
             size: 16 + (4 * _controller.value),
-            color: AppTheme.primary.withValues(
+            color: AppTheme.intelligence.withValues(
               alpha: 0.6 + (0.4 * _controller.value),
             ),
           ),

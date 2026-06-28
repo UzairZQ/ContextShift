@@ -19,7 +19,7 @@ class AiInsightCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'AI Insight, tap to open dashboard',
+      label: 'Context read, tap to open dashboard',
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
@@ -34,7 +34,9 @@ class AiInsightCard extends StatelessWidget {
               ],
             ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.primary.withValues(alpha: 0.15)),
+            border: Border.all(
+              color: AppTheme.intelligence.withValues(alpha: 0.15),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -42,15 +44,15 @@ class AiInsightCard extends StatelessWidget {
               Row(
                 children: [
                   const Icon(
-                    LucideIcons.sparkles,
-                    color: AppTheme.primary,
+                    LucideIcons.radio,
+                    color: AppTheme.intelligence,
                     size: 18,
                   ),
                   SizedBox(width: Spacing.sm),
                   Text(
-                    'AI Insight',
+                    'Context read',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: AppTheme.primary,
+                      color: AppTheme.intelligence,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -69,11 +71,11 @@ class AiInsightCard extends StatelessWidget {
                       width: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: AppTheme.primary,
+                        color: AppTheme.intelligence,
                       ),
                     )
                   : Text(
-                      insight ?? 'Tap to view your AI dashboard.',
+                      insight ?? 'Tap to view your local pattern report.',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: AppTheme.onSurface.withValues(alpha: 0.9),
                       ),

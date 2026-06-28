@@ -1,27 +1,46 @@
-import 'package:context_shift/presentation/screens/chat/chat_screen.dart';
+import 'package:context_shift/core/ai/jarvis_intent_router.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('routes creative structured prompts to GenUI', () {
+  test('routes creative structured prompts to GenUI', () async {
     expect(
-      shouldRouteChatMessageToGenUi(
-        'Can you build me a work plan for tomorrow for full body?',
-      ),
-      isTrue,
+      (await JarvisIntentRouter.instance.classify(
+        message: 'Can you build me a work plan for tomorrow for full body?',
+      )).intent,
+      JarvisIntent.genui,
     );
     expect(
-      shouldRouteChatMessageToGenUi('Generate a workout checklist for legs'),
-      isTrue,
+      (await JarvisIntentRouter.instance.classify(
+        message: 'Generate a workout checklist for legs',
+      )).intent,
+      JarvisIntent.genui,
     );
     expect(
-      shouldRouteChatMessageToGenUi('Design a dashboard for my habits'),
-      isTrue,
+      (await JarvisIntentRouter.instance.classify(
+        message: 'Design a dashboard for my habits',
+      )).intent,
+      JarvisIntent.genui,
     );
   });
 
-  test('keeps concrete app commands out of GenUI', () {
-    expect(shouldRouteChatMessageToGenUi('add task buy groceries'), isFalse);
-    expect(shouldRouteChatMessageToGenUi('start focus 25 min'), isFalse);
-    expect(shouldRouteChatMessageToGenUi('show my notes'), isFalse);
+  test('keeps concrete app commands out of GenUI', () async {
+    expect(
+      (await JarvisIntentRouter.instance.classify(
+        message: 'add task buy groceries',
+      )).intent,
+      JarvisIntent.action,
+    );
+    expect(
+      (await JarvisIntentRouter.instance.classify(
+        message: 'start focus 25 min',
+      )).intent,
+      JarvisIntent.action,
+    );
+    expect(
+      (await JarvisIntentRouter.instance.classify(
+        message: 'how should I plan my afternoon?',
+      )).intent,
+      JarvisIntent.chat,
+    );
   });
 }

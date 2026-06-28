@@ -10,6 +10,7 @@ import '../../../core/local_llm/model_tier.dart';
 import '../../../core/responsive.dart';
 import '../../../core/services/feature_manager.dart';
 import '../../../features/onboarding/widgets/model_download_screen.dart';
+import '../../shared/context_shift_primitives.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -126,22 +127,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                     const SizedBox(height: Spacing.xxl),
-                    _sectionHeader('Profile'),
+                    _sectionHeader('Identity'),
                     const SizedBox(height: Spacing.lg),
-                    _GlassTextField(
+                    _ContextTextField(
                       controller: _nameController,
                       label: 'First name',
                       icon: LucideIcons.user,
                       error: _nameError,
                     ),
                     const SizedBox(height: Spacing.md),
-                    _GlassTextField(
+                    _ContextTextField(
                       controller: _lastNameController,
                       label: 'Last name (optional)',
                       icon: LucideIcons.userPlus,
                     ),
                     const SizedBox(height: Spacing.md),
-                    _GlassTextField(
+                    _ContextTextField(
                       controller: _focusRoleController,
                       label: 'Focus role',
                       icon: LucideIcons.target,
@@ -150,10 +151,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: Spacing.xl),
                     SizedBox(
                       width: double.infinity,
-                      child: _GlassButton(label: 'Save', onTap: _saveProfile),
+                      child: _ContextButton(
+                        label: 'Save identity',
+                        onTap: _saveProfile,
+                      ),
                     ),
                     const SizedBox(height: Spacing.section),
-                    _sectionHeader('Model & AI'),
+                    _sectionHeader('Local intelligence'),
                     const SizedBox(height: Spacing.lg),
                     _SettingsTile(
                       icon: LucideIcons.downloadCloud,
@@ -171,25 +175,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         );
                         if (mounted) setState(() {});
-                      },
-                    ),
-                    _SettingsTile(
-                      icon: FeatureManager.instance.isE4bAvailable
-                          ? LucideIcons.crown
-                          : LucideIcons.lock,
-                      title: FeatureManager.instance.isE4bAvailable
-                          ? 'E4B Premium'
-                          : 'Unlock E4B Premium',
-                      subtitle: FeatureManager.instance.isE4bAvailable
-                          ? 'Full model access active'
-                          : 'Faster, smarter AI model',
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Coming soon'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
                       },
                     ),
                     const SizedBox(height: Spacing.section),
@@ -218,25 +203,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _sectionHeader(String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        color: AppTheme.primary,
-        fontSize: 12,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.5,
-      ),
-    );
+    return ContextSectionLabel(text: title, icon: LucideIcons.scanLine);
   }
 }
 
-class _GlassTextField extends StatelessWidget {
+class _ContextTextField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
   final IconData icon;
   final String? error;
 
-  const _GlassTextField({
+  const _ContextTextField({
     required this.controller,
     required this.label,
     required this.icon,
@@ -250,10 +227,11 @@ class _GlassTextField extends StatelessWidget {
       children: [
         Container(
           padding: EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: 2),
-          decoration: AppTheme.glassmorphism(
-            tint: error != null
+          decoration: AppTheme.contextPanel(
+            color: error != null
                 ? AppTheme.error.withValues(alpha: 0.08)
-                : AppTheme.surfaceHighest,
+                : AppTheme.surfaceContainer,
+            accent: error != null ? AppTheme.error : null,
             borderRadius: 14,
           ),
           child: TextField(
@@ -268,13 +246,13 @@ class _GlassTextField extends StatelessWidget {
                 size: 18,
                 color: error != null
                     ? AppTheme.error
-                    : AppTheme.onSurfaceVariant,
+                    : AppTheme.intelligence.withValues(alpha: 0.78),
               ),
               hintText: label,
               hintStyle: TextStyle(
                 color: error != null
                     ? AppTheme.error.withValues(alpha: 0.5)
-                    : AppTheme.onSurfaceVariant.withValues(alpha: 0.4),
+                    : AppTheme.onSurfaceVariant.withValues(alpha: 0.58),
                 fontSize: 14,
               ),
               border: InputBorder.none,
@@ -327,10 +305,10 @@ class _SettingsTile extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: AppTheme.surfaceBright,
+                  color: AppTheme.intelligence.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, size: 18, color: AppTheme.primary),
+                child: Icon(icon, size: 18, color: AppTheme.intelligence),
               ),
               const SizedBox(width: Spacing.md),
               Expanded(
@@ -370,11 +348,11 @@ class _SettingsTile extends StatelessWidget {
   }
 }
 
-class _GlassButton extends StatelessWidget {
+class _ContextButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _GlassButton({required this.label, required this.onTap});
+  const _ContextButton({required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -382,16 +360,16 @@ class _GlassButton extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: Spacing.md),
-        decoration: AppTheme.glassmorphism(
-          tint: AppTheme.primary,
-          opacity: 0.2,
+        decoration: AppTheme.contextPanel(
+          color: AppTheme.primary.withValues(alpha: 0.13),
+          accent: AppTheme.primary,
           borderRadius: 14,
         ),
         alignment: Alignment.center,
         child: Text(
           label,
           style: const TextStyle(
-            color: AppTheme.primary,
+            color: AppTheme.onSurface,
             fontWeight: FontWeight.w700,
             fontSize: 14,
           ),

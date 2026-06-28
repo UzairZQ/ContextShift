@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
+import '../../../shared/context_shift_primitives.dart';
 
 class DashHeader extends StatelessWidget {
   const DashHeader({super.key});
@@ -32,18 +33,19 @@ class DashHeader extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const ContextSignalBadge(label: 'Private report'),
+              const SizedBox(height: 8),
               Text(
                 'ContextShift',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const Text(
-                'Neural Intelligence Report',
+              Text(
+                'A read on your local patterns',
                 style: TextStyle(
-                  color: AppTheme.primary,
-                  fontSize: 11,
-                  letterSpacing: 1.5,
+                  color: AppTheme.onSurfaceVariant,
+                  fontSize: 12,
                 ),
               ),
             ],

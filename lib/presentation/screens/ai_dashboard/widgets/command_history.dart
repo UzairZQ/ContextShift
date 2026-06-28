@@ -3,6 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
 import '../../../../core/database/database_service.dart';
+import '../../../shared/context_shift_primitives.dart';
 
 class CommandHistory extends StatelessWidget {
   const CommandHistory({super.key});
@@ -12,8 +13,6 @@ class CommandHistory extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Command History', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 12),
         StreamBuilder<List<Map<String, dynamic>>>(
           stream: DatabaseService.instance.watchAiCommands(limit: 5),
           builder: (context, snapshot) {
@@ -38,16 +37,11 @@ class _EmptyHistory extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: AppTheme.cardDecoration(color: AppTheme.surfaceContainer),
+    return const ContextPanel(
+      padding: EdgeInsets.all(24),
       child: Text(
-        'No commands yet.\nTry the AI command bar on the home screen.',
-        style: TextStyle(
-          color: AppTheme.onSurfaceVariant.withValues(alpha: 0.5),
-          fontSize: 14,
-        ),
+        'No command history yet.\nAsk JARVIS to turn context into an action.',
+        style: TextStyle(color: AppTheme.onSurfaceVariant, fontSize: 14),
       ),
     );
   }
@@ -60,11 +54,10 @@ class _HistoryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
+    return ContextPanel(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: AppTheme.cardDecoration(color: AppTheme.surfaceContainer),
+      accent: AppTheme.intelligence,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -73,7 +66,7 @@ class _HistoryItem extends StatelessWidget {
               const Icon(
                 LucideIcons.terminal,
                 size: 14,
-                color: AppTheme.tertiary,
+                color: AppTheme.intelligence,
               ),
               const SizedBox(width: 8),
               Expanded(

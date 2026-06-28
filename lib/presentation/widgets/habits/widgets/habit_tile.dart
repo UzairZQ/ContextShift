@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
+import '../../../../core/database/database_service.dart';
 
 class HabitTile extends StatelessWidget {
   final Map<String, dynamic> habit;
@@ -99,8 +100,7 @@ class _MiniHeatmap extends StatelessWidget {
     return Row(
       children: List.generate(7, (index) {
         final day = now.subtract(Duration(days: 6 - index));
-        final dayStr =
-            '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+        final dayStr = DatabaseService.dateKey(day);
         final isCompleted = dates.contains(dayStr);
 
         return Container(

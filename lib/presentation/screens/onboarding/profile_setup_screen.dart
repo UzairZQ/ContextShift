@@ -5,7 +5,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
 import '../../widgets/motion/wonderous_motion.dart';
-import 'widgets/glow_orb.dart';
 
 class ProfileSetupScreen extends StatefulWidget {
   final VoidCallback onComplete;
@@ -121,20 +120,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         child: SafeArea(
           child: Stack(
             children: [
-              Positioned(
-                top: -92,
-                right: -56,
-                child: GlowOrb(
-                  color: AppTheme.primary.withValues(alpha: 0.82),
-                  size: 240,
-                ),
-              ),
-              Positioned(
-                bottom: 140,
-                left: -86,
-                child: GlowOrb(
-                  color: AppTheme.tertiary.withValues(alpha: 0.58),
-                  size: 210,
+              const Positioned.fill(
+                child: RepaintBoundary(
+                  child: CustomPaint(painter: _ProfileContextField()),
                 ),
               ),
               Padding(
@@ -507,4 +495,42 @@ class _Label extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ProfileContextField extends CustomPainter {
+  const _ProfileContextField();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final guidePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.032)
+      ..strokeWidth = 1;
+    for (double y = 92; y < size.height - 120; y += 38) {
+      final path = Path()
+        ..moveTo(size.width * 0.04, y)
+        ..quadraticBezierTo(size.width * 0.5, y - 16, size.width * 0.96, y + 6);
+      canvas.drawPath(path, guidePaint);
+    }
+
+    final signalPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = AppTheme.intelligence.withValues(alpha: 0.14);
+    final center = Offset(size.width - 58, 86);
+    canvas
+      ..drawCircle(center, 18, signalPaint)
+      ..drawCircle(
+        center,
+        34,
+        signalPaint..color = AppTheme.intelligence.withValues(alpha: 0.07),
+      )
+      ..drawCircle(
+        center,
+        4,
+        Paint()..color = AppTheme.intelligence.withValues(alpha: 0.56),
+      );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ProfileContextField oldDelegate) => false;
 }

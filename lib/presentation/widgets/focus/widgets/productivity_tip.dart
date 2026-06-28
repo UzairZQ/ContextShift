@@ -31,7 +31,7 @@ class ProductivityTip extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(LucideIcons.sparkles, color: AppTheme.primary, size: 18),
+          const Icon(LucideIcons.radio, color: AppTheme.intelligence, size: 18),
           const SizedBox(width: 12),
           Expanded(
             child: Text(

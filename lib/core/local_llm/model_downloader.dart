@@ -195,7 +195,7 @@ class ModelDownloader {
       return hasSpace;
     } catch (e, stack) {
       debugPrint(
-        '[ModelDownloader] Storage check unavailable; '
+        '[ModelDownloader] Storage check ujarvisilable; '
         'the native installer will enforce capacity: $e',
       );
       debugPrint('[ModelDownloader]   Stack: $stack');

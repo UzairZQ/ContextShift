@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  // Stitch Design Palette: "The Neon Nocturne"
+  // ContextShift palette: private command center with warm human action.
   static const Color background = Color(0xFF0D0D1A);
   static const Color primary = Color(0xFFFF8C96); // Soft Red-Pink
   static const Color primaryDim = Color(0xFFFF6E80);
@@ -11,6 +11,8 @@ class AppTheme {
   static const Color secondary = Color(0xFF0F3460); // Deep Indigo
   static const Color tertiary = Color(0xFFBB9AFF); // Purple accent
   static const Color tertiaryDim = Color(0xFFAE8AF7);
+  static const Color intelligence = primary;
+  static const Color intelligenceDim = primaryDim;
 
   // Surface hierarchy (layered depth)
   static const Color surface = Color(0xFF0D0D1A); // Base Layer
@@ -45,21 +47,27 @@ class AppTheme {
     end: Alignment.bottomRight,
   );
 
-  // Glassmorphism decoration helper
-  static BoxDecoration glassmorphism({
-    Color? tint,
-    double opacity = 0.6,
-    double borderRadius = 24,
+  static BoxDecoration contextPanel({
+    Color? color,
+    double borderRadius = 20,
+    Color? accent,
+    double accentOpacity = 0.12,
   }) {
+    final panelColor = color ?? surfaceContainer;
     return BoxDecoration(
-      color: (tint ?? surfaceContainer).withValues(alpha: opacity),
+      color: panelColor,
       borderRadius: BorderRadius.circular(borderRadius),
-      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      border: Border.all(
+        color: (accent ?? Colors.white).withValues(
+          alpha: accent == null ? 0.07 : accentOpacity,
+        ),
+      ),
       boxShadow: [
         BoxShadow(
-          color: primary.withValues(alpha: 0.06),
-          blurRadius: 40,
-          spreadRadius: 0,
+          color: Colors.black.withValues(alpha: 0.22),
+          blurRadius: 26,
+          offset: const Offset(0, 14),
+          spreadRadius: -18,
         ),
       ],
     );
@@ -89,6 +97,20 @@ class AppTheme {
         surfaceContainer: surfaceContainer,
         outlineVariant: outlineVariant,
         error: error,
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: surfaceHigh.withValues(alpha: 0.96),
+        behavior: SnackBarBehavior.floating,
+        elevation: 0,
+        contentTextStyle: GoogleFonts.manrope(
+          color: onSurface,
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: primary.withValues(alpha: 0.28)),
+        ),
       ),
       textTheme: TextTheme(
         displayLarge: GoogleFonts.spaceGrotesk(

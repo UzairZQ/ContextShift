@@ -51,7 +51,9 @@ class JarvisHero {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.primary.withValues(alpha: glow.value),
+                      color: AppTheme.intelligence.withValues(
+                        alpha: glow.value,
+                      ),
                       blurRadius: 34,
                       offset: const Offset(0, 14),
                       spreadRadius: -8,
@@ -62,8 +64,8 @@ class JarvisHero {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
-                      LucideIcons.sparkles,
-                      color: AppTheme.primary,
+                      LucideIcons.radio,
+                      color: AppTheme.intelligence,
                       size: 19,
                     ),
                     const SizedBox(width: Spacing.md),
@@ -82,7 +84,7 @@ class JarvisHero {
                     const SizedBox(width: Spacing.md),
                     const Icon(
                       LucideIcons.send,
-                      color: AppTheme.primary,
+                      color: AppTheme.intelligence,
                       size: 17,
                     ),
                   ],

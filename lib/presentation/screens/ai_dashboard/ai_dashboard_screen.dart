@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/ai_service.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
+import '../../shared/context_shift_primitives.dart';
 import 'widgets/activity_heatmap.dart';
 import 'widgets/command_history.dart';
 import 'widgets/dash_header.dart';
@@ -63,13 +64,19 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
                 insight: _weeklyInsight,
                 isLoading: _isLoadingInsight,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 14),
               StatsGrid(focusMinutes: _focusMinutes),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+              const ContextSectionLabel(text: 'Rhythm field'),
+              const SizedBox(height: 12),
               const ActivityHeatmap(),
               const SizedBox(height: 24),
+              const ContextSectionLabel(text: 'Recent commands'),
+              const SizedBox(height: 12),
               const CommandHistory(),
               const SizedBox(height: 24),
+              const ContextSectionLabel(text: 'Mood context'),
+              const SizedBox(height: 12),
               const MoodTrend(),
               const SizedBox(height: 40),
             ],

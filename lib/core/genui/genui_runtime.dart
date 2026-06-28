@@ -41,6 +41,10 @@ class JarvisGenUiRuntime {
               'for workout requests, include concrete exercise blocks, sets or '
               'time ranges, rest guidance, and progression cues; for schedules, '
               'include time blocks; for choices, include pickers or checkboxes.',
+          'For clear plan, routine, workout, schedule, checklist, or dashboard '
+              'requests, generate a useful first version instead of asking many '
+              'questions. If details are missing, choose sensible safe defaults '
+              'and make the assumptions visible in the surface.',
           'Prefer one clear hierarchy and one primary action, but use multiple '
               'sections, tabs, checkboxes, sliders, or inputs when the request '
               'benefits from them.',
@@ -136,6 +140,10 @@ class JarvisGenUiRuntime {
             'Before creating UI, silently infer the user intent, the needed '
                 'data, and the most helpful component structure. Ask a brief '
                 'clarifying question only when a useful UI cannot be made.',
+            'When this runtime is called, the app has already decided GenUI is '
+                'appropriate. Do not keep interviewing the user. Generate the '
+                'card/surface now unless the request is truly unsafe or '
+                'impossible without one missing fact.',
             'When creating a surface, avoid pre-made templates. Build a fresh '
                 'composition from the available catalog components that fits '
                 'the user prompt and any local ContextShift data.',
@@ -145,6 +153,9 @@ class JarvisGenUiRuntime {
             'If the user asks for a plan, routine, workout, dashboard, card, '
                 'screen, checklist, program, or visual structure, create an '
                 'A2UI surface unless a plain chat answer is clearly better.',
+            'For workout plans, use practical defaults when unspecified: '
+                'beginner-to-intermediate level, full-body balance, safe warmup, '
+                '3 to 5 movements, rest guidance, and one progression cue.',
           ],
           clientDataModel: localContext,
         ).systemPromptJoined(),
@@ -198,6 +209,10 @@ Think silently before answering.
 2. Decide whether an interactive/structured surface is useful.
 3. Choose only the catalog widgets/components needed.
 4. Build a fresh composition grounded in the provided ContextShift data.
+5. If the request is a workout, plan, routine, schedule, checklist, dashboard,
+   or card, create the surface now. Do not ask follow-up questions unless the
+   surface would be unsafe or impossible. Use visible assumptions for missing
+   details.
 
 User request: $userMessage
 ''';
@@ -206,7 +221,7 @@ User request: $userMessage
   String _withRepairInstruction(String userMessage) {
     return '''
 Your previous response did not create a valid visible A2UI surface.
-Create one valid, compact surface now using the available catalog. Use plain text only if the request truly does not need UI.
+Create one valid, compact surface now using the available catalog. Use safe defaults and visible assumptions for missing details. Use plain text only if the request truly does not need UI.
 
 User request: $userMessage
 ''';

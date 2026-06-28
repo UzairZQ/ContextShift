@@ -26,22 +26,22 @@ class AiResponseCard extends StatelessWidget {
       child: FadeTransition(
         opacity: animation,
         child: Semantics(
-          label: 'AI Response',
+          label: 'JARVIS response',
           child: Container(
             margin: EdgeInsets.only(bottom: Spacing.lg),
             padding: Spacing.cardPadding,
             decoration: BoxDecoration(
-              color: AppTheme.primary.withValues(alpha: 0.08),
+              color: AppTheme.intelligence.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppTheme.primary.withValues(alpha: 0.2),
+                color: AppTheme.intelligence.withValues(alpha: 0.18),
               ),
             ),
             child: Row(
               children: [
                 const Icon(
-                  LucideIcons.sparkles,
-                  color: AppTheme.primary,
+                  LucideIcons.radio,
+                  color: AppTheme.intelligence,
                   size: 18,
                 ),
                 SizedBox(width: Spacing.md),

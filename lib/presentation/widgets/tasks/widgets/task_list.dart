@@ -21,7 +21,7 @@ class TaskList extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 20),
               child: Text(
-                'No pending missions. JARVIS is proud.',
+                'No pending tasks. Your day has breathing room.',
                 style: TextStyle(
                   color: AppTheme.onSurfaceVariant.withValues(alpha: 0.5),
                 ),

@@ -4,10 +4,9 @@ import '../ai_service.dart';
 import '../database/database_service.dart';
 
 class ActionExecutionResult {
-  final Map<String, dynamic>? generatedCard;
   final int? focusMinutes;
 
-  const ActionExecutionResult({this.generatedCard, this.focusMinutes});
+  const ActionExecutionResult({this.focusMinutes});
 }
 
 class ActionExecutor {
@@ -15,7 +14,6 @@ class ActionExecutor {
   static final ActionExecutor instance = ActionExecutor._();
 
   Future<ActionExecutionResult> executeAll(List<AiAction> actions) async {
-    Map<String, dynamic>? generatedCard;
     int? focusMinutes;
 
     for (final action in actions.take(8)) {
@@ -49,11 +47,6 @@ class ActionExecutor {
               durationMinutes: minutes,
             );
             focusMinutes = minutes;
-          case 'show_dynamic_card':
-            final card = action.params['card'];
-            if (card is Map) {
-              generatedCard = Map<String, dynamic>.from(card);
-            }
         }
       } catch (error, stackTrace) {
         debugPrint('[ActionExecutor] ${action.type} failed: $error');
@@ -61,10 +54,7 @@ class ActionExecutor {
       }
     }
 
-    return ActionExecutionResult(
-      generatedCard: generatedCard,
-      focusMinutes: focusMinutes,
-    );
+    return ActionExecutionResult(focusMinutes: focusMinutes);
   }
 
   String? _requiredText(dynamic value) {

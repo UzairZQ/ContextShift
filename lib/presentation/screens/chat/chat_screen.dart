@@ -10,20 +10,19 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../../core/ai_service.dart';
 import '../../../core/ai/action_executor.dart';
 import '../../../core/ai/context_provider.dart';
+import '../../../core/ai/generated_ui_action_mapper.dart';
+import '../../../core/ai/jarvis_intent_router.dart';
 import '../../../core/ai/jarvis_memory_service.dart';
 import '../../../core/app_spacing.dart';
 import '../../../core/app_runtime.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
 import '../../../core/database/schema.dart';
-import '../../../core/genui/safe_renderer.dart';
 import '../../../core/genui/action_bus.dart';
 import '../../../core/genui/genui_runtime.dart';
 import '../../../core/genui/widget_node.dart';
 import '../../../core/local_llm/gemma_service.dart';
 import '../../../core/responsive.dart';
-import '../../../core/services/feature_manager.dart';
-import '../../widgets/generative_card_module.dart';
 import '../../widgets/genui/a2ui_surface_card.dart';
 import '../../widgets/jarvis_hero.dart';
 import '../../widgets/motion/wonderous_motion.dart';
@@ -44,30 +43,6 @@ class ChatScreen extends StatefulWidget {
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
-}
-
-enum _JarvisIntent { chat, action, genui }
-
-@visibleForTesting
-bool shouldRouteChatMessageToGenUi(String message) {
-  final lower = message.trim().toLowerCase();
-  if (lower.length < 8) return false;
-
-  final mutatingCommand = RegExp(
-    r'\b(add|create|new|track|note|remember|write down|jot down|remind me|start|open|show)\b',
-  ).hasMatch(lower);
-  final explicitAppObject = RegExp(
-    r'\b(task|todo|habit|note|focus|pomodoro)\b',
-  ).hasMatch(lower);
-  if (mutatingCommand && explicitAppObject) return false;
-
-  final asksForDesignedOutput = RegExp(
-    r'\b(build|make|generate|design|create|draft|craft|give me|show me)\b',
-  ).hasMatch(lower);
-  final structuredDomain = RegExp(
-    r'\b(plan|planner|routine|workout|exercise|schedule|itinerary|dashboard|card|view|screen|widget|form|layout|checklist|program)\b',
-  ).hasMatch(lower);
-  return asksForDesignedOutput && structuredDomain;
 }
 
 class _ChatScreenState extends State<ChatScreen> {
@@ -139,31 +114,16 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _handleGenUiAction(WidgetAction action) async {
-    final type = switch (action.action) {
-      'create_task' => 'add_task',
-      'create_habit' => 'add_habit',
-      'create_note' => 'add_note',
-      'start_focus' => 'start_focus',
-      _ => action.action,
-    };
-    const executableActions = {
-      'add_task',
-      'add_habit',
-      'add_note',
-      'start_focus',
-    };
-    if (!executableActions.contains(type)) {
+    final aiAction = GeneratedUiActionMapper.toAiAction(action);
+    if (aiAction == null) {
       final message =
-          action.params['message']?.toString().trim().isNotEmpty == true
-          ? action.params['message'].toString()
-          : 'The generated UI action was "${action.action}" with '
-                'context ${jsonEncode(action.params)}.';
+          GeneratedUiActionMapper.continuationMessage(action) ??
+          'The generated UI action was "${action.action}" with '
+              'context ${jsonEncode(action.params)}.';
       await _sendMessage(message);
       return;
     }
-    await ActionExecutor.instance.executeAll([
-      AiAction(type: type, params: action.params),
-    ]);
+    await ActionExecutor.instance.executeAll([aiAction]);
     if (!mounted) return;
     _showMessage('Done');
   }
@@ -273,7 +233,10 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _sendMessage(String? text) async {
     final message = text ?? _messageController.text.trim();
     if (message.isEmpty) return;
-    if (_isListening) await _stopDictation();
+    if (_isListening) {
+      await _stopDictation();
+    }
+    _dictationBaseText = '';
     _messageController.clear();
 
     if (_activeConversationId == null) {
@@ -295,50 +258,40 @@ class _ChatScreenState extends State<ChatScreen> {
         content: message,
       );
 
-      final shouldUseGenUi = shouldRouteChatMessageToGenUi(message);
-      final isDirectCommand =
-          AiService.instance.isCommandQuery(message) && !shouldUseGenUi;
+      final intentDecision = await JarvisIntentRouter.instance.classify(
+        message: message,
+        conversationId: _activeConversationId,
+      );
+      debugPrint(
+        '[ChatScreen] Intent=${intentDecision.intent} '
+        'fromModel=${intentDecision.fromModel} '
+        'reason=${intentDecision.reason}',
+      );
       String response;
       String? widgetJson;
 
-      if (isDirectCommand) {
+      if (intentDecision.intent == JarvisIntent.action) {
         final result = await AiService.instance.processCommand(
           command: message,
           userName: DatabaseService.instance.firstName,
           conversationId: _activeConversationId,
         );
-        final execution = await ActionExecutor.instance.executeAll(
-          result.actions,
-        );
+        await ActionExecutor.instance.executeAll(result.actions);
         response = result.response;
         debugPrint('[ChatScreen] Direct command response: $response');
-        widgetJson = execution.generatedCard == null
-            ? _encodeWidgetPayload(result)
-            : jsonEncode(execution.generatedCard);
+        widgetJson = null;
       } else {
         await _ensureJarvisReadyForChat(message);
-        final intent = _classifyJarvisIntent(message);
-        debugPrint('[ChatScreen] Route selected: $intent');
-        switch (intent) {
-          case _JarvisIntent.chat:
+        switch (intentDecision.intent) {
+          case JarvisIntent.chat:
             response = await _generatePlainJarvisReply(message);
             debugPrint('[ChatScreen] Plain JARVIS response: $response');
             widgetJson = null;
-          case _JarvisIntent.action:
-            final result = await AiService.instance.processCommand(
-              command: message,
-              userName: DatabaseService.instance.firstName,
-              conversationId: _activeConversationId,
+          case JarvisIntent.action:
+            throw StateError(
+              'Action intent should be handled before chat prep.',
             );
-            final execution = await ActionExecutor.instance.executeAll(
-              result.actions,
-            );
-            response = result.response;
-            debugPrint('[ChatScreen] Action JARVIS response: $response');
-            widgetJson = execution.generatedCard == null
-                ? _encodeWidgetPayload(result)
-                : jsonEncode(execution.generatedCard);
-          case _JarvisIntent.genui:
+          case JarvisIntent.genui:
             final generation = await _genUiRuntimeInstance.generate(
               userMessage: message,
               conversationId: _activeConversationId,
@@ -411,68 +364,11 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _ensureJarvisReadyForChat(String message) async {
-    if (GemmaService.instance.isModelLoaded) return;
-
-    final model = FeatureManager.instance.resolveBestModelDef();
-    if (model == null) {
-      throw const GemmaException(
-        code: GemmaErrorCode.modelNotInstalled,
-        message: 'No local JARVIS model is marked as downloaded.',
-      );
-    }
-
     debugPrint(
       '[ChatScreen] Loading downloaded model before chat. '
-      'model=${model.modelId}, messageLength=${message.length}',
+      'messageLength=${message.length}',
     );
-    await GemmaService.instance
-        .loadModel(model)
-        .timeout(
-          const Duration(seconds: 60),
-          onTimeout: () => throw TimeoutException(
-            'Timed out while loading ${model.displayName}.',
-          ),
-        );
-  }
-
-  _JarvisIntent _classifyJarvisIntent(String message) {
-    debugPrint(
-      '[ChatScreen] Routing JARVIS intent locally. '
-      'messageLength=${message.length}, conversation=$_activeConversationId',
-    );
-    final lower = message.trim().toLowerCase();
-    if (shouldRouteChatMessageToGenUi(message)) {
-      debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.genui}');
-      return _JarvisIntent.genui;
-    }
-    if (lower.length <= 80 && _looksLikeConversation(lower)) {
-      debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.chat}');
-      return _JarvisIntent.chat;
-    }
-    if (AiService.instance.isCommandQuery(lower)) {
-      debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.action}');
-      return _JarvisIntent.action;
-    }
-    if (RegExp(
-      r'\b(ui|screen|card|view|dashboard|widget|form|layout|visual|interactive)\b',
-    ).hasMatch(lower)) {
-      debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.genui}');
-      return _JarvisIntent.genui;
-    }
-    debugPrint('[ChatScreen] JARVIS intent=${_JarvisIntent.chat}');
-    return _JarvisIntent.chat;
-  }
-
-  bool _looksLikeConversation(String lower) {
-    if (RegExp(
-      r"^(hi|hello|hey|yo|salam|assalam|how are you|what'?s up|thanks|thank you)\b",
-    ).hasMatch(lower)) {
-      return true;
-    }
-    if (lower.endsWith('?')) return true;
-    return RegExp(
-      r'\b(who|what|why|how|when|where|explain|tell me|advice|think|feel|should i)\b',
-    ).hasMatch(lower);
+    await GemmaService.instance.loadBestAvailableModel();
   }
 
   Future<String> _generatePlainJarvisReply(String message) async {
@@ -516,22 +412,6 @@ class _ChatScreenState extends State<ChatScreen> {
         'Diagnostic ID: $diagnosticId\n'
         '$shortError\n\n'
         'Please send this screen if it happens again.';
-  }
-
-  String? _encodeWidgetPayload(AiCommandResult result) {
-    for (final action in result.actions) {
-      if (action.type != 'show_dynamic_card') continue;
-      final card = action.params['card'];
-      if (card is Map) {
-        try {
-          return jsonEncode(Map<String, dynamic>.from(card));
-        } catch (error, stackTrace) {
-          debugPrint('[ChatScreen] Failed to encode GenUI payload: $error');
-          debugPrintStack(stackTrace: stackTrace);
-        }
-      }
-    }
-    return null;
   }
 
   void _showMessage(String message) {
@@ -599,11 +479,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _stopDictation() async {
     if (_speechReady) await _speech.stop();
+    _dictationBaseText = '';
     if (!mounted) return;
     setState(() => _isListening = false);
   }
 
   void _handleSpeechResult(SpeechRecognitionResult result) {
+    if (!_isListening || _isProcessing) return;
     final words = result.recognizedWords.trim();
     final combined = [
       if (_dictationBaseText.isNotEmpty) _dictationBaseText,
@@ -710,12 +592,12 @@ class _ChatScreenState extends State<ChatScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.12),
+                color: AppTheme.intelligence.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
-                LucideIcons.sparkles,
-                color: AppTheme.primary,
+                LucideIcons.radio,
+                color: AppTheme.intelligence,
                 size: 20,
               ),
             ),
@@ -796,9 +678,9 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
             const SizedBox(height: Spacing.xl),
-            _GlassButton(
+            _ContextChatButton(
               icon: LucideIcons.messageSquarePlus,
-              label: 'Start a chat',
+              label: 'Start a context thread',
               onTap: _startNewConversation,
             ),
           ],
@@ -861,19 +743,19 @@ class _ChatScreenState extends State<ChatScreen> {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(alpha: 0.12),
+                      color: AppTheme.intelligence.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
-                      LucideIcons.sparkles,
-                      color: AppTheme.primary,
+                      LucideIcons.radio,
+                      color: AppTheme.intelligence,
                       size: 18,
                     ),
                   ),
                   const SizedBox(width: Spacing.md),
                   Expanded(
                     child: Text(
-                      'Chats',
+                      'Context threads',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -881,7 +763,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   IconButton(
                     icon: const Icon(LucideIcons.messageSquarePlus, size: 19),
-                    color: AppTheme.primary,
+                    color: AppTheme.intelligence,
                     onPressed: () async {
                       Navigator.of(context).pop();
                       await _startNewConversation();
@@ -895,8 +777,9 @@ class _ChatScreenState extends State<ChatScreen> {
               padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: Spacing.md),
-                decoration: AppTheme.glassmorphism(
-                  tint: AppTheme.surfaceHighest,
+                decoration: AppTheme.contextPanel(
+                  color: AppTheme.surfaceContainer,
+                  accent: AppTheme.intelligence,
                   borderRadius: 14,
                 ),
                 child: Row(
@@ -949,20 +832,20 @@ class _ChatScreenState extends State<ChatScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              LucideIcons.sparkles,
+              LucideIcons.radio,
               size: 48,
-              color: AppTheme.primary.withValues(alpha: 0.4),
+              color: AppTheme.intelligence.withValues(alpha: 0.48),
             ),
             const SizedBox(height: Spacing.lg),
             Text(
-              'Ask me anything',
+              'What should we untangle?',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: AppTheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: Spacing.sm),
             Text(
-              'I can help with tasks, habits, focus, and more',
+              'Drop the messy version. JARVIS will use your local context.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
               ),
@@ -1015,8 +898,9 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Container(
           margin: EdgeInsets.only(bottom: Spacing.xs),
           padding: EdgeInsets.symmetric(horizontal: Spacing.xl, vertical: 4),
-          decoration: AppTheme.glassmorphism(
-            tint: AppTheme.surfaceHighest,
+          decoration: AppTheme.contextPanel(
+            color: AppTheme.surfaceHighest.withValues(alpha: 0.92),
+            accent: _isListening ? AppTheme.accent : AppTheme.intelligence,
             borderRadius: 999,
           ),
           child: Row(
@@ -1068,7 +952,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: AppTheme.primary,
+                        color: AppTheme.intelligence,
                       ),
                     )
                   : Semantics(
@@ -1128,11 +1012,11 @@ class _ConversationTile extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: isActive
-              ? AppTheme.primary.withValues(alpha: 0.1)
+              ? AppTheme.intelligence.withValues(alpha: 0.1)
               : AppTheme.surfaceContainer,
           borderRadius: BorderRadius.circular(16),
           border: isActive
-              ? Border.all(color: AppTheme.primary.withValues(alpha: 0.2))
+              ? Border.all(color: AppTheme.intelligence.withValues(alpha: 0.2))
               : null,
         ),
         child: Row(
@@ -1140,7 +1024,9 @@ class _ConversationTile extends StatelessWidget {
             Icon(
               LucideIcons.messageSquare,
               size: 18,
-              color: isActive ? AppTheme.primary : AppTheme.onSurfaceVariant,
+              color: isActive
+                  ? AppTheme.intelligence
+                  : AppTheme.onSurfaceVariant,
             ),
             const SizedBox(width: Spacing.md),
             Expanded(
@@ -1293,11 +1179,6 @@ class _MessageBubble extends StatelessWidget {
             },
           );
         }
-        return GenerativeCardModule(
-          cardData: card,
-          onAction: () =>
-              onWidgetAction(card['action_label'] as String? ?? 'Continue'),
-        );
       }
       debugPrint(
         '[ChatScreen] Ignoring non-object GenUI payload: ${decoded.runtimeType}',
@@ -1307,8 +1188,11 @@ class _MessageBubble extends StatelessWidget {
       debugPrintStack(stackTrace: stackTrace);
     }
 
-    return SafeRenderer.buildFallbackWidget(
+    return Text(
       'This older interactive response could not be displayed.',
+      style: Theme.of(
+        context,
+      ).textTheme.bodySmall?.copyWith(color: AppTheme.warning),
     );
   }
 
@@ -1403,7 +1287,7 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
           width: 6,
           height: 6,
           decoration: const BoxDecoration(
-            color: AppTheme.primary,
+            color: AppTheme.intelligence,
             shape: BoxShape.circle,
           ),
         ),
@@ -1412,12 +1296,12 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
   }
 }
 
-class _GlassButton extends StatelessWidget {
+class _ContextChatButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
 
-  const _GlassButton({
+  const _ContextChatButton({
     required this.icon,
     required this.label,
     required this.onTap,
@@ -1432,20 +1316,20 @@ class _GlassButton extends StatelessWidget {
           horizontal: Spacing.xxl,
           vertical: Spacing.md,
         ),
-        decoration: AppTheme.glassmorphism(
-          tint: AppTheme.primary,
-          opacity: 0.15,
+        decoration: AppTheme.contextPanel(
+          color: AppTheme.intelligence.withValues(alpha: 0.1),
+          accent: AppTheme.intelligence,
           borderRadius: 999,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18, color: AppTheme.primary),
+            Icon(icon, size: 18, color: AppTheme.intelligence),
             const SizedBox(width: Spacing.sm),
             Text(
               label,
               style: const TextStyle(
-                color: AppTheme.primary,
+                color: AppTheme.intelligence,
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
               ),

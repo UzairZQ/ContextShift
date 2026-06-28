@@ -23,22 +23,19 @@ class SmoothPageRoute<T> extends PageRouteBuilder<T> {
              reverseCurve: Motion.smoothExit,
            );
 
-           return FadeTransition(
-             opacity: entrance,
-             child: SlideTransition(
-               position: Tween<Offset>(
-                 begin: const Offset(0, 0.045),
-                 end: Offset.zero,
-               ).animate(entrance),
-               child: ScaleTransition(
-                 scale: Tween<double>(begin: 0.985, end: 1).animate(entrance),
-                 child: SlideTransition(
-                   position: Tween<Offset>(
-                     begin: Offset.zero,
-                     end: const Offset(0, -0.018),
-                   ).animate(outgoing),
-                   child: child,
-                 ),
+           return SlideTransition(
+             position: Tween<Offset>(
+               begin: const Offset(0.16, 0),
+               end: Offset.zero,
+             ).animate(entrance),
+             child: ScaleTransition(
+               scale: Tween<double>(begin: 0.965, end: 1).animate(entrance),
+               child: SlideTransition(
+                 position: Tween<Offset>(
+                   begin: Offset.zero,
+                   end: const Offset(-0.06, 0),
+                 ).animate(outgoing),
+                 child: child,
                ),
              ),
            );

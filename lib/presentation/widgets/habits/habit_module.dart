@@ -35,11 +35,6 @@ class _HabitModuleState extends State<HabitModule> {
     super.dispose();
   }
 
-  String _todayString() {
-    final now = DateTime.now();
-    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-  }
-
   void _openAddHabitSheet() {
     AddHabitSheet.show(context, nameController: _nameController);
   }
@@ -63,7 +58,7 @@ class _HabitModuleState extends State<HabitModule> {
           ],
         ),
         const SizedBox(height: 8),
-        _HabitContent(stream: _habitsStream, today: _todayString()),
+        _HabitContent(stream: _habitsStream, today: DatabaseService.todayKey()),
       ],
     );
   }

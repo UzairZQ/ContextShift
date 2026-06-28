@@ -21,6 +21,12 @@ class DatabaseService {
   String _deviceId = '';
   bool _initialized = false;
 
+  static String dateKey(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  static String todayKey() => dateKey(DateTime.now());
+
   // ── Init ─────────────────────────────────────────────────────
 
   Future<void> init() async {
@@ -206,9 +212,7 @@ class DatabaseService {
 
   Future<Map<String, dynamic>> buildContextSnapshot() async {
     try {
-      final now = DateTime.now();
-      final todayStr =
-          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final todayStr = todayKey();
 
       final profile = await (_db.select(
         _db.profileTable,
@@ -540,8 +544,7 @@ class DatabaseService {
       for (final s in sessions) {
         if (s.completedAt != null) {
           final d = s.completedAt!;
-          final dateStr =
-              '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+          final dateStr = dateKey(d);
           if (dateStr == todayStr) {
             total += s.durationMinutes;
           }
@@ -936,8 +939,7 @@ class DatabaseService {
     int streak = 0;
     DateTime day = DateTime.now();
     while (true) {
-      final dayStr =
-          '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+      final dayStr = dateKey(day);
       if (allDates.contains(dayStr)) {
         streak++;
         day = day.subtract(const Duration(days: 1));
@@ -951,7 +953,6 @@ class DatabaseService {
   // ── Helpers ──────────────────────────────────────────────────
 
   String _todayString() {
-    final now = DateTime.now();
-    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    return todayKey();
   }
 }

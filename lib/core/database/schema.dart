@@ -95,7 +95,7 @@ class MoodEntryTable extends Table {
   DateTimeColumn get timestamp => dateTime()();
 }
 
-// ── AI Command History (legacy) ────────────────────────────────
+// ── AI Command History ─────────────────────────────────────────
 
 class AiCommandTable extends Table {
   IntColumn get id => integer().autoIncrement()();

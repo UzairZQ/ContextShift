@@ -43,9 +43,9 @@ class HomeHeader extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${DatabaseService.instance.firstName}\'s Sanctuary',
+                  '${DatabaseService.instance.firstName}\'s command center',
                   style: TextStyle(
-                    color: AppTheme.primary,
+                    color: AppTheme.intelligence,
                     fontSize: Responsive.isMobile(context) ? 10 : 12,
                     letterSpacing: 2,
                   ),

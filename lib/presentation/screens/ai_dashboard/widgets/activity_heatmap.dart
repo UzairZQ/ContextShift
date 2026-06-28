@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/app_theme.dart';
 import '../../../../core/database/database_service.dart';
+import '../../../shared/context_shift_primitives.dart';
 
 class ActivityHeatmap extends StatelessWidget {
   const ActivityHeatmap({super.key});
@@ -24,9 +25,9 @@ class ActivityHeatmap extends StatelessWidget {
           }
         }
 
-        return Container(
+        return ContextPanel(
           padding: const EdgeInsets.all(20),
-          decoration: AppTheme.cardDecoration(color: AppTheme.surfaceContainer),
+          accent: AppTheme.intelligence,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -34,11 +35,11 @@ class ActivityHeatmap extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Activity Heatmap',
+                    'Last 28 days',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   Text(
-                    'Last 28 Days',
+                    'habit completions',
                     style: TextStyle(
                       color: AppTheme.onSurfaceVariant.withValues(alpha: 0.5),
                       fontSize: 11,
@@ -62,8 +63,7 @@ class ActivityHeatmap extends StatelessWidget {
                       final day = now.subtract(
                         Duration(days: (cols - 1) - index),
                       );
-                      final dayStr =
-                          '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+                      final dayStr = DatabaseService.dateKey(day);
                       final count = dailyCounts[dayStr] ?? 0;
 
                       double opacity = 0.05;
@@ -77,13 +77,13 @@ class ActivityHeatmap extends StatelessWidget {
                         height: boxSize,
                         decoration: BoxDecoration(
                           color: count > 0
-                              ? AppTheme.primary.withValues(alpha: opacity)
+                              ? AppTheme.intelligence.withValues(alpha: opacity)
                               : Colors.white.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(3),
                           boxShadow: count > 0
                               ? [
                                   BoxShadow(
-                                    color: AppTheme.primary.withValues(
+                                    color: AppTheme.intelligence.withValues(
                                       alpha: opacity * 0.4,
                                     ),
                                     blurRadius: 4,

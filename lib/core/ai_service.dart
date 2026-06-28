@@ -8,35 +8,12 @@ class AiCommandResult {
   final List<AiAction> actions;
   final String response;
   final String? greetingUpdate;
-  final List<String>? layoutOrder;
-  final bool fromBackend;
 
   AiCommandResult({
     required this.actions,
     required this.response,
     this.greetingUpdate,
-    this.layoutOrder,
-    this.fromBackend = false,
   });
-
-  factory AiCommandResult.fromJson(
-    Map<String, dynamic> json, {
-    bool fromBackend = false,
-  }) {
-    return AiCommandResult(
-      actions:
-          (json['actions'] as List<dynamic>?)
-              ?.map((a) => AiAction.fromJson(a as Map<String, dynamic>))
-              .toList() ??
-          [],
-      response: json['response'] as String? ?? 'Done!',
-      greetingUpdate: json['greeting_update'] as String?,
-      layoutOrder: (json['layout_order'] as List<dynamic>?)
-          ?.map((e) => e.toString())
-          .toList(),
-      fromBackend: fromBackend,
-    );
-  }
 }
 
 class AiAction {
@@ -66,7 +43,6 @@ class AiService {
   Future<AiCommandResult> processCommand({
     required String command,
     required String userName,
-    Map<String, dynamic>? context,
     int? conversationId,
   }) async {
     debugPrint('AI Command — processing locally: "$command"');
@@ -82,21 +58,17 @@ class AiService {
     String command,
     String userName,
     bool isTimeout, {
-    bool fromBackend = false,
     int? conversationId,
   }) async {
     AiCommandResult build({
       required List<AiAction> actions,
       required String response,
       String? greetingUpdate,
-      List<String>? layoutOrder,
     }) {
       return AiCommandResult(
         actions: actions,
         response: response,
         greetingUpdate: greetingUpdate,
-        layoutOrder: layoutOrder,
-        fromBackend: fromBackend,
       );
     }
 
@@ -123,24 +95,9 @@ class AiService {
             ),
           ],
           response: 'Added "$title" to your tasks.',
-          layoutOrder: [
-            'TasksModule',
-            'FocusTimerModule',
-            'HabitModule',
-            'NotesModule',
-          ],
         );
       } else {
-        return build(
-          actions: [],
-          response: 'What task would you like to add?',
-          layoutOrder: [
-            'TasksModule',
-            'FocusTimerModule',
-            'HabitModule',
-            'NotesModule',
-          ],
-        );
+        return build(actions: [], response: 'What task would you like to add?');
       }
     }
 
@@ -162,110 +119,6 @@ class AiService {
         ],
         response: 'Focus mode activated. $minutes-minute session ready.',
         greetingUpdate: 'Deep focus mode, $userName.',
-        layoutOrder: [
-          'FocusTimerModule',
-          'TasksModule',
-          'NotesModule',
-          'HabitModule',
-        ],
-      );
-    }
-
-    // ── Dynamic planning / advice patterns ──
-    if (_matchesAny(lower, [
-      'workout',
-      'exercise',
-      'routine',
-      'plan',
-      'planner',
-      'advice',
-    ])) {
-      final isWorkout = _matchesAny(lower, ['workout', 'exercise']);
-      final isPlanner =
-          !isWorkout && _matchesAny(lower, ['plan', 'planner', 'routine']);
-      final cardType = isWorkout
-          ? 'workout'
-          : (isPlanner ? 'planner' : 'advice');
-      final cardTitle = isWorkout
-          ? 'Quick Workout Builder'
-          : (isPlanner ? 'Adaptive Plan' : 'Jarvis Guidance');
-      final cardDescription = isWorkout
-          ? 'Built around your prompt, $userName. Tap any step to turn it into a task.'
-          : (isPlanner
-                ? 'Here is a focused structure based on what you asked for. Tap a step to add it to your backlog.'
-                : 'A short action stack to help you move forward right now.');
-      final listItems = isWorkout
-          ? [
-              {
-                'text': '5 min mobility warm-up',
-                'task_payload': {
-                  'title': 'Do a 5 min mobility warm-up',
-                  'priority': 'normal',
-                },
-              },
-              {
-                'text': '20 min main set',
-                'task_payload': {
-                  'title': 'Complete a 20 min workout block',
-                  'priority': 'high',
-                },
-              },
-              {
-                'text': '5 min cooldown',
-                'task_payload': {
-                  'title': 'Finish with a 5 min cooldown',
-                  'priority': 'normal',
-                },
-              },
-            ]
-          : [
-              {
-                'text': 'Pick the one outcome that matters most',
-                'task_payload': {
-                  'title': 'Define the main outcome for today',
-                  'priority': 'high',
-                },
-              },
-              {
-                'text': 'Break it into a 25 min sprint',
-                'task_payload': {
-                  'title': 'Run one 25 min sprint on the main outcome',
-                  'priority': 'normal',
-                },
-              },
-              {
-                'text': 'Capture the next step before you stop',
-                'task_payload': {
-                  'title': 'Write down the next step before stopping',
-                  'priority': 'normal',
-                },
-              },
-            ];
-
-      return build(
-        actions: [
-          AiAction(
-            type: 'show_dynamic_card',
-            params: {
-              'card': {
-                'title': cardTitle,
-                'type': cardType,
-                'description': cardDescription,
-                'list_items': listItems,
-                'action_label': isWorkout ? 'Open Tasks' : 'Start Focus',
-                'action_module': isWorkout ? 'TasksModule' : 'FocusTimerModule',
-              },
-            },
-          ),
-        ],
-        response: 'I built a live card for that request.',
-        layoutOrder: const [
-          'GenerativeCardModule',
-          'FocusTimerModule',
-          'TasksModule',
-          'HabitModule',
-          'NotesModule',
-        ],
       );
     }
 
@@ -278,23 +131,11 @@ class AiService {
             AiAction(type: 'add_habit', params: {'name': name, 'icon': ''}),
           ],
           response: 'Now tracking "$name" as a daily habit.',
-          layoutOrder: [
-            'HabitModule',
-            'FocusTimerModule',
-            'TasksModule',
-            'NotesModule',
-          ],
         );
       } else {
         return build(
           actions: [],
           response: 'What habit would you like to build?',
-          layoutOrder: [
-            'HabitModule',
-            'FocusTimerModule',
-            'TasksModule',
-            'NotesModule',
-          ],
         );
       }
     }
@@ -313,24 +154,9 @@ class AiService {
             AiAction(type: 'add_note', params: {'content': content}),
           ],
           response: 'Saved to your notes.',
-          layoutOrder: [
-            'NotesModule',
-            'FocusTimerModule',
-            'TasksModule',
-            'HabitModule',
-          ],
         );
       } else {
-        return build(
-          actions: [],
-          response: 'What do you want to note down?',
-          layoutOrder: [
-            'NotesModule',
-            'FocusTimerModule',
-            'TasksModule',
-            'HabitModule',
-          ],
-        );
+        return build(actions: [], response: 'What do you want to note down?');
       }
     }
 
@@ -341,40 +167,13 @@ class AiService {
       'open task',
       'go to task',
     ])) {
-      return build(
-        actions: [],
-        response: 'Here are your tasks.',
-        layoutOrder: [
-          'TasksModule',
-          'FocusTimerModule',
-          'HabitModule',
-          'NotesModule',
-        ],
-      );
+      return build(actions: [], response: 'Here are your tasks.');
     }
     if (_matchesAny(lower, ['show habit', 'my habit', 'open habit'])) {
-      return build(
-        actions: [],
-        response: 'Here are your habits.',
-        layoutOrder: [
-          'HabitModule',
-          'TasksModule',
-          'FocusTimerModule',
-          'NotesModule',
-        ],
-      );
+      return build(actions: [], response: 'Here are your habits.');
     }
     if (_matchesAny(lower, ['show note', 'my note', 'open note'])) {
-      return build(
-        actions: [],
-        response: 'Here are your notes.',
-        layoutOrder: [
-          'NotesModule',
-          'TasksModule',
-          'FocusTimerModule',
-          'HabitModule',
-        ],
-      );
+      return build(actions: [], response: 'Here are your notes.');
     }
 
     // ── Motivation / Support patterns ──
@@ -388,45 +187,6 @@ class AiService {
       'help',
       'stuck',
     ])) {
-      if (_matchesAny(lower, ['overwhelmed', 'stressed', 'stuck', 'help'])) {
-        return build(
-          actions: [
-            AiAction(
-              type: 'show_dynamic_card',
-              params: {
-                'card': {
-                  'title': 'Overwhelm Protocol',
-                  'type': 'advice',
-                  'description':
-                      'Take a breath, $userName. I\'ve moved your Focus Timer and Tasks to the top. Just pick one thing.',
-                  'list_items': [
-                    {'text': 'Hide your phone', 'task_payload': null},
-                    {
-                      'text': 'Start a 15 min focus block',
-                      'task_payload': null,
-                    },
-                    {
-                      'text': 'Knock out one task from the top',
-                      'task_payload': null,
-                    },
-                  ],
-                  'action_label': 'Start 15min Block',
-                  'action_module': 'FocusTimerModule',
-                },
-              },
-            ),
-          ],
-          response:
-              'Take a breath, $userName. I\'ve built a quick protocol to get you back on track.',
-          layoutOrder: [
-            'GenerativeCardModule',
-            'FocusTimerModule',
-            'TasksModule',
-            'HabitModule',
-            'NotesModule',
-          ],
-        );
-      }
       final messages = [
         'You\'re already ahead by showing up, $userName. Keep pushing.',
         'Small steps still move you forward, $userName. Let\'s go.',
@@ -545,57 +305,6 @@ class AiService {
     } else {
       return 'Wind down with a light habit check and plan tomorrow\'s top 3 priorities.';
     }
-  }
-
-  // ── Note Summarization (no-op stub, GemmaService can be wired later) ──
-
-  Future<String?> summarizeNote(String content) async {
-    debugPrint('[AiService] summarizeNote: no backend — returning null');
-    return null;
-  }
-
-  /// Quick classifier — returns true if the input matches a known command pattern.
-  /// Used to decide: process inline vs route to ChatScreen.
-  bool isCommandQuery(String input) {
-    final lower = input.toLowerCase().trim();
-    if (lower.length < 3) return false;
-    return _matchesAny(lower, [
-      'add task',
-      'todo',
-      'remind me',
-      'create task',
-      'focus',
-      'study',
-      'deep work',
-      'pomodoro',
-      'concentrate',
-      'work session',
-      'add habit',
-      'track',
-      'new habit',
-      'note',
-      'remember',
-      'write down',
-      'jot down',
-      'show task',
-      'my task',
-      'open task',
-      'go to task',
-      'show habit',
-      'my habit',
-      'open habit',
-      'show note',
-      'my note',
-      'open note',
-      'motivat',
-      'inspir',
-      'pep talk',
-      'encourage',
-      'overwhelmed',
-      'stressed',
-      'help',
-      'stuck',
-    ]);
   }
 
   // ── Helpers ────────────────────────────────────────────────

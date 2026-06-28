@@ -470,6 +470,16 @@ class JarvisDesignCatalog {
                       'message': _text(action['message']),
                     if (_text(action['title']).isNotEmpty)
                       'title': _text(action['title']),
+                    if (_text(action['name']).isNotEmpty)
+                      'name': _text(action['name']),
+                    if (_text(action['content']).isNotEmpty)
+                      'content': _text(action['content']),
+                    if (_text(action['priority']).isNotEmpty)
+                      'priority': _text(action['priority']),
+                    if (_number(action['duration_minutes']) > 0)
+                      'duration_minutes': _number(
+                        action['duration_minutes'],
+                      ).round(),
                   },
                 ),
               ),
@@ -536,6 +546,17 @@ final _actionSchema = ObjectSchema(
       ],
     ),
     'title': _string('Optional title payload.'),
+    'name': _string('Optional habit name payload.'),
+    'content': _string('Optional note content payload.'),
+    'priority': StringSchema(
+      description: 'Optional task priority.',
+      enumValues: ['low', 'normal', 'high'],
+    ),
+    'duration_minutes': NumberSchema(
+      description: 'Optional focus duration in minutes.',
+      minimum: 5,
+      maximum: 180,
+    ),
     'message': _string('Optional message payload.'),
   },
   required: ['label', 'event'],

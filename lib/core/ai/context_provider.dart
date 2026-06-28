@@ -11,9 +11,13 @@ class ContextProvider {
   static const int _maxContextCharacters = 6000;
 
   Future<Map<String, Object?>> buildGenUiContext({int? conversationId}) async {
-    final snapshot = await DatabaseService.instance.buildContextSnapshot();
-    final memory = await JarvisMemoryService.instance.buildMemoryContext(
-      conversationId: conversationId,
+    final snapshot = _jsonSafeMap(
+      await DatabaseService.instance.buildContextSnapshot(),
+    );
+    final memory = _jsonSafeMap(
+      await JarvisMemoryService.instance.buildMemoryContext(
+        conversationId: conversationId,
+      ),
     );
     final history = conversationId == null
         ? const <MessageTableData>[]
@@ -52,9 +56,13 @@ class ContextProvider {
     required String userMessage,
     int? conversationId,
   }) async {
-    final snapshot = await DatabaseService.instance.buildContextSnapshot();
-    final memory = await JarvisMemoryService.instance.buildMemoryContext(
-      conversationId: conversationId,
+    final snapshot = _jsonSafeMap(
+      await DatabaseService.instance.buildContextSnapshot(),
+    );
+    final memory = _jsonSafeMap(
+      await JarvisMemoryService.instance.buildMemoryContext(
+        conversationId: conversationId,
+      ),
     );
     final history = conversationId == null
         ? const <MessageTableData>[]
@@ -82,7 +90,7 @@ class ContextProvider {
       )
       ..writeln('Return one JSON object only with this shape:')
       ..writeln(
-        '{"response":"human answer","actions":[{"type":"add_task|add_habit|add_note|start_focus|show_dynamic_card","params":{}}]}',
+        '{"response":"human answer","actions":[{"type":"add_task|add_habit|add_note|start_focus","params":{}}]}',
       )
       ..writeln('Current local context:')
       ..writeln(jsonEncode(snapshot))
@@ -105,9 +113,13 @@ class ContextProvider {
     required String userMessage,
     int? conversationId,
   }) async {
-    final snapshot = await DatabaseService.instance.buildContextSnapshot();
-    final memory = await JarvisMemoryService.instance.buildMemoryContext(
-      conversationId: conversationId,
+    final snapshot = _jsonSafeMap(
+      await DatabaseService.instance.buildContextSnapshot(),
+    );
+    final memory = _jsonSafeMap(
+      await JarvisMemoryService.instance.buildMemoryContext(
+        conversationId: conversationId,
+      ),
     );
     final history = conversationId == null
         ? const <MessageTableData>[]
@@ -157,5 +169,25 @@ class ContextProvider {
     return prompt.substring(0, headChars) +
         marker +
         prompt.substring(prompt.length - tailChars);
+  }
+
+  Map<String, Object?> _jsonSafeMap(Map<String, Object?> value) {
+    return _jsonSafe(value) as Map<String, Object?>;
+  }
+
+  Object? _jsonSafe(Object? value) {
+    if (value == null || value is num || value is bool || value is String) {
+      return value;
+    }
+    if (value is DateTime) return value.toIso8601String();
+    if (value is Map) {
+      return value.map<String, Object?>(
+        (key, mapValue) => MapEntry(key.toString(), _jsonSafe(mapValue)),
+      );
+    }
+    if (value is Iterable) {
+      return value.map(_jsonSafe).toList(growable: false);
+    }
+    return value.toString();
   }
 }
