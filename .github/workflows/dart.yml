@@ -3,8 +3,13 @@ name: Flutter CI
 on:
   push:
     branches: ["main"]
+    paths:
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - ".github/workflows/dart.yml"
   pull_request:
     branches: ["main"]
+    types: [closed]
   workflow_dispatch:
 
 permissions:
@@ -22,6 +27,7 @@ jobs:
     name: Format, analyze, and test
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
 
     steps:
       - name: Check out repository
@@ -63,10 +69,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     needs: quality
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
