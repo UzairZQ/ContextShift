@@ -4656,6 +4656,916 @@ class ConversationTableCompanion
   }
 }
 
+class $ConversationMemoryTableTable extends ConversationMemoryTable
+    with TableInfo<$ConversationMemoryTableTable, ConversationMemoryTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ConversationMemoryTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _conversationIdMeta = const VerificationMeta(
+    'conversationId',
+  );
+  @override
+  late final GeneratedColumn<int> conversationId = GeneratedColumn<int>(
+    'conversation_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _summaryMeta = const VerificationMeta(
+    'summary',
+  );
+  @override
+  late final GeneratedColumn<String> summary = GeneratedColumn<String>(
+    'summary',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _openQuestionsMeta = const VerificationMeta(
+    'openQuestions',
+  );
+  @override
+  late final GeneratedColumn<String> openQuestions = GeneratedColumn<String>(
+    'open_questions',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    conversationId,
+    summary,
+    openQuestions,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'conversation_memory_table';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ConversationMemoryTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('conversation_id')) {
+      context.handle(
+        _conversationIdMeta,
+        conversationId.isAcceptableOrUnknown(
+          data['conversation_id']!,
+          _conversationIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_conversationIdMeta);
+    }
+    if (data.containsKey('summary')) {
+      context.handle(
+        _summaryMeta,
+        summary.isAcceptableOrUnknown(data['summary']!, _summaryMeta),
+      );
+    }
+    if (data.containsKey('open_questions')) {
+      context.handle(
+        _openQuestionsMeta,
+        openQuestions.isAcceptableOrUnknown(
+          data['open_questions']!,
+          _openQuestionsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ConversationMemoryTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ConversationMemoryTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      conversationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}conversation_id'],
+      )!,
+      summary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}summary'],
+      )!,
+      openQuestions: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}open_questions'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ConversationMemoryTableTable createAlias(String alias) {
+    return $ConversationMemoryTableTable(attachedDatabase, alias);
+  }
+}
+
+class ConversationMemoryTableData extends DataClass
+    implements Insertable<ConversationMemoryTableData> {
+  final int id;
+  final int conversationId;
+  final String summary;
+  final String openQuestions;
+  final DateTime updatedAt;
+  const ConversationMemoryTableData({
+    required this.id,
+    required this.conversationId,
+    required this.summary,
+    required this.openQuestions,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['conversation_id'] = Variable<int>(conversationId);
+    map['summary'] = Variable<String>(summary);
+    map['open_questions'] = Variable<String>(openQuestions);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  ConversationMemoryTableCompanion toCompanion(bool nullToAbsent) {
+    return ConversationMemoryTableCompanion(
+      id: Value(id),
+      conversationId: Value(conversationId),
+      summary: Value(summary),
+      openQuestions: Value(openQuestions),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ConversationMemoryTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ConversationMemoryTableData(
+      id: serializer.fromJson<int>(json['id']),
+      conversationId: serializer.fromJson<int>(json['conversationId']),
+      summary: serializer.fromJson<String>(json['summary']),
+      openQuestions: serializer.fromJson<String>(json['openQuestions']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'conversationId': serializer.toJson<int>(conversationId),
+      'summary': serializer.toJson<String>(summary),
+      'openQuestions': serializer.toJson<String>(openQuestions),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  ConversationMemoryTableData copyWith({
+    int? id,
+    int? conversationId,
+    String? summary,
+    String? openQuestions,
+    DateTime? updatedAt,
+  }) => ConversationMemoryTableData(
+    id: id ?? this.id,
+    conversationId: conversationId ?? this.conversationId,
+    summary: summary ?? this.summary,
+    openQuestions: openQuestions ?? this.openQuestions,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  ConversationMemoryTableData copyWithCompanion(
+    ConversationMemoryTableCompanion data,
+  ) {
+    return ConversationMemoryTableData(
+      id: data.id.present ? data.id.value : this.id,
+      conversationId: data.conversationId.present
+          ? data.conversationId.value
+          : this.conversationId,
+      summary: data.summary.present ? data.summary.value : this.summary,
+      openQuestions: data.openQuestions.present
+          ? data.openQuestions.value
+          : this.openQuestions,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConversationMemoryTableData(')
+          ..write('id: $id, ')
+          ..write('conversationId: $conversationId, ')
+          ..write('summary: $summary, ')
+          ..write('openQuestions: $openQuestions, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, conversationId, summary, openQuestions, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ConversationMemoryTableData &&
+          other.id == this.id &&
+          other.conversationId == this.conversationId &&
+          other.summary == this.summary &&
+          other.openQuestions == this.openQuestions &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ConversationMemoryTableCompanion
+    extends UpdateCompanion<ConversationMemoryTableData> {
+  final Value<int> id;
+  final Value<int> conversationId;
+  final Value<String> summary;
+  final Value<String> openQuestions;
+  final Value<DateTime> updatedAt;
+  const ConversationMemoryTableCompanion({
+    this.id = const Value.absent(),
+    this.conversationId = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.openQuestions = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  ConversationMemoryTableCompanion.insert({
+    this.id = const Value.absent(),
+    required int conversationId,
+    this.summary = const Value.absent(),
+    this.openQuestions = const Value.absent(),
+    required DateTime updatedAt,
+  }) : conversationId = Value(conversationId),
+       updatedAt = Value(updatedAt);
+  static Insertable<ConversationMemoryTableData> custom({
+    Expression<int>? id,
+    Expression<int>? conversationId,
+    Expression<String>? summary,
+    Expression<String>? openQuestions,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (conversationId != null) 'conversation_id': conversationId,
+      if (summary != null) 'summary': summary,
+      if (openQuestions != null) 'open_questions': openQuestions,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  ConversationMemoryTableCompanion copyWith({
+    Value<int>? id,
+    Value<int>? conversationId,
+    Value<String>? summary,
+    Value<String>? openQuestions,
+    Value<DateTime>? updatedAt,
+  }) {
+    return ConversationMemoryTableCompanion(
+      id: id ?? this.id,
+      conversationId: conversationId ?? this.conversationId,
+      summary: summary ?? this.summary,
+      openQuestions: openQuestions ?? this.openQuestions,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (conversationId.present) {
+      map['conversation_id'] = Variable<int>(conversationId.value);
+    }
+    if (summary.present) {
+      map['summary'] = Variable<String>(summary.value);
+    }
+    if (openQuestions.present) {
+      map['open_questions'] = Variable<String>(openQuestions.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConversationMemoryTableCompanion(')
+          ..write('id: $id, ')
+          ..write('conversationId: $conversationId, ')
+          ..write('summary: $summary, ')
+          ..write('openQuestions: $openQuestions, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $JarvisMemoryTableTable extends JarvisMemoryTable
+    with TableInfo<$JarvisMemoryTableTable, JarvisMemoryTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $JarvisMemoryTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<String> value = GeneratedColumn<String>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _confidenceMeta = const VerificationMeta(
+    'confidence',
+  );
+  @override
+  late final GeneratedColumn<double> confidence = GeneratedColumn<double>(
+    'confidence',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.65),
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    userId,
+    kind,
+    key,
+    value,
+    confidence,
+    source,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'jarvis_memory_table';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<JarvisMemoryTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('key')) {
+      context.handle(
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_keyMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_valueMeta);
+    }
+    if (data.containsKey('confidence')) {
+      context.handle(
+        _confidenceMeta,
+        confidence.isAcceptableOrUnknown(data['confidence']!, _confidenceMeta),
+      );
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  JarvisMemoryTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return JarvisMemoryTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      key: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}value'],
+      )!,
+      confidence: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}confidence'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $JarvisMemoryTableTable createAlias(String alias) {
+    return $JarvisMemoryTableTable(attachedDatabase, alias);
+  }
+}
+
+class JarvisMemoryTableData extends DataClass
+    implements Insertable<JarvisMemoryTableData> {
+  final int id;
+  final String userId;
+  final String kind;
+  final String key;
+  final String value;
+  final double confidence;
+  final String? source;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const JarvisMemoryTableData({
+    required this.id,
+    required this.userId,
+    required this.kind,
+    required this.key,
+    required this.value,
+    required this.confidence,
+    this.source,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['user_id'] = Variable<String>(userId);
+    map['kind'] = Variable<String>(kind);
+    map['key'] = Variable<String>(key);
+    map['value'] = Variable<String>(value);
+    map['confidence'] = Variable<double>(confidence);
+    if (!nullToAbsent || source != null) {
+      map['source'] = Variable<String>(source);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  JarvisMemoryTableCompanion toCompanion(bool nullToAbsent) {
+    return JarvisMemoryTableCompanion(
+      id: Value(id),
+      userId: Value(userId),
+      kind: Value(kind),
+      key: Value(key),
+      value: Value(value),
+      confidence: Value(confidence),
+      source: source == null && nullToAbsent
+          ? const Value.absent()
+          : Value(source),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory JarvisMemoryTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return JarvisMemoryTableData(
+      id: serializer.fromJson<int>(json['id']),
+      userId: serializer.fromJson<String>(json['userId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      key: serializer.fromJson<String>(json['key']),
+      value: serializer.fromJson<String>(json['value']),
+      confidence: serializer.fromJson<double>(json['confidence']),
+      source: serializer.fromJson<String?>(json['source']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'userId': serializer.toJson<String>(userId),
+      'kind': serializer.toJson<String>(kind),
+      'key': serializer.toJson<String>(key),
+      'value': serializer.toJson<String>(value),
+      'confidence': serializer.toJson<double>(confidence),
+      'source': serializer.toJson<String?>(source),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  JarvisMemoryTableData copyWith({
+    int? id,
+    String? userId,
+    String? kind,
+    String? key,
+    String? value,
+    double? confidence,
+    Value<String?> source = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => JarvisMemoryTableData(
+    id: id ?? this.id,
+    userId: userId ?? this.userId,
+    kind: kind ?? this.kind,
+    key: key ?? this.key,
+    value: value ?? this.value,
+    confidence: confidence ?? this.confidence,
+    source: source.present ? source.value : this.source,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  JarvisMemoryTableData copyWithCompanion(JarvisMemoryTableCompanion data) {
+    return JarvisMemoryTableData(
+      id: data.id.present ? data.id.value : this.id,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      key: data.key.present ? data.key.value : this.key,
+      value: data.value.present ? data.value.value : this.value,
+      confidence: data.confidence.present
+          ? data.confidence.value
+          : this.confidence,
+      source: data.source.present ? data.source.value : this.source,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('JarvisMemoryTableData(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('kind: $kind, ')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('confidence: $confidence, ')
+          ..write('source: $source, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    userId,
+    kind,
+    key,
+    value,
+    confidence,
+    source,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is JarvisMemoryTableData &&
+          other.id == this.id &&
+          other.userId == this.userId &&
+          other.kind == this.kind &&
+          other.key == this.key &&
+          other.value == this.value &&
+          other.confidence == this.confidence &&
+          other.source == this.source &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class JarvisMemoryTableCompanion
+    extends UpdateCompanion<JarvisMemoryTableData> {
+  final Value<int> id;
+  final Value<String> userId;
+  final Value<String> kind;
+  final Value<String> key;
+  final Value<String> value;
+  final Value<double> confidence;
+  final Value<String?> source;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  const JarvisMemoryTableCompanion({
+    this.id = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.key = const Value.absent(),
+    this.value = const Value.absent(),
+    this.confidence = const Value.absent(),
+    this.source = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  JarvisMemoryTableCompanion.insert({
+    this.id = const Value.absent(),
+    required String userId,
+    required String kind,
+    required String key,
+    required String value,
+    this.confidence = const Value.absent(),
+    this.source = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+  }) : userId = Value(userId),
+       kind = Value(kind),
+       key = Value(key),
+       value = Value(value),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<JarvisMemoryTableData> custom({
+    Expression<int>? id,
+    Expression<String>? userId,
+    Expression<String>? kind,
+    Expression<String>? key,
+    Expression<String>? value,
+    Expression<double>? confidence,
+    Expression<String>? source,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (userId != null) 'user_id': userId,
+      if (kind != null) 'kind': kind,
+      if (key != null) 'key': key,
+      if (value != null) 'value': value,
+      if (confidence != null) 'confidence': confidence,
+      if (source != null) 'source': source,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  JarvisMemoryTableCompanion copyWith({
+    Value<int>? id,
+    Value<String>? userId,
+    Value<String>? kind,
+    Value<String>? key,
+    Value<String>? value,
+    Value<double>? confidence,
+    Value<String?>? source,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+  }) {
+    return JarvisMemoryTableCompanion(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      kind: kind ?? this.kind,
+      key: key ?? this.key,
+      value: value ?? this.value,
+      confidence: confidence ?? this.confidence,
+      source: source ?? this.source,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<String>(value.value);
+    }
+    if (confidence.present) {
+      map['confidence'] = Variable<double>(confidence.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('JarvisMemoryTableCompanion(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('kind: $kind, ')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('confidence: $confidence, ')
+          ..write('source: $source, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $MessageTableTable extends MessageTable
     with TableInfo<$MessageTableTable, MessageTableData> {
   @override
@@ -5080,6 +5990,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $BehaviorEventTableTable(this);
   late final $ConversationTableTable conversationTable =
       $ConversationTableTable(this);
+  late final $ConversationMemoryTableTable conversationMemoryTable =
+      $ConversationMemoryTableTable(this);
+  late final $JarvisMemoryTableTable jarvisMemoryTable =
+      $JarvisMemoryTableTable(this);
   late final $MessageTableTable messageTable = $MessageTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -5096,6 +6010,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     aiCommandTable,
     behaviorEventTable,
     conversationTable,
+    conversationMemoryTable,
+    jarvisMemoryTable,
     messageTable,
   ];
 }
@@ -7560,6 +8476,508 @@ typedef $$ConversationTableTableProcessedTableManager =
       ConversationTableData,
       PrefetchHooks Function()
     >;
+typedef $$ConversationMemoryTableTableCreateCompanionBuilder =
+    ConversationMemoryTableCompanion Function({
+      Value<int> id,
+      required int conversationId,
+      Value<String> summary,
+      Value<String> openQuestions,
+      required DateTime updatedAt,
+    });
+typedef $$ConversationMemoryTableTableUpdateCompanionBuilder =
+    ConversationMemoryTableCompanion Function({
+      Value<int> id,
+      Value<int> conversationId,
+      Value<String> summary,
+      Value<String> openQuestions,
+      Value<DateTime> updatedAt,
+    });
+
+class $$ConversationMemoryTableTableFilterComposer
+    extends Composer<_$AppDatabase, $ConversationMemoryTableTable> {
+  $$ConversationMemoryTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get conversationId => $composableBuilder(
+    column: $table.conversationId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get openQuestions => $composableBuilder(
+    column: $table.openQuestions,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ConversationMemoryTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $ConversationMemoryTableTable> {
+  $$ConversationMemoryTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get conversationId => $composableBuilder(
+    column: $table.conversationId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get openQuestions => $composableBuilder(
+    column: $table.openQuestions,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ConversationMemoryTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ConversationMemoryTableTable> {
+  $$ConversationMemoryTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get conversationId => $composableBuilder(
+    column: $table.conversationId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get summary =>
+      $composableBuilder(column: $table.summary, builder: (column) => column);
+
+  GeneratedColumn<String> get openQuestions => $composableBuilder(
+    column: $table.openQuestions,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ConversationMemoryTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ConversationMemoryTableTable,
+          ConversationMemoryTableData,
+          $$ConversationMemoryTableTableFilterComposer,
+          $$ConversationMemoryTableTableOrderingComposer,
+          $$ConversationMemoryTableTableAnnotationComposer,
+          $$ConversationMemoryTableTableCreateCompanionBuilder,
+          $$ConversationMemoryTableTableUpdateCompanionBuilder,
+          (
+            ConversationMemoryTableData,
+            BaseReferences<
+              _$AppDatabase,
+              $ConversationMemoryTableTable,
+              ConversationMemoryTableData
+            >,
+          ),
+          ConversationMemoryTableData,
+          PrefetchHooks Function()
+        > {
+  $$ConversationMemoryTableTableTableManager(
+    _$AppDatabase db,
+    $ConversationMemoryTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ConversationMemoryTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ConversationMemoryTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ConversationMemoryTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> conversationId = const Value.absent(),
+                Value<String> summary = const Value.absent(),
+                Value<String> openQuestions = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => ConversationMemoryTableCompanion(
+                id: id,
+                conversationId: conversationId,
+                summary: summary,
+                openQuestions: openQuestions,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int conversationId,
+                Value<String> summary = const Value.absent(),
+                Value<String> openQuestions = const Value.absent(),
+                required DateTime updatedAt,
+              }) => ConversationMemoryTableCompanion.insert(
+                id: id,
+                conversationId: conversationId,
+                summary: summary,
+                openQuestions: openQuestions,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ConversationMemoryTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ConversationMemoryTableTable,
+      ConversationMemoryTableData,
+      $$ConversationMemoryTableTableFilterComposer,
+      $$ConversationMemoryTableTableOrderingComposer,
+      $$ConversationMemoryTableTableAnnotationComposer,
+      $$ConversationMemoryTableTableCreateCompanionBuilder,
+      $$ConversationMemoryTableTableUpdateCompanionBuilder,
+      (
+        ConversationMemoryTableData,
+        BaseReferences<
+          _$AppDatabase,
+          $ConversationMemoryTableTable,
+          ConversationMemoryTableData
+        >,
+      ),
+      ConversationMemoryTableData,
+      PrefetchHooks Function()
+    >;
+typedef $$JarvisMemoryTableTableCreateCompanionBuilder =
+    JarvisMemoryTableCompanion Function({
+      Value<int> id,
+      required String userId,
+      required String kind,
+      required String key,
+      required String value,
+      Value<double> confidence,
+      Value<String?> source,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+    });
+typedef $$JarvisMemoryTableTableUpdateCompanionBuilder =
+    JarvisMemoryTableCompanion Function({
+      Value<int> id,
+      Value<String> userId,
+      Value<String> kind,
+      Value<String> key,
+      Value<String> value,
+      Value<double> confidence,
+      Value<String?> source,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
+
+class $$JarvisMemoryTableTableFilterComposer
+    extends Composer<_$AppDatabase, $JarvisMemoryTableTable> {
+  $$JarvisMemoryTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$JarvisMemoryTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $JarvisMemoryTableTable> {
+  $$JarvisMemoryTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$JarvisMemoryTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $JarvisMemoryTableTable> {
+  $$JarvisMemoryTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<String> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+
+  GeneratedColumn<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$JarvisMemoryTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $JarvisMemoryTableTable,
+          JarvisMemoryTableData,
+          $$JarvisMemoryTableTableFilterComposer,
+          $$JarvisMemoryTableTableOrderingComposer,
+          $$JarvisMemoryTableTableAnnotationComposer,
+          $$JarvisMemoryTableTableCreateCompanionBuilder,
+          $$JarvisMemoryTableTableUpdateCompanionBuilder,
+          (
+            JarvisMemoryTableData,
+            BaseReferences<
+              _$AppDatabase,
+              $JarvisMemoryTableTable,
+              JarvisMemoryTableData
+            >,
+          ),
+          JarvisMemoryTableData,
+          PrefetchHooks Function()
+        > {
+  $$JarvisMemoryTableTableTableManager(
+    _$AppDatabase db,
+    $JarvisMemoryTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$JarvisMemoryTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$JarvisMemoryTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$JarvisMemoryTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> userId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> key = const Value.absent(),
+                Value<String> value = const Value.absent(),
+                Value<double> confidence = const Value.absent(),
+                Value<String?> source = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => JarvisMemoryTableCompanion(
+                id: id,
+                userId: userId,
+                kind: kind,
+                key: key,
+                value: value,
+                confidence: confidence,
+                source: source,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String userId,
+                required String kind,
+                required String key,
+                required String value,
+                Value<double> confidence = const Value.absent(),
+                Value<String?> source = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+              }) => JarvisMemoryTableCompanion.insert(
+                id: id,
+                userId: userId,
+                kind: kind,
+                key: key,
+                value: value,
+                confidence: confidence,
+                source: source,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$JarvisMemoryTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $JarvisMemoryTableTable,
+      JarvisMemoryTableData,
+      $$JarvisMemoryTableTableFilterComposer,
+      $$JarvisMemoryTableTableOrderingComposer,
+      $$JarvisMemoryTableTableAnnotationComposer,
+      $$JarvisMemoryTableTableCreateCompanionBuilder,
+      $$JarvisMemoryTableTableUpdateCompanionBuilder,
+      (
+        JarvisMemoryTableData,
+        BaseReferences<
+          _$AppDatabase,
+          $JarvisMemoryTableTable,
+          JarvisMemoryTableData
+        >,
+      ),
+      JarvisMemoryTableData,
+      PrefetchHooks Function()
+    >;
 typedef $$MessageTableTableCreateCompanionBuilder =
     MessageTableCompanion Function({
       Value<int> id,
@@ -7801,6 +9219,13 @@ class $AppDatabaseManager {
       $$BehaviorEventTableTableTableManager(_db, _db.behaviorEventTable);
   $$ConversationTableTableTableManager get conversationTable =>
       $$ConversationTableTableTableManager(_db, _db.conversationTable);
+  $$ConversationMemoryTableTableTableManager get conversationMemoryTable =>
+      $$ConversationMemoryTableTableTableManager(
+        _db,
+        _db.conversationMemoryTable,
+      );
+  $$JarvisMemoryTableTableTableManager get jarvisMemoryTable =>
+      $$JarvisMemoryTableTableTableManager(_db, _db.jarvisMemoryTable);
   $$MessageTableTableTableManager get messageTable =>
       $$MessageTableTableTableManager(_db, _db.messageTable);
 }

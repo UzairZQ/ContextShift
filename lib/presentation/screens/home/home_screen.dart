@@ -617,21 +617,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       ),
       extendBody: true,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 88),
-        child: FloatingActionButton.extended(
-          heroTag: 'jarvis_chat_fab',
-          onPressed: _openEmptyChat,
-          backgroundColor: AppTheme.primary,
-          foregroundColor: Colors.black,
-          elevation: 0,
-          icon: const Icon(LucideIcons.messageCircle, size: 20),
-          label: const Text(
-            'Chat',
-            style: TextStyle(fontWeight: FontWeight.w800),
-          ),
-        ),
-      ),
+      floatingActionButton: _JarvisChatFab(onPressed: _openEmptyChat),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: FloatingNavBar(
         currentIndex: _currentIndex,
@@ -659,5 +645,74 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (!mounted) return;
     setState(() {});
     unawaited(_maybeWarmVerifiedJarvis());
+  }
+}
+
+class _JarvisChatFab extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _JarvisChatFab({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Spacing.sm, right: Spacing.xs),
+      child: Semantics(
+        label: 'Open JARVIS chat',
+        button: true,
+        child: FloatingActionButton(
+          heroTag: 'jarvis_chat_fab',
+          onPressed: onPressed,
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          foregroundColor: AppTheme.primary,
+          shape: const CircleBorder(),
+          child: Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppTheme.surfaceHighest.withValues(alpha: 0.94),
+              border: Border.all(
+                color: AppTheme.primary.withValues(alpha: 0.36),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.primary.withValues(alpha: 0.18),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  LucideIcons.messageCircle,
+                  size: 25,
+                  color: AppTheme.primary,
+                ),
+                Positioned(
+                  right: 14,
+                  top: 14,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppTheme.accent,
+                      border: Border.all(
+                        color: AppTheme.surfaceHighest,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -2,7 +2,7 @@
 
 ContextShift is a cross-platform Flutter productivity app built around a simple idea: your workspace should adapt to your current mental context instead of forcing you into a static dashboard.
 
-The product combines task management, habits, focus sessions, notes, mood check-ins, and an on-device AI layer called JARVIS. JARVIS can interpret commands, generate adaptive cards, and personalize responses using your recent activity and profile context — all running locally with no server or cloud dependencies.
+The product combines task management, habits, focus sessions, notes, mood check-ins, and an on-device AI layer called JARVIS. JARVIS can interpret commands, hold local chat conversations, generate adaptive GenUI surfaces, and personalize responses using recent activity, profile context, and local memory — all running locally with no server or cloud dependency for day-to-day use.
 
 ## Product Goal
 
@@ -19,7 +19,7 @@ The app is fully offline-first with no account requirement:
 - No sign-up or login needed — guest-only with a device-local identity
 - Everything is stored in a local SQLite database
 - AI runs on-device via Google Gemma models (no API keys or internet needed for inference)
-- Firebase is used only for optional Crashlytics crash reporting
+- Native platform code is kept minimal and app-owned, including local storage checks for large model downloads
 
 ## What We Have Built So Far
 
@@ -48,43 +48,51 @@ The app is fully offline-first with no account requirement:
 ### AI layer
 
 - JARVIS command bar on the home screen
+- Dedicated JARVIS chat screen with conversation history
 - Keyword-based local command parsing (instant, no model needed)
 - On-device Gemma NLU fallback when the model is loaded
-- Adaptive card generation for planning, advice, and routines
+- GenUI/A2UI surface generation for plans, dashboards, routines, and structured responses
+- Local JARVIS memory for conversation summaries, user preferences, goals, routines, and constraints
 - Local insight generation for dashboard summaries
 
 ## Screenshots
 
-The images are available in `assets/screenshots/` and cover the app's onboarding, login, home dashboard, AI insight, focus mode, and notes flows.
+The current screenshots are available in `screenshots/` and show the app in the order a user naturally experiences it: onboarding, home, core modules, JARVIS, settings, model download, and insights.
 
-<div>
-  <img src="assets/screenshots/1.png" alt="Onboarding 1" width="320" />
-  <img src="assets/screenshots/2.png" alt="Onboarding 2" width="320" />
-</div>
+### Onboarding
 
-<div>
-  <img src="assets/screenshots/3..png" alt="Onboarding 3" width="320" />
-  <img src="assets/screenshots/singup.png" alt="Signup screen" width="320" />
-</div>
+<p>
+  <img src="screenshots/01-onboarding-overload.png" alt="Onboarding: Too much in your head" width="220" />
+  <img src="screenshots/02-onboarding-next-move.png" alt="Onboarding: Find the next move" width="220" />
+  <img src="screenshots/03-onboarding-offline.png" alt="Onboarding: Built to work offline" width="220" />
+  <img src="screenshots/04-onboarding-privacy.png" alt="Onboarding: Privacy-first local AI" width="220" />
+</p>
 
-<div>
-  <img src="assets/screenshots/login.png" alt="Login screen" width="320" />
-  <img src="assets/screenshots/home.png" alt="Home dashboard" width="320" />
-</div>
+### Daily Workspace
 
-<div>
-  <img src="assets/screenshots/home2.png" alt="Home alternate" width="320" />
-  <img src="assets/screenshots/tasks.png" alt="Tasks module" width="320" />
-</div>
+<p>
+  <img src="screenshots/05-home-dashboard.png" alt="Home dashboard" width="220" />
+  <img src="screenshots/06-home-modules.png" alt="Home modules and mood check-in" width="220" />
+  <img src="screenshots/15-ai-dashboard.png" alt="AI dashboard with activity heatmap" width="220" />
+</p>
 
-<div>
-  <img src="assets/screenshots/focus.png" alt="Focus session" width="320" />
-  <img src="assets/screenshots/quicknotes.png" alt="Quick notes" width="320" />
-</div>
+### Productivity Modules
 
-<div>
-  <img src="assets/screenshots/ai_insights.png" alt="AI insights" width="320" />
-</div>
+<p>
+  <img src="screenshots/07-tasks.png" alt="Tasks module" width="220" />
+  <img src="screenshots/08-habits.png" alt="Habits module" width="220" />
+  <img src="screenshots/09-focus.png" alt="Focus timer" width="220" />
+  <img src="screenshots/10-journal-notes.png" alt="Journal and quick notes" width="220" />
+</p>
+
+### JARVIS
+
+<p>
+  <img src="screenshots/11-jarvis-chat.png" alt="JARVIS chat screen" width="220" />
+  <img src="screenshots/12-chat-history.png" alt="JARVIS chat history drawer" width="220" />
+  <img src="screenshots/13-settings.png" alt="Settings screen" width="220" />
+  <img src="screenshots/14-model-download.png" alt="JARVIS model download screen" width="220" />
+</p>
 
 ### Personalization and behavior context
 
@@ -92,6 +100,7 @@ The images are available in `assets/screenshots/` and cover the app's onboarding
 - Behavior event logging for key interactions
 - Context snapshot assembly before AI requests
 - User profile context, mood, top tasks, missing habits, recent notes, recent commands, and recent events attached to JARVIS requests
+- Conversation summaries and learned local user memories attached to JARVIS chat and GenUI requests
 
 ## Architecture
 
@@ -122,6 +131,8 @@ All data is stored locally using [Drift](https://drift.simonbinder.eu/) SQLite O
 | `AiCommandTable` | AI command history |
 | `BehaviorEventTable` | Analytics events |
 | `ConversationTable` | Chat conversations |
+| `ConversationMemoryTable` | Rolling summaries and open questions for JARVIS conversations |
+| `JarvisMemoryTable` | Local learned facts, preferences, goals, routines, and constraints |
 | `MessageTable` | Individual chat messages |
 
 The main data access layer lives in [lib/core/database/database_service.dart](lib/core/database/database_service.dart).
@@ -141,7 +152,7 @@ Model files are downloaded from HuggingFace with progress tracking, pause/resume
 2. **Gemma NLU fallback** — if the keyword parser doesn't match and the on-device model is loaded, the command is sent to Gemma for structured JSON action extraction.
 3. **Default fallback** — unrecognized input with >5 characters creates a task with the full text.
 
-Insights are generated locally based on time of day and recent activity patterns.
+Insights are generated locally based on time of day and recent activity patterns. GenUI surfaces are generated through an allow-listed catalog of safe Flutter/A2UI components so the model can compose useful interfaces without arbitrary runtime code execution.
 
 ## Technical Stack
 
@@ -166,9 +177,9 @@ Insights are generated locally based on time of day and recent activity patterns
 
 ### Services
 
-- Firebase Core + Crashlytics (crash reporting only)
 - `path_provider`
 - `uuid`
+- app-owned native storage channel for model download capacity checks
 
 ### Utilities
 
@@ -179,24 +190,30 @@ Insights are generated locally based on time of day and recent activity patterns
 
 - [lib/main.dart](lib/main.dart) — App bootstrap, database initialization, model gate, onboarding gate
 - [lib/core/database/database_service.dart](lib/core/database/database_service.dart) — Drift database service with full CRUD, reactive streams, context snapshot builder
-- [lib/core/database/schema.dart](lib/core/database/schema.dart) — Drift table definitions (11 tables)
+- [lib/core/database/schema.dart](lib/core/database/schema.dart) — Drift table definitions
 - [lib/core/ai_service.dart](lib/core/ai_service.dart) — Local command parsing, keyword matching, Gemma NLU fallback, insight generation
+- [lib/core/ai/jarvis_memory_service.dart](lib/core/ai/jarvis_memory_service.dart) — Local JARVIS memory and conversation summaries
+- [lib/core/genui/genui_runtime.dart](lib/core/genui/genui_runtime.dart) — Gemma-backed GenUI runtime with planning and repair retry
 - [lib/core/local_llm/gemma_service.dart](lib/core/local_llm/gemma_service.dart) — FlutterGemma wrapper (init, load, generate, streaming)
 - [lib/core/local_llm/model_downloader.dart](lib/core/local_llm/model_downloader.dart) — HuggingFace model download with progress and resume
 - [lib/core/local_llm/model_tier.dart](lib/core/local_llm/model_tier.dart) — Model tier definitions (E2B, E4B)
 - [lib/core/services/feature_manager.dart](lib/core/services/feature_manager.dart) — Feature gating based on model tier
-- [lib/presentation/screens/home_screen.dart](lib/presentation/screens/home_screen.dart) — Main workspace, bottom navigation, AI bar, insight card
-- [lib/presentation/screens/onboarding_screen.dart](lib/presentation/screens/onboarding_screen.dart) — First-run onboarding flow
+- [lib/core/services/device_storage_service.dart](lib/core/services/device_storage_service.dart) — Platform channel for available/total storage
+- [lib/presentation/screens/home/home_screen.dart](lib/presentation/screens/home/home_screen.dart) — Main workspace, bottom navigation, JARVIS launcher, insight card
+- [lib/presentation/screens/chat/chat_screen.dart](lib/presentation/screens/chat/chat_screen.dart) — JARVIS chat, dictation, generated UI, and history drawer
+- [lib/presentation/screens/onboarding/onboarding_screen.dart](lib/presentation/screens/onboarding/onboarding_screen.dart) — First-run onboarding flow
 
 ## How JARVIS Works
 
-1. The app builds a context snapshot from the local database (profile, mood, recent tasks, habits, notes, events)
-2. You type a command in the JARVIS bar
+1. The app builds a context snapshot from the local database (profile, mood, tasks, habits, notes, focus, events, conversation memory)
+2. You type or dictate a command in the JARVIS bar or chat screen
 3. `AiService` processes it locally:
    - First tries keyword/pattern matching (instant, no model)
    - If no match and Gemma is loaded, sends to on-device Gemma for NLU parsing
    - Falls back to creating a task with the full text
-4. The AI response adapts the UI (adds tasks, starts focus, shows insights, generates cards)
+4. GenUI requests go through a planning prompt, catalog-constrained surface generation, and repair retry if the first output is malformed
+5. The AI response adapts the UI (adds tasks, starts focus, shows insights, generates cards, or renders an A2UI surface)
+6. Conversation summaries and explicitly learned user facts are saved locally so future interactions become more contextual
 
 No network requests, no backend server, no API keys needed for day-to-day use.
 

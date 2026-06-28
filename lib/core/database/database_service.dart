@@ -214,13 +214,11 @@ class DatabaseService {
         _db.profileTable,
       )..where((t) => t.userId.equals(_deviceId))).getSingleOrNull();
 
-      final topTasks =
-          await (_db.select(_db.taskTable)
-                ..where(
-                  (t) => t.userId.equals(_deviceId) & t.done.equals(false),
-                )
-                ..limit(3))
-              .get();
+      final tasks = await (_db.select(
+        _db.taskTable,
+      )..where((t) => t.userId.equals(_deviceId))).get();
+      final openTasks = tasks.where((task) => !task.done).toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
       final allHabits = await (_db.select(
         _db.habitTable,
@@ -262,18 +260,42 @@ class DatabaseService {
         ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
       final todayMood = await _getTodayMoodRaw();
+      final focusMinutes = await getTodayFocusMinutes();
 
       return {
         'profile': {
           'name': profile?.name ?? currentUserName,
+          'first_name': profile?.firstName ?? firstName,
+          'last_name': profile?.lastName,
+          'focus_role': profile?.focusRole,
+          'interests': profile?.interests != null
+              ? jsonDecode(profile!.interests!) as List<dynamic>? ?? []
+              : [],
+          'wind_down_time': profile?.windDownTime,
           'focus_area': profile?.focusArea,
           'support_need': profile?.supportNeed,
           'is_guest': profile?.isGuest ?? false,
+          'model_tier': profile?.modelTier,
         },
-        'top_tasks': topTasks.map((t) => t.title).toList(),
-        'missing_habits': missingHabits.take(3).toList(),
+        'tasks': {
+          'open_count': openTasks.length,
+          'completed_count': tasks.where((task) => task.done).length,
+          'high_priority_open': openTasks
+              .where((task) => task.priority == 'high')
+              .map(_taskToMap)
+              .take(5)
+              .toList(),
+          'recent_open': openTasks.map(_taskToMap).take(10).toList(),
+        },
+        'habits': {
+          'total': allHabits.length,
+          'missing_today': missingHabits.take(10).toList(),
+          'items': allHabits.map(_habitToMap).take(10).toList(),
+        },
         'recent_note': recentNote,
+        'recent_notes': sortedNotes.map(_noteToMap).take(5).toList(),
         'today_mood': todayMood,
+        'focus_minutes_today': focusMinutes,
         'recent_commands': sortedCommands
             .take(3)
             .map((c) => {'command': c.command, 'response': c.response})
@@ -744,6 +766,9 @@ class DatabaseService {
       _db.messageTable,
     )..where((t) => t.conversationId.equals(id))).go();
     await (_db.delete(
+      _db.conversationMemoryTable,
+    )..where((t) => t.conversationId.equals(id))).go();
+    await (_db.delete(
       _db.conversationTable,
     )..where((t) => t.id.equals(id))).go();
   }
@@ -787,6 +812,112 @@ class DatabaseService {
       _db.messageTable,
     )..where((t) => t.id.equals(id))).getSingle();
     return msg;
+  }
+
+  // ── Jarvis Memory ────────────────────────────────────────────
+
+  Future<ConversationMemoryTableData?> getConversationMemory(
+    int conversationId,
+  ) {
+    return (_db.select(
+      _db.conversationMemoryTable,
+    )..where((t) => t.conversationId.equals(conversationId))).getSingleOrNull();
+  }
+
+  Future<void> upsertConversationMemory({
+    required int conversationId,
+    required String summary,
+    List<String> openQuestions = const [],
+  }) async {
+    final existing = await getConversationMemory(conversationId);
+    final now = DateTime.now();
+    if (existing == null) {
+      await _db
+          .into(_db.conversationMemoryTable)
+          .insert(
+            ConversationMemoryTableCompanion.insert(
+              conversationId: conversationId,
+              summary: Value(summary),
+              openQuestions: Value(jsonEncode(openQuestions)),
+              updatedAt: now,
+            ),
+          );
+      return;
+    }
+    await (_db.update(
+      _db.conversationMemoryTable,
+    )..where((t) => t.conversationId.equals(conversationId))).write(
+      ConversationMemoryTableCompanion(
+        summary: Value(summary),
+        openQuestions: Value(jsonEncode(openQuestions)),
+        updatedAt: Value(now),
+      ),
+    );
+  }
+
+  Future<List<JarvisMemoryTableData>> getJarvisMemories({
+    int limit = 30,
+  }) async {
+    return (_db.select(_db.jarvisMemoryTable)
+          ..where((t) => t.userId.equals(_deviceId))
+          ..orderBy([
+            (t) => OrderingTerm.desc(t.confidence),
+            (t) => OrderingTerm.desc(t.updatedAt),
+          ])
+          ..limit(limit))
+        .get();
+  }
+
+  Future<void> upsertJarvisMemory({
+    required String kind,
+    required String key,
+    required String value,
+    double confidence = 0.65,
+    String? source,
+  }) async {
+    final now = DateTime.now();
+    final normalizedKey = key.trim().toLowerCase();
+    final existing =
+        await (_db.select(_db.jarvisMemoryTable)..where(
+              (t) =>
+                  t.userId.equals(_deviceId) &
+                  t.kind.equals(kind) &
+                  t.key.equals(normalizedKey),
+            ))
+            .getSingleOrNull();
+
+    if (existing == null) {
+      await _db
+          .into(_db.jarvisMemoryTable)
+          .insert(
+            JarvisMemoryTableCompanion.insert(
+              userId: _deviceId,
+              kind: kind,
+              key: normalizedKey,
+              value: value.trim(),
+              confidence: Value(confidence.clamp(0.0, 1.0)),
+              source: Value(source),
+              createdAt: now,
+              updatedAt: now,
+            ),
+          );
+      return;
+    }
+
+    await (_db.update(
+      _db.jarvisMemoryTable,
+    )..where((t) => t.id.equals(existing.id))).write(
+      JarvisMemoryTableCompanion(
+        value: Value(value.trim()),
+        confidence: Value(
+          confidence > existing.confidence
+              ? confidence.clamp(0.0, 1.0)
+              : existing.confidence,
+        ),
+        source: Value(source ?? existing.source),
+        updatedAt: Value(now),
+      ),
+    );
   }
 
   // ── Streak Calculation ───────────────────────────────────────
