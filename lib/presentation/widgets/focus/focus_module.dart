@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
 import '../../../core/responsive.dart';
+import '../motion/wonderous_motion.dart';
 import 'widgets/control_button.dart';
 import 'widgets/productivity_tip.dart';
 import 'widgets/session_chip.dart';
@@ -157,9 +158,11 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 16),
-          Text(
-            'Focus Timer',
-            style: Theme.of(context).textTheme.headlineMedium,
+          WonderousReveal(
+            child: Text(
+              'Focus Timer',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
           ),
           const SizedBox(height: 32),
 
@@ -167,28 +170,40 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
             maxWidth: 600,
             child: Column(
               children: [
-                _SessionTypeSelector(
-                  selectedType: _sessionType,
-                  onSelect: _updateSession,
+                WonderousReveal(
+                  delay: const Duration(milliseconds: 80),
+                  child: _SessionTypeSelector(
+                    selectedType: _sessionType,
+                    onSelect: _updateSession,
+                  ),
                 ),
                 const SizedBox(height: 48),
-                TimerRing(
-                  progress: _progress,
-                  timeDisplay: _timeDisplay,
-                  sessionLabel: _isRunning ? _sessionType : 'Ready',
-                  pulseAnimation: _isRunning
-                      ? _pulseAnim
-                      : const AlwaysStoppedAnimation(1.0),
+                WonderousReveal(
+                  delay: const Duration(milliseconds: 140),
+                  child: TimerRing(
+                    progress: _progress,
+                    timeDisplay: _timeDisplay,
+                    sessionLabel: _isRunning ? _sessionType : 'Ready',
+                    pulseAnimation: _isRunning
+                        ? _pulseAnim
+                        : const AlwaysStoppedAnimation(1.0),
+                  ),
                 ),
                 const SizedBox(height: 48),
-                _TimerControls(
-                  isRunning: _isRunning,
-                  onReset: _resetTimer,
-                  onToggle: () => _isRunning ? _pauseTimer() : _startTimer(),
-                  onComplete: _completeSession,
+                WonderousReveal(
+                  delay: const Duration(milliseconds: 200),
+                  child: _TimerControls(
+                    isRunning: _isRunning,
+                    onReset: _resetTimer,
+                    onToggle: () => _isRunning ? _pauseTimer() : _startTimer(),
+                    onComplete: _completeSession,
+                  ),
                 ),
                 const SizedBox(height: 40),
-                const ProductivityTip(),
+                const WonderousReveal(
+                  delay: Duration(milliseconds: 260),
+                  child: ProductivityTip(),
+                ),
                 SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
               ],
             ),

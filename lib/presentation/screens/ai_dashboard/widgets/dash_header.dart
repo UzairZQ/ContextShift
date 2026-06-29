@@ -30,25 +30,34 @@ class DashHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const ContextSignalBadge(label: 'Private report'),
-              const SizedBox(height: 8),
-              Text(
-                'ContextShift',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ContextShift',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              Text(
-                'A read on your local patterns',
-                style: TextStyle(
-                  color: AppTheme.onSurfaceVariant,
-                  fontSize: 12,
+                Text(
+                  'A read on your local patterns',
+                  style: TextStyle(
+                    color: AppTheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Transform.scale(
+            scale: 0.86,
+            alignment: Alignment.centerRight,
+            child: const ContextSignalBadge(
+              label: 'Private',
+              icon: LucideIcons.lock,
+            ),
           ),
         ],
       ),

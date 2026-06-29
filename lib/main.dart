@@ -3,18 +3,18 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/app_runtime.dart';
 import 'core/app_spacing.dart';
 import 'core/app_theme.dart';
 import 'core/database/database_service.dart';
 import 'core/local_llm/gemma_service.dart';
+import 'core/responsive.dart';
 import 'core/services/feature_manager.dart';
 import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/onboarding/onboarding_screen.dart';
 import 'presentation/screens/onboarding/profile_setup_screen.dart';
-import 'presentation/widgets/jarvis_hero.dart';
+import 'presentation/widgets/context_shift_wordmark.dart';
 
 void main() {
   runZonedGuarded<Future<void>>(
@@ -98,13 +98,13 @@ class _LaunchGate extends StatefulWidget {
   State<_LaunchGate> createState() => _LaunchGateState();
 }
 
-enum _SetupStep { loading, onboarding, profile, home }
+enum _SetupStep { loading, onboarding, profile, homeReveal, home }
 
 class _LaunchGateState extends State<_LaunchGate> {
   static const _onboardingKey = 'has_seen_onboarding';
-  static const _forceOnboardingForTesting = true;
   static const _minimumSplash = Duration(milliseconds: 950);
   _SetupStep _step = _SetupStep.loading;
+  bool _navigatedHome = false;
 
   @override
   void initState() {
@@ -115,10 +115,9 @@ class _LaunchGateState extends State<_LaunchGate> {
   Future<void> _determineStep() async {
     final startedAt = DateTime.now();
     try {
-      final hasSeenOnboarding = _forceOnboardingForTesting
-          ? false
-          : (await SharedPreferences.getInstance()).getBool(_onboardingKey) ??
-                false;
+      final hasSeenOnboarding =
+          (await SharedPreferences.getInstance()).getBool(_onboardingKey) ??
+          false;
 
       if (!hasSeenOnboarding) {
         await _holdSplash(startedAt);
@@ -131,6 +130,10 @@ class _LaunchGateState extends State<_LaunchGate> {
       if (!needsProfile) unawaited(_warmJarvisDuringSplash());
       await _holdSplash(startedAt);
       if (!mounted) return;
+      if (!needsProfile) {
+        _openHomeFromSplash();
+        return;
+      }
       setState(
         () => _step = needsProfile ? _SetupStep.profile : _SetupStep.home,
       );
@@ -183,50 +186,165 @@ class _LaunchGateState extends State<_LaunchGate> {
     }
 
     if (!mounted) return;
-    setState(() {
-      final needsProfile = !DatabaseService.instance.hasProfileData;
-      _step = needsProfile ? _SetupStep.profile : _SetupStep.home;
-    });
+    final needsProfile = !DatabaseService.instance.hasProfileData;
+    if (needsProfile) {
+      setState(() => _step = _SetupStep.profile);
+    } else {
+      _openHomeFromSplash();
+    }
   }
 
   void _completeProfile() {
-    setState(() => _step = _SetupStep.home);
+    _openHomeFromSplash();
+  }
+
+  void _openHomeFromSplash() {
+    if (_navigatedHome || !mounted) return;
+    _navigatedHome = true;
+    setState(() => _step = _SetupStep.homeReveal);
   }
 
   @override
   Widget build(BuildContext context) {
-    final child = switch (_step) {
+    return switch (_step) {
       _SetupStep.loading => const _BootSplash(),
       _SetupStep.onboarding => OnboardingScreen(
         onComplete: _completeOnboarding,
       ),
       _SetupStep.profile => ProfileSetupScreen(onComplete: _completeProfile),
+      _SetupStep.homeReveal => const _HomeLaunchReveal(),
       _SetupStep.home => const HomeScreen(),
     };
+  }
+}
 
-    return AnimatedSwitcher(
-      duration: Motion.smoothScreen,
-      reverseDuration: Motion.smoothScreenReverse,
-      switchInCurve: Motion.smoothEnter,
-      switchOutCurve: Motion.smoothExit,
-      transitionBuilder: (child, animation) {
-        final curved = CurvedAnimation(
-          parent: animation,
-          curve: Motion.smoothEnter,
-          reverseCurve: Motion.smoothExit,
-        );
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0.10, 0),
-            end: Offset.zero,
-          ).animate(curved),
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.97, end: 1).animate(curved),
-            child: child,
+class _HomeLaunchReveal extends StatefulWidget {
+  const _HomeLaunchReveal();
+
+  @override
+  State<_HomeLaunchReveal> createState() => _HomeLaunchRevealState();
+}
+
+class _HomeLaunchRevealState extends State<_HomeLaunchReveal>
+    with SingleTickerProviderStateMixin {
+  static const _homeSettleDelay = Duration(milliseconds: 1200);
+  static const _revealDuration = Duration(milliseconds: 1250);
+
+  late final AnimationController _controller;
+  bool _finished = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: _revealDuration)
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed && mounted) {
+          setState(() => _finished = true);
+        }
+      });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future<void>.delayed(_homeSettleDelay);
+      if (!mounted) return;
+      _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final size = media.size;
+    final targetLeft = Responsive.horizontalPadding(context);
+    final targetTop = media.padding.top + Spacing.xxl;
+    final startLeft = (size.width - 260) / 2;
+    final startTop = (size.height - 42) / 2;
+
+    return Stack(
+      children: [
+        RepaintBoundary(
+          child: AbsorbPointer(
+            absorbing: !_finished,
+            child: HomeScreen(hideWordmark: !_finished),
           ),
-        );
-      },
-      child: KeyedSubtree(key: ValueKey(_step), child: child),
+        ),
+        if (!_finished)
+          IgnorePointer(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                final movement = Curves.easeInOutCubic.transform(
+                  Interval(0.12, 0.92).transform(_controller.value),
+                );
+                final reveal = Curves.easeOutCubic.transform(
+                  Interval(0.34, 0.96).transform(_controller.value),
+                );
+                final subtitle =
+                    1 -
+                    Curves.easeInCubic.transform(
+                      Interval(0.12, 0.50).transform(_controller.value),
+                    );
+
+                return Stack(
+                  children: [
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: RadialGradient(
+                            center: const Alignment(0.2, -0.15),
+                            radius: 0.9,
+                            colors: [
+                              AppTheme.primary.withValues(
+                                alpha: 0.20 * (1 - reveal),
+                              ),
+                              AppTheme.surfaceLow.withValues(
+                                alpha: 0.72 * (1 - reveal),
+                              ),
+                              AppTheme.background.withValues(alpha: 1 - reveal),
+                            ],
+                            stops: const [0, 0.42, 1],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: lerpDouble(startLeft, targetLeft, movement)!,
+                      top: lerpDouble(startTop, targetTop, movement)!,
+                      width: lerpDouble(260, 240, movement)!,
+                      child: ContextShiftWordmark(
+                        textAlign: movement < 0.58
+                            ? TextAlign.center
+                            : TextAlign.start,
+                      ),
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: startTop + 58,
+                      child: Opacity(
+                        opacity: subtitle,
+                        child: Text(
+                          'Preparing your private context',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: AppTheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 }
@@ -253,75 +371,33 @@ class _BootSplash extends StatelessWidget {
         ),
         child: SafeArea(
           child: Center(
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0.94, end: 1),
-              duration: const Duration(milliseconds: 700),
-              curve: Curves.easeOutCubic,
-              builder: (context, value, child) {
-                return Transform.scale(scale: value, child: child);
-              },
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Hero(
-                    tag: JarvisHero.tag,
-                    createRectTween: JarvisHero.createRectTween,
-                    flightShuttleBuilder: JarvisHero.flightShuttleBuilder,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: Spacing.xl,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppTheme.surfaceHighest.withValues(
-                            alpha: 0.90,
-                          ),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: AppTheme.primary.withValues(alpha: 0.24),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppTheme.primary.withValues(alpha: 0.18),
-                              blurRadius: 38,
-                              offset: const Offset(0, 18),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              LucideIcons.radio,
-                              color: AppTheme.primary,
-                              size: 20,
-                            ),
-                            SizedBox(width: Spacing.md),
-                            Text(
-                              'JARVIS',
-                              style: TextStyle(
-                                color: AppTheme.onSurface,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ],
-                        ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const ContextShiftWordmark(textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: 1),
+                  duration: const Duration(milliseconds: 520),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, child) {
+                    return Opacity(
+                      opacity: value,
+                      child: Transform.translate(
+                        offset: Offset(0, 8 * (1 - value)),
+                        child: child,
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
+                    );
+                  },
+                  child: Text(
                     'Preparing your private context',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: AppTheme.onSurfaceVariant,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

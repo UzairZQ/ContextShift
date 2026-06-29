@@ -17,6 +17,7 @@ import 'thinking_card.dart';
 
 class HomeTab extends StatelessWidget {
   final String greeting;
+  final bool hideWordmark;
   final TextEditingController commandController;
   final bool isJarvisOnline;
   final bool hasCheckedJarvisStatus;
@@ -29,6 +30,9 @@ class HomeTab extends StatelessWidget {
   final int focusMinutesToday;
   final String? todayMood;
   final String? activeSurfaceRawA2ui;
+  final String? activeSurfaceSource;
+  final String? activeSurfaceFallbackReason;
+  final int? activeSurfaceElapsedMs;
   final VoidCallback onOpenDashboard;
   final VoidCallback onOpenProfile;
   final VoidCallback onOpenChat;
@@ -44,6 +48,7 @@ class HomeTab extends StatelessWidget {
   const HomeTab({
     super.key,
     required this.greeting,
+    required this.hideWordmark,
     required this.commandController,
     required this.isJarvisOnline,
     required this.hasCheckedJarvisStatus,
@@ -56,6 +61,9 @@ class HomeTab extends StatelessWidget {
     required this.focusMinutesToday,
     required this.todayMood,
     required this.activeSurfaceRawA2ui,
+    required this.activeSurfaceSource,
+    required this.activeSurfaceFallbackReason,
+    required this.activeSurfaceElapsedMs,
     required this.onOpenDashboard,
     required this.onOpenProfile,
     required this.onOpenChat,
@@ -79,6 +87,7 @@ class HomeTab extends StatelessWidget {
           HomeHeader(
             isProcessingCommand: isProcessingCommand,
             isJarvisOnline: isJarvisOnline,
+            hideWordmark: hideWordmark,
             onOpenDashboard: onOpenDashboard,
             onOpenProfile: onOpenProfile,
           ),
@@ -104,6 +113,20 @@ class HomeTab extends StatelessWidget {
               onDismiss: onDismissResponse,
             ),
           if (isProcessingCommand) const ThinkingCard(),
+          if (activeSurfaceRawA2ui != null) ...[
+            const SizedBox(height: 14),
+            WonderousReveal(
+              delay: const Duration(milliseconds: 120),
+              child: _ActiveSurfaceFrame(
+                rawA2ui: activeSurfaceRawA2ui!,
+                source: activeSurfaceSource,
+                fallbackReason: activeSurfaceFallbackReason,
+                elapsedMs: activeSurfaceElapsedMs,
+                onAction: onSurfaceAction,
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
           _HomeSnapshotBuilder(
             focusMinutesToday: focusMinutesToday,
             todayMood: todayMood,
@@ -113,16 +136,6 @@ class HomeTab extends StatelessWidget {
             onOpenJournal: onOpenJournal,
             onSelectMood: onSelectMood,
           ),
-          if (activeSurfaceRawA2ui != null) ...[
-            const SizedBox(height: 14),
-            WonderousReveal(
-              delay: const Duration(milliseconds: 120),
-              child: _ActiveSurfaceFrame(
-                rawA2ui: activeSurfaceRawA2ui!,
-                onAction: onSurfaceAction,
-              ),
-            ),
-          ],
           const SizedBox(height: 14),
           WonderousReveal(
             delay: const Duration(milliseconds: 160),
@@ -225,9 +238,18 @@ class _HeroCommandPanel extends StatelessWidget {
 
 class _ActiveSurfaceFrame extends StatelessWidget {
   final String rawA2ui;
+  final String? source;
+  final String? fallbackReason;
+  final int? elapsedMs;
   final ValueChanged<WidgetAction> onAction;
 
-  const _ActiveSurfaceFrame({required this.rawA2ui, required this.onAction});
+  const _ActiveSurfaceFrame({
+    required this.rawA2ui,
+    required this.onAction,
+    this.source,
+    this.fallbackReason,
+    this.elapsedMs,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -248,7 +270,7 @@ class _ActiveSurfaceFrame extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                'Active surface',
+                'Generated surface',
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
                   color: AppTheme.onSurface,
                   fontWeight: FontWeight.w900,
@@ -257,7 +279,13 @@ class _ActiveSurfaceFrame extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          A2uiSurfaceCard(rawA2ui: rawA2ui, onAction: onAction),
+          A2uiSurfaceCard(
+            rawA2ui: rawA2ui,
+            source: source,
+            fallbackReason: fallbackReason,
+            elapsedMs: elapsedMs,
+            onAction: onAction,
+          ),
         ],
       ),
     );
@@ -360,7 +388,7 @@ class _HomeSnapshotBuilder extends StatelessWidget {
                         onOpenJournal: onOpenJournal,
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     WonderousReveal(
                       delay: const Duration(milliseconds: 100),
                       child: _GlanceGrid(
@@ -371,7 +399,7 @@ class _HomeSnapshotBuilder extends StatelessWidget {
                         onOpenJournal: onOpenJournal,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     WonderousReveal(
                       delay: const Duration(milliseconds: 140),
                       child: _MoodMicroCheckIn(
@@ -646,6 +674,7 @@ class _GlanceGrid extends StatelessWidget {
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
       crossAxisCount: Responsive.isMobile(context) ? 2 : 4,
       crossAxisSpacing: Spacing.md,
       mainAxisSpacing: Spacing.md,

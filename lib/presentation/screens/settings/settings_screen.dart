@@ -11,6 +11,7 @@ import '../../../core/responsive.dart';
 import '../../../core/services/feature_manager.dart';
 import '../../../features/onboarding/widgets/model_download_screen.dart';
 import '../../shared/context_shift_primitives.dart';
+import '../../widgets/motion/wonderous_motion.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -109,88 +110,120 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            LucideIcons.arrowLeft,
-                            color: AppTheme.onSurface,
+                    WonderousReveal(
+                      child: Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              LucideIcons.arrowLeft,
+                              color: AppTheme.onSurface,
+                            ),
+                            onPressed: () => Navigator.pop(context),
                           ),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                        const SizedBox(width: Spacing.sm),
-                        Text(
-                          'Settings',
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                      ],
+                          const SizedBox(width: Spacing.sm),
+                          Text(
+                            'Settings',
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: Spacing.xxl),
-                    _sectionHeader('Identity'),
+                    WonderousReveal(
+                      delay: const Duration(milliseconds: 80),
+                      child: _sectionHeader('Identity'),
+                    ),
                     const SizedBox(height: Spacing.lg),
-                    _ContextTextField(
-                      controller: _nameController,
-                      label: 'First name',
-                      icon: LucideIcons.user,
-                      error: _nameError,
+                    WonderousReveal(
+                      delay: const Duration(milliseconds: 120),
+                      child: _ContextTextField(
+                        controller: _nameController,
+                        label: 'First name',
+                        icon: LucideIcons.user,
+                        error: _nameError,
+                      ),
                     ),
                     const SizedBox(height: Spacing.md),
-                    _ContextTextField(
-                      controller: _lastNameController,
-                      label: 'Last name (optional)',
-                      icon: LucideIcons.userPlus,
+                    WonderousReveal(
+                      delay: const Duration(milliseconds: 160),
+                      child: _ContextTextField(
+                        controller: _lastNameController,
+                        label: 'Last name (optional)',
+                        icon: LucideIcons.userPlus,
+                      ),
                     ),
                     const SizedBox(height: Spacing.md),
-                    _ContextTextField(
-                      controller: _focusRoleController,
-                      label: 'Focus role',
-                      icon: LucideIcons.target,
-                      error: _focusRoleError,
+                    WonderousReveal(
+                      delay: const Duration(milliseconds: 200),
+                      child: _ContextTextField(
+                        controller: _focusRoleController,
+                        label: 'Focus role',
+                        icon: LucideIcons.target,
+                        error: _focusRoleError,
+                      ),
                     ),
                     const SizedBox(height: Spacing.xl),
-                    SizedBox(
-                      width: double.infinity,
-                      child: _ContextButton(
-                        label: 'Save identity',
-                        onTap: _saveProfile,
+                    WonderousReveal(
+                      delay: const Duration(milliseconds: 240),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: _ContextButton(
+                          label: 'Save identity',
+                          onTap: _saveProfile,
+                        ),
                       ),
                     ),
                     const SizedBox(height: Spacing.section),
-                    _sectionHeader('Local intelligence'),
+                    WonderousReveal(
+                      delay: const Duration(milliseconds: 280),
+                      child: _sectionHeader('Local intelligence'),
+                    ),
                     const SizedBox(height: Spacing.lg),
-                    _SettingsTile(
-                      icon: LucideIcons.downloadCloud,
-                      title: 'Manage AI model',
-                      subtitle: _modelStatusSubtitle(),
-                      onTap: () async {
-                        await Navigator.push(
-                          context,
-                          SmoothPageRoute(
-                            builder: (_) => ModelDownloadScreen(
-                              model: ModelDefinition.e2b,
-                              isOnboarding: false,
-                              onComplete: () => Navigator.pop(context),
+                    WonderousReveal(
+                      delay: const Duration(milliseconds: 320),
+                      child: _SettingsTile(
+                        icon: LucideIcons.downloadCloud,
+                        title: 'Manage AI model',
+                        subtitle: _modelStatusSubtitle(),
+                        onTap: () async {
+                          await Navigator.push(
+                            context,
+                            SmoothPageRoute(
+                              builder: (_) => ModelDownloadScreen(
+                                model: ModelDefinition.e2b,
+                                isOnboarding: false,
+                                onComplete: () => Navigator.pop(context),
+                              ),
                             ),
-                          ),
-                        );
-                        if (mounted) setState(() {});
-                      },
+                          );
+                          if (mounted) setState(() {});
+                        },
+                      ),
                     ),
                     const SizedBox(height: Spacing.section),
-                    _sectionHeader('About'),
-                    const SizedBox(height: Spacing.lg),
-                    _SettingsTile(
-                      icon: LucideIcons.info,
-                      title: 'ContextShift',
-                      subtitle: 'v1.0.0 — Fully offline AI',
-                      onTap: null,
+                    WonderousReveal(
+                      delay: const Duration(milliseconds: 360),
+                      child: _sectionHeader('About'),
                     ),
-                    _SettingsTile(
-                      icon: LucideIcons.shield,
-                      title: 'Privacy',
-                      subtitle: 'All data stays on your device',
-                      onTap: null,
+                    const SizedBox(height: Spacing.lg),
+                    WonderousReveal(
+                      delay: const Duration(milliseconds: 400),
+                      child: _SettingsTile(
+                        icon: LucideIcons.info,
+                        title: 'ContextShift',
+                        subtitle: 'v1.0.0 — Fully offline AI',
+                        onTap: null,
+                      ),
+                    ),
+                    WonderousReveal(
+                      delay: const Duration(milliseconds: 440),
+                      child: _SettingsTile(
+                        icon: LucideIcons.shield,
+                        title: 'Privacy',
+                        subtitle: 'All data stays on your device',
+                        onTap: null,
+                      ),
                     ),
                   ],
                 ),

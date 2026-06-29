@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import '../database/database_service.dart';
 import '../database/schema.dart';
 import 'jarvis_memory_service.dart';
@@ -11,7 +13,7 @@ class ContextProvider {
   static const int _maxContextCharacters = 6000;
 
   Future<Map<String, Object?>> buildGenUiContext({int? conversationId}) async {
-    final snapshot = _jsonSafeMap(
+    final fullSnapshot = _jsonSafeMap(
       await DatabaseService.instance.buildContextSnapshot(),
     );
     final memory = _jsonSafeMap(
@@ -37,9 +39,22 @@ class ContextProvider {
         )
         .toList(growable: false);
 
+    final selectedSnapshot = _selectSnapshotForMessage(
+      fullSnapshot,
+      '',
+      memory,
+      mode: 'generate',
+    );
+    _debugPromptContext(
+      mode: 'generate',
+      snapshot: selectedSnapshot,
+      recentCount: recent.length,
+      memory: memory,
+    );
+
     return <String, Object?>{
       'app': 'ContextShift',
-      'localSnapshot': snapshot,
+      'localSnapshot': selectedSnapshot,
       'jarvisMemory': memory,
       'recentConversation': recent,
       'allowedActionContext': {
@@ -56,7 +71,7 @@ class ContextProvider {
     required String userMessage,
     int? conversationId,
   }) async {
-    final snapshot = _jsonSafeMap(
+    final fullSnapshot = _jsonSafeMap(
       await DatabaseService.instance.buildContextSnapshot(),
     );
     final memory = _jsonSafeMap(
@@ -93,7 +108,16 @@ class ContextProvider {
         '{"response":"human answer","actions":[{"type":"add_task|add_habit|add_note|start_focus","params":{}}]}',
       )
       ..writeln('Current local context:')
-      ..writeln(jsonEncode(snapshot))
+      ..writeln(
+        jsonEncode(
+          _selectSnapshotForMessage(
+            fullSnapshot,
+            userMessage,
+            memory,
+            mode: 'action',
+          ),
+        ),
+      )
       ..writeln('Jarvis memory:')
       ..writeln(jsonEncode(memory));
 
@@ -106,6 +130,17 @@ class ContextProvider {
 
     buffer.writeln('User: $userMessage');
     final prompt = buffer.toString();
+    _debugPromptContext(
+      mode: 'action',
+      snapshot: _selectSnapshotForMessage(
+        fullSnapshot,
+        userMessage,
+        memory,
+        mode: 'action',
+      ),
+      recentCount: recentHistory.length,
+      memory: memory,
+    );
     return _fitPrompt(prompt);
   }
 
@@ -113,7 +148,7 @@ class ContextProvider {
     required String userMessage,
     int? conversationId,
   }) async {
-    final snapshot = _jsonSafeMap(
+    final fullSnapshot = _jsonSafeMap(
       await DatabaseService.instance.buildContextSnapshot(),
     );
     final memory = _jsonSafeMap(
@@ -129,13 +164,37 @@ class ContextProvider {
         .where((message) => message.content.trim().isNotEmpty)
         .toList()
         .reversed
-        .take(10)
+        .take(6)
         .toList()
         .reversed;
+    final selectedSnapshot = _selectSnapshotForMessage(
+      fullSnapshot,
+      userMessage,
+      memory,
+      mode: 'chat',
+    );
+    final state = memory['conversationState'];
+    final alreadyGreeted =
+        state is Map && state['alreadyGreeted'] == true ||
+        history.any((message) => message.role == 'assistant');
 
     final buffer = StringBuffer()
       ..writeln('You are JARVIS, the private on-device guide in ContextShift.')
       ..writeln('Reply naturally, warmly, concisely, and with useful context.')
+      ..writeln(
+        'Write complete sentences. Avoid Markdown formatting, asterisks, headings, and unfinished lists in plain chat.',
+      )
+      ..writeln(
+        'Never introduce yourself as a generic large language model. Speak as JARVIS inside ContextShift.',
+      )
+      ..writeln(
+        alreadyGreeted
+            ? 'This conversation is already underway. Do not greet, reintroduce yourself, or restart the conversation.'
+            : 'This may be the first assistant reply in the conversation; a brief natural greeting is allowed.',
+      )
+      ..writeln(
+        'If the user asks what you can do, build, generate, or whether you can make cards, explain that JARVIS can chat, use local context, create app actions, and generate structured cards/surfaces such as plans, schedules, workout cards, study blocks, habit dashboards, task checklists, trackers, comparisons, routines, forms, and decision views.',
+      )
       ..writeln(
         'Use provided profile, memories, tasks, habits, notes, mood, focus data, and conversation summary when relevant.',
       )
@@ -143,7 +202,7 @@ class ContextProvider {
         'Do not claim to remember anything outside the provided context.',
       )
       ..writeln('Current local context:')
-      ..writeln(jsonEncode(snapshot))
+      ..writeln(jsonEncode(selectedSnapshot))
       ..writeln('Jarvis memory:')
       ..writeln(jsonEncode(memory));
 
@@ -158,7 +217,75 @@ class ContextProvider {
       ..writeln('User: $userMessage')
       ..writeln('JARVIS:');
     final prompt = buffer.toString();
+    _debugPromptContext(
+      mode: 'chat',
+      snapshot: selectedSnapshot,
+      recentCount: recentHistory.length,
+      memory: memory,
+    );
     return _fitPrompt(prompt);
+  }
+
+  Map<String, Object?> _selectSnapshotForMessage(
+    Map<String, Object?> snapshot,
+    String userMessage,
+    Map<String, Object?> memory, {
+    required String mode,
+  }) {
+    final lower = userMessage.toLowerCase();
+    final state = memory['conversationState'];
+    final topic = state is Map ? state['currentTopic']?.toString() ?? '' : '';
+    final selected = <String, Object?>{'profile': snapshot['profile']};
+
+    bool mentions(RegExp pattern) =>
+        pattern.hasMatch(lower) || pattern.hasMatch(topic);
+    final includeEverything = mode == 'generate' || lower.trim().isEmpty;
+    final wantsTasks =
+        includeEverything ||
+        mentions(RegExp(r'\b(task|todo|priority|deadline|plan)\b'));
+    final wantsHabits =
+        includeEverything || mentions(RegExp(r'\b(habit|routine|streak)\b'));
+    final wantsNotes =
+        includeEverything ||
+        mentions(RegExp(r'\b(note|journal|mood|feel|reflect)\b'));
+    final wantsFocus =
+        includeEverything ||
+        mentions(
+          RegExp(
+            r'\b(focus|deep work|pomodoro|session|study|workout|exercise|training)\b',
+          ),
+        );
+
+    if (wantsTasks) selected['tasks'] = snapshot['tasks'];
+    if (wantsHabits) selected['habits'] = snapshot['habits'];
+    if (wantsNotes) {
+      selected['recent_note'] = snapshot['recent_note'];
+      selected['recent_notes'] = snapshot['recent_notes'];
+      selected['today_mood'] = snapshot['today_mood'];
+    }
+    if (wantsFocus) {
+      selected['focus_minutes_today'] = snapshot['focus_minutes_today'];
+    }
+    if (includeEverything) {
+      selected['recent_commands'] = snapshot['recent_commands'];
+      selected['recent_events'] = snapshot['recent_events'];
+    }
+    return selected;
+  }
+
+  void _debugPromptContext({
+    required String mode,
+    required Map<String, Object?> snapshot,
+    required int recentCount,
+    required Map<String, Object?> memory,
+  }) {
+    final state = memory['conversationState'];
+    debugPrint(
+      '[ContextProvider] mode=$mode recent=$recentCount '
+      'snapshotKeys=${snapshot.keys.join(',')} '
+      'hasSummary=${(memory['conversationSummary']?.toString().trim().isNotEmpty ?? false)} '
+      'state=$state',
+    );
   }
 
   String _fitPrompt(String prompt) {

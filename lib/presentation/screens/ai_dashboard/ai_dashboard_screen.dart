@@ -4,6 +4,7 @@ import '../../../core/ai_service.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
 import '../../shared/context_shift_primitives.dart';
+import '../../widgets/motion/wonderous_motion.dart';
 import 'widgets/activity_heatmap.dart';
 import 'widgets/command_history.dart';
 import 'widgets/dash_header.dart';
@@ -58,26 +59,50 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const DashHeader(),
+              const WonderousReveal(child: DashHeader()),
               const SizedBox(height: 24),
-              InsightCard(
-                insight: _weeklyInsight,
-                isLoading: _isLoadingInsight,
+              WonderousReveal(
+                delay: const Duration(milliseconds: 80),
+                child: InsightCard(
+                  insight: _weeklyInsight,
+                  isLoading: _isLoadingInsight,
+                ),
               ),
               const SizedBox(height: 14),
-              StatsGrid(focusMinutes: _focusMinutes),
+              WonderousReveal(
+                delay: const Duration(milliseconds: 140),
+                child: StatsGrid(focusMinutes: _focusMinutes),
+              ),
               const SizedBox(height: 16),
-              const ContextSectionLabel(text: 'Rhythm field'),
+              const WonderousReveal(
+                delay: Duration(milliseconds: 200),
+                child: ContextSectionLabel(text: 'Rhythm field'),
+              ),
               const SizedBox(height: 12),
-              const ActivityHeatmap(),
+              const WonderousReveal(
+                delay: Duration(milliseconds: 240),
+                child: ActivityHeatmap(),
+              ),
               const SizedBox(height: 24),
-              const ContextSectionLabel(text: 'Recent commands'),
+              const WonderousReveal(
+                delay: Duration(milliseconds: 280),
+                child: ContextSectionLabel(text: 'Recent commands'),
+              ),
               const SizedBox(height: 12),
-              const CommandHistory(),
+              const WonderousReveal(
+                delay: Duration(milliseconds: 320),
+                child: CommandHistory(),
+              ),
               const SizedBox(height: 24),
-              const ContextSectionLabel(text: 'Mood context'),
+              const WonderousReveal(
+                delay: Duration(milliseconds: 360),
+                child: ContextSectionLabel(text: 'Mood context'),
+              ),
               const SizedBox(height: 12),
-              const MoodTrend(),
+              const WonderousReveal(
+                delay: Duration(milliseconds: 400),
+                child: MoodTrend(),
+              ),
               const SizedBox(height: 40),
             ],
           ),

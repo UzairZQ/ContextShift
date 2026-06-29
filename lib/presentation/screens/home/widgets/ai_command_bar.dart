@@ -3,7 +3,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
-import '../../../widgets/jarvis_hero.dart';
 
 class AiCommandBar extends StatefulWidget {
   final TextEditingController controller;
@@ -38,7 +37,7 @@ class _AiCommandBarState extends State<AiCommandBar> {
 
   IconData get _leadingIcon {
     if (!widget.hasCheckedStatus) return LucideIcons.loader2;
-    return widget.isOnline ? LucideIcons.radio : LucideIcons.cloudOff;
+    return widget.isOnline ? LucideIcons.sparkles : LucideIcons.cloudOff;
   }
 
   Color get _leadingColor {
@@ -55,7 +54,9 @@ class _AiCommandBarState extends State<AiCommandBar> {
 
   String get _hintText {
     if (!widget.hasCheckedStatus) return 'Checking JARVIS status...';
-    return widget.isOnline ? 'Tell JARVIS what to shape' : widget.offlineHint;
+    return widget.isOnline
+        ? 'Generate a card, plan, tracker...'
+        : widget.offlineHint;
   }
 
   TextStyle get _hintStyle {
@@ -79,67 +80,60 @@ class _AiCommandBarState extends State<AiCommandBar> {
 
   @override
   Widget build(BuildContext context) {
-    return Hero(
-      tag: JarvisHero.tag,
-      createRectTween: JarvisHero.createRectTween,
-      flightShuttleBuilder: JarvisHero.flightShuttleBuilder,
-      transitionOnUserGestures: true,
-      child: RepaintBoundary(
-        child: Container(
-          padding: const EdgeInsets.only(left: Spacing.lg, right: 6),
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceHighest.withValues(alpha: 0.72),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color:
-                  (widget.isOnline ? AppTheme.intelligence : AppTheme.warning)
-                      .withValues(alpha: widget.isOnline ? 0.18 : 0.22),
-            ),
+    return RepaintBoundary(
+      child: Container(
+        padding: const EdgeInsets.only(left: Spacing.lg, right: 6),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceHighest.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: (widget.isOnline ? AppTheme.intelligence : AppTheme.warning)
+                .withValues(alpha: widget.isOnline ? 0.18 : 0.22),
           ),
-          child: TextField(
-            controller: widget.controller,
-            enabled: true,
-            maxLines: 1,
-            textAlignVertical: TextAlignVertical.center,
-            textInputAction: TextInputAction.send,
-            style: const TextStyle(color: AppTheme.onSurface, fontSize: 14),
-            decoration: InputDecoration(
-              icon: Icon(_leadingIcon, color: _leadingColor, size: 20),
-              hintText: _hintText,
-              hintStyle: _hintStyle,
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              border: InputBorder.none,
-              suffixIcon: widget.isProcessing
-                  ? const Padding(
-                      padding: EdgeInsets.all(Spacing.md),
-                      child: SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppTheme.intelligence,
-                        ),
-                      ),
-                    )
-                  : Semantics(
-                      label: 'Send command',
-                      child: IconButton(
-                        onPressed: _handleSend,
-                        icon: Icon(
-                          widget.isOnline
-                              ? LucideIcons.send
-                              : LucideIcons.wifiOff,
-                          color: widget.isOnline
-                              ? AppTheme.intelligence
-                              : AppTheme.warning.withValues(alpha: 0.9),
-                          size: 18,
-                        ),
+        ),
+        child: TextField(
+          controller: widget.controller,
+          enabled: true,
+          maxLines: 1,
+          textAlignVertical: TextAlignVertical.center,
+          textInputAction: TextInputAction.send,
+          style: const TextStyle(color: AppTheme.onSurface, fontSize: 14),
+          decoration: InputDecoration(
+            icon: Icon(_leadingIcon, color: _leadingColor, size: 20),
+            hintText: _hintText,
+            hintStyle: _hintStyle,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+            border: InputBorder.none,
+            suffixIcon: widget.isProcessing
+                ? const Padding(
+                    padding: EdgeInsets.all(Spacing.md),
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppTheme.intelligence,
                       ),
                     ),
-            ),
-            onSubmitted: (_) => _handleSend(),
+                  )
+                : Semantics(
+                    label: 'Send command',
+                    child: IconButton(
+                      onPressed: _handleSend,
+                      icon: Icon(
+                        widget.isOnline
+                            ? LucideIcons.sparkles
+                            : LucideIcons.wifiOff,
+                        color: widget.isOnline
+                            ? AppTheme.intelligence
+                            : AppTheme.warning.withValues(alpha: 0.9),
+                        size: 18,
+                      ),
+                    ),
+                  ),
           ),
+          onSubmitted: (_) => _handleSend(),
         ),
       ),
     );

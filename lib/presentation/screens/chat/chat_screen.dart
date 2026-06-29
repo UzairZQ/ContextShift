@@ -11,7 +11,6 @@ import '../../../core/ai_service.dart';
 import '../../../core/ai/action_executor.dart';
 import '../../../core/ai/context_provider.dart';
 import '../../../core/ai/generated_ui_action_mapper.dart';
-import '../../../core/ai/jarvis_intent_router.dart';
 import '../../../core/ai/jarvis_memory_service.dart';
 import '../../../core/app_spacing.dart';
 import '../../../core/app_runtime.dart';
@@ -24,21 +23,20 @@ import '../../../core/genui/widget_node.dart';
 import '../../../core/local_llm/gemma_service.dart';
 import '../../../core/responsive.dart';
 import '../../widgets/genui/a2ui_surface_card.dart';
-import '../../widgets/jarvis_hero.dart';
 import '../../widgets/motion/wonderous_motion.dart';
+
+enum _JarvisChatMode { chat, generate }
 
 class ChatScreen extends StatefulWidget {
   final String? initialMessage;
   final int? conversationId;
   final bool startNewOnOpen;
-  final bool enableInputHero;
 
   const ChatScreen({
     super.key,
     this.initialMessage,
     this.conversationId,
     this.startNewOnOpen = false,
-    this.enableInputHero = true,
   });
 
   @override
@@ -57,6 +55,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isListening = false;
   String _dictationBaseText = '';
   String _conversationQuery = '';
+  _JarvisChatMode _mode = _JarvisChatMode.chat;
   late final bool _forceComposer;
   bool _loggedFirstBuild = false;
 
@@ -73,8 +72,7 @@ class _ChatScreenState extends State<ChatScreen> {
       '[ChatScreen] initState start. '
       'initialMessage=${widget.initialMessage?.trim().isNotEmpty == true}, '
       'conversationId=${widget.conversationId}, '
-      'startNewOnOpen=${widget.startNewOnOpen}, '
-      'enableInputHero=${widget.enableInputHero}',
+      'startNewOnOpen=${widget.startNewOnOpen}',
     );
     _forceComposer = widget.startNewOnOpen;
     _activeConversationId = widget.conversationId;
@@ -258,19 +256,13 @@ class _ChatScreenState extends State<ChatScreen> {
         content: message,
       );
 
-      final intentDecision = await JarvisIntentRouter.instance.classify(
-        message: message,
-        conversationId: _activeConversationId,
-      );
-      debugPrint(
-        '[ChatScreen] Intent=${intentDecision.intent} '
-        'fromModel=${intentDecision.fromModel} '
-        'reason=${intentDecision.reason}',
-      );
       String response;
       String? widgetJson;
+      var turnMode = _mode == _JarvisChatMode.generate ? 'generate' : 'chat';
+      String? generatedCardType;
 
-      if (intentDecision.intent == JarvisIntent.action) {
+      if (_mode == _JarvisChatMode.chat && _looksLikeDirectAction(message)) {
+        turnMode = 'action';
         final result = await AiService.instance.processCommand(
           command: message,
           userName: DatabaseService.instance.firstName,
@@ -280,35 +272,35 @@ class _ChatScreenState extends State<ChatScreen> {
         response = result.response;
         debugPrint('[ChatScreen] Direct command response: $response');
         widgetJson = null;
-      } else {
+      } else if (_mode == _JarvisChatMode.generate) {
         await _ensureJarvisReadyForChat(message);
-        switch (intentDecision.intent) {
-          case JarvisIntent.chat:
-            response = await _generatePlainJarvisReply(message);
-            debugPrint('[ChatScreen] Plain JARVIS response: $response');
-            widgetJson = null;
-          case JarvisIntent.action:
-            throw StateError(
-              'Action intent should be handled before chat prep.',
-            );
-          case JarvisIntent.genui:
-            final generation = await _genUiRuntimeInstance.generate(
-              userMessage: message,
-              conversationId: _activeConversationId,
-              timeout: const Duration(seconds: 45),
-            );
-            response = generation.text.isEmpty
-                ? 'I shaped that into an interactive view.'
-                : generation.text;
-            debugPrint(
-              '[ChatScreen] GenUI JARVIS response: $response '
-              'surfaces=${generation.surfaceIds}',
-            );
-            widgetJson =
-                generation.surfaceIds.isEmpty ||
-                    generation.rawA2ui.trim().isEmpty
-                ? null
-                : jsonEncode(generation.toPersistenceJson());
+        final generation = await _genUiRuntimeInstance.generate(
+          userMessage: message,
+          conversationId: _activeConversationId,
+          timeout: const Duration(seconds: 24),
+        );
+        response = generation.text.isEmpty
+            ? 'I shaped that into an interactive view.'
+            : generation.text;
+        debugPrint(
+          '[ChatScreen] GenUI JARVIS response: $response '
+          'surfaces=${generation.surfaceIds}',
+        );
+        widgetJson =
+            generation.surfaceIds.isEmpty || generation.rawA2ui.trim().isEmpty
+            ? null
+            : jsonEncode(generation.toPersistenceJson());
+        generatedCardType = _detectGeneratedCardType(message);
+      } else {
+        final localReply = _localJarvisCapabilityReply(message);
+        if (localReply != null) {
+          response = localReply;
+          widgetJson = null;
+        } else {
+          await _ensureJarvisReadyForChat(message);
+          response = await _generatePlainJarvisReply(message);
+          debugPrint('[ChatScreen] Plain JARVIS response: $response');
+          widgetJson = null;
         }
       }
 
@@ -322,6 +314,8 @@ class _ChatScreenState extends State<ChatScreen> {
         conversationId: _activeConversationId!,
         userMessage: message,
         assistantResponse: response,
+        mode: turnMode,
+        generatedCardType: generatedCardType,
       );
       if (!mounted) return;
 
@@ -381,15 +375,20 @@ class _ChatScreenState extends State<ChatScreen> {
         userMessage: message,
         conversationId: _activeConversationId,
       ),
-      'Do not output JSON or UI markup.',
+      'Do not output JSON, UI markup, Markdown, bullets, headings, or asterisks.',
+      'Finish the final sentence before stopping.',
     ].join('\n');
+    final suppressGreeting = await _conversationAlreadyHasAssistant();
     final response = await GemmaService.instance.generate(
       prompt,
-      maxTokens: 80,
+      maxTokens: 220,
       temperature: 0.3,
-      timeout: const Duration(seconds: 12),
+      timeout: const Duration(seconds: 18),
     );
-    final trimmed = response.trim();
+    final trimmed = _cleanPlainJarvisReply(
+      response,
+      suppressGreeting: suppressGreeting,
+    );
     if (trimmed.isEmpty) {
       throw const GemmaException(
         code: GemmaErrorCode.unknown,
@@ -397,6 +396,84 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
     return trimmed;
+  }
+
+  Future<bool> _conversationAlreadyHasAssistant() async {
+    final conversationId = _activeConversationId;
+    if (conversationId == null) return false;
+    final messages = await DatabaseService.instance.getMessages(conversationId);
+    return messages.any((message) => message.role == 'assistant');
+  }
+
+  String _cleanPlainJarvisReply(
+    String response, {
+    required bool suppressGreeting,
+  }) {
+    var cleaned = response.trim();
+    while (cleaned.endsWith('*')) {
+      cleaned = cleaned.substring(0, cleaned.length - 1).trimRight();
+    }
+    if (suppressGreeting) {
+      cleaned = cleaned
+          .replaceFirst(
+            RegExp(
+              r'^(hello|hi|hey|good morning|good afternoon|good evening),?\s+\w+[.!]?\s*',
+              caseSensitive: false,
+            ),
+            '',
+          )
+          .replaceFirst(
+            RegExp(r'^(hello|hi|hey)[.!]?\s+', caseSensitive: false),
+            '',
+          )
+          .trimLeft();
+    }
+    return cleaned;
+  }
+
+  String? _detectGeneratedCardType(String message) {
+    final lower = message.toLowerCase();
+    if (RegExp(r'\b(workout|exercise|training|gym)\b').hasMatch(lower)) {
+      return 'workout';
+    }
+    if (RegExp(r'\b(schedule|timeline|itinerary|calendar)\b').hasMatch(lower)) {
+      return 'schedule';
+    }
+    if (RegExp(r'\b(dashboard|overview|stats|metrics)\b').hasMatch(lower)) {
+      return 'dashboard';
+    }
+    if (RegExp(r'\b(compare|comparison|versus|vs)\b').hasMatch(lower)) {
+      return 'comparison';
+    }
+    if (RegExp(r'\b(tracker|track|progress)\b').hasMatch(lower)) {
+      return 'tracker';
+    }
+    if (RegExp(r'\b(checklist|steps|todo)\b').hasMatch(lower)) {
+      return 'checklist';
+    }
+    if (RegExp(r'\b(form|input|survey)\b').hasMatch(lower)) {
+      return 'form';
+    }
+    return 'card';
+  }
+
+  bool _looksLikeDirectAction(String message) {
+    return RegExp(
+      r'^(add task|todo|remind me|create task|start focus|focus \d+|add habit|new habit|track|note|remember|write down|jot down)\b',
+      caseSensitive: false,
+    ).hasMatch(message.trim());
+  }
+
+  String? _localJarvisCapabilityReply(String message) {
+    final lower = message.toLowerCase().trim();
+    final asksCapability = RegExp(
+      r"\b(what can you|what do you|capabilities|can you (also )?(build|make|generate|create) (cards|widgets|screens|views|ui|surfaces))\b",
+    ).hasMatch(lower);
+    if (!asksCapability) return null;
+
+    return 'Yes. I can chat, update your ContextShift data, and build generated cards when a visual structure helps.\n\n'
+        'I can generate plans, schedules, workout cards, study blocks, habit dashboards, task checklists, trackers, comparisons, routines, forms, and decision views. I can also use your local tasks, habits, notes, mood, focus history, and recent conversation as context.\n\n'
+        'Try: "build a 3-day workout plan", "make a dashboard for my habits", "create a study plan for tomorrow", or "compare these options as a card".';
   }
 
   String _diagnosticId() {
@@ -479,7 +556,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _stopDictation() async {
     if (_speechReady) await _speech.stop();
-    _dictationBaseText = '';
     if (!mounted) return;
     setState(() => _isListening = false);
   }
@@ -509,8 +585,9 @@ class _ChatScreenState extends State<ChatScreen> {
   void _handleSpeechStatus(String status) {
     debugPrint('[ChatScreen] Dictation status: $status');
     if (!mounted) return;
-    if (status == stt.SpeechToText.notListeningStatus ||
-        status == stt.SpeechToText.doneStatus) {
+    if ((status == stt.SpeechToText.notListeningStatus ||
+            status == stt.SpeechToText.doneStatus) &&
+        _isListening) {
       setState(() => _isListening = false);
     }
   }
@@ -547,19 +624,132 @@ class _ChatScreenState extends State<ChatScreen> {
           bottom: false,
           child: Column(
             children: [
-              _buildHeader(
-                context,
-                hasActiveConv,
-                showBackButton: showBackButton,
+              WonderousReveal(
+                begin: const Offset(0, 0.04),
+                child: _buildHeader(
+                  context,
+                  hasActiveConv,
+                  showBackButton: showBackButton,
+                ),
               ),
+              if (hasActiveConv)
+                WonderousReveal(
+                  delay: const Duration(milliseconds: 80),
+                  begin: const Offset(0, 0.04),
+                  child: _buildModeSwitch(context),
+                ),
               Expanded(
                 child: hasActiveConv
                     ? _buildChatView(context)
                     : _buildConversationList(context),
               ),
-              if (hasActiveConv) _buildInputBar(context),
+              if (hasActiveConv)
+                WonderousReveal(
+                  delay: const Duration(milliseconds: 140),
+                  begin: const Offset(0, 0.04),
+                  child: _buildInputBar(context),
+                ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModeSwitch(BuildContext context) {
+    Widget segment({
+      required _JarvisChatMode mode,
+      required IconData icon,
+      required String label,
+    }) {
+      final selected = _mode == mode;
+      return Expanded(
+        child: Semantics(
+          selected: selected,
+          button: true,
+          label: label,
+          child: GestureDetector(
+            onTap: () {
+              if (_mode == mode) return;
+              setState(() => _mode = mode);
+            },
+            child: AnimatedContainer(
+              duration: Motion.fast,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppTheme.primary.withValues(alpha: 0.18)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(999),
+                border: selected
+                    ? Border.all(
+                        color: AppTheme.primary.withValues(alpha: 0.24),
+                      )
+                    : null,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    icon,
+                    size: 16,
+                    color: selected
+                        ? AppTheme.primary
+                        : AppTheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 7),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: selected
+                            ? AppTheme.onSurface
+                            : AppTheme.onSurfaceVariant,
+                        fontSize: 13,
+                        fontWeight: selected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        Responsive.horizontalPadding(context),
+        0,
+        Responsive.horizontalPadding(context),
+        Spacing.sm,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: AppTheme.contextPanel(
+          color: AppTheme.surfaceHighest.withValues(alpha: 0.64),
+          accent: AppTheme.primary,
+          borderRadius: 999,
+        ),
+        child: Row(
+          children: [
+            segment(
+              mode: _JarvisChatMode.chat,
+              icon: LucideIcons.messageCircle,
+              label: 'Chat',
+            ),
+            segment(
+              mode: _JarvisChatMode.generate,
+              icon: LucideIcons.sparkles,
+              label: 'Generate',
+            ),
+          ],
         ),
       ),
     );
@@ -827,30 +1017,75 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildChatView(BuildContext context) {
     if (_messages.isEmpty && !_isProcessing) {
+      final isGenerate = _mode == _JarvisChatMode.generate;
       return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              LucideIcons.radio,
-              size: 48,
-              color: AppTheme.intelligence.withValues(alpha: 0.48),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: Responsive.horizontalPadding(context),
+          ),
+          child: WonderousReveal(
+            delay: const Duration(milliseconds: 160),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isGenerate ? LucideIcons.sparkles : LucideIcons.radio,
+                  size: 48,
+                  color: AppTheme.intelligence.withValues(alpha: 0.48),
+                ),
+                const SizedBox(height: Spacing.lg),
+                Text(
+                  isGenerate
+                      ? 'What should JARVIS build?'
+                      : 'What should we untangle?',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppTheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: Spacing.sm),
+                Text(
+                  isGenerate
+                      ? 'Ask for a card, plan, tracker, dashboard, or schedule.'
+                      : 'Drop the messy version. JARVIS will use your local context.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  ),
+                ),
+                if (isGenerate) ...[
+                  const SizedBox(height: Spacing.lg),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: Spacing.sm,
+                    runSpacing: Spacing.sm,
+                    children: [
+                      _GeneratePromptChip(
+                        label: 'Workout plan',
+                        prompt: 'Build a workout plan card for tomorrow',
+                        onSelected: _sendMessage,
+                      ),
+                      _GeneratePromptChip(
+                        label: 'Habit dashboard',
+                        prompt: 'Generate a habit dashboard for this week',
+                        onSelected: _sendMessage,
+                      ),
+                      _GeneratePromptChip(
+                        label: 'Study schedule',
+                        prompt: 'Create a study schedule card for tomorrow',
+                        onSelected: _sendMessage,
+                      ),
+                      _GeneratePromptChip(
+                        label: 'Decision card',
+                        prompt: 'Make a decision comparison card',
+                        onSelected: _sendMessage,
+                      ),
+                    ],
+                  ),
+                ],
+              ],
             ),
-            const SizedBox(height: Spacing.lg),
-            Text(
-              'What should we untangle?',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppTheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: Spacing.sm),
-            Text(
-              'Drop the messy version. JARVIS will use your local context.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
-              ),
-            ),
-          ],
+          ),
         ),
       );
     }
@@ -897,30 +1132,47 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         child: Container(
           margin: EdgeInsets.only(bottom: Spacing.xs),
-          padding: EdgeInsets.symmetric(horizontal: Spacing.xl, vertical: 4),
+          padding: EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: 8),
           decoration: AppTheme.contextPanel(
             color: AppTheme.surfaceHighest.withValues(alpha: 0.92),
             accent: _isListening ? AppTheme.accent : AppTheme.intelligence,
-            borderRadius: 999,
+            borderRadius: 28,
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
-                child: TextField(
-                  controller: _messageController,
-                  enabled: !_isProcessing,
-                  textInputAction: TextInputAction.send,
-                  style: const TextStyle(color: AppTheme.onSurface),
-                  decoration: InputDecoration(
-                    hintText: 'Message JARVIS...',
-                    hintStyle: TextStyle(
-                      color: AppTheme.onSurfaceVariant.withValues(alpha: 0.4),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 132),
+                  child: Scrollbar(
+                    child: TextField(
+                      controller: _messageController,
+                      enabled: !_isProcessing,
+                      keyboardType: TextInputType.multiline,
+                      textInputAction: TextInputAction.send,
+                      minLines: 1,
+                      maxLines: 5,
+                      scrollPadding: const EdgeInsets.only(bottom: 120),
+                      style: const TextStyle(
+                        color: AppTheme.onSurface,
+                        height: 1.35,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: _mode == _JarvisChatMode.generate
+                            ? 'Generate a card, plan, tracker...'
+                            : 'Message JARVIS...',
+                        hintStyle: TextStyle(
+                          color: AppTheme.onSurfaceVariant.withValues(
+                            alpha: 0.4,
+                          ),
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                      onSubmitted: (_) => _sendMessage(null),
                     ),
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
                   ),
-                  onSubmitted: (_) => _sendMessage(null),
                 ),
               ),
               SizedBox(width: Spacing.sm),
@@ -959,8 +1211,10 @@ class _ChatScreenState extends State<ChatScreen> {
                       label: 'Send message',
                       child: IconButton(
                         onPressed: () => _sendMessage(null),
-                        icon: const Icon(
-                          LucideIcons.send,
+                        icon: Icon(
+                          _mode == _JarvisChatMode.generate
+                              ? LucideIcons.sparkles
+                              : LucideIcons.send,
                           color: AppTheme.primary,
                           size: 18,
                         ),
@@ -975,15 +1229,35 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
 
-    return widget.enableInputHero
-        ? Hero(
-            tag: JarvisHero.tag,
-            createRectTween: JarvisHero.createRectTween,
-            flightShuttleBuilder: JarvisHero.flightShuttleBuilder,
-            transitionOnUserGestures: true,
-            child: RepaintBoundary(child: bar),
-          )
-        : bar;
+    return bar;
+  }
+}
+
+class _GeneratePromptChip extends StatelessWidget {
+  final String label;
+  final String prompt;
+  final ValueChanged<String> onSelected;
+
+  const _GeneratePromptChip({
+    required this.label,
+    required this.prompt,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      avatar: const Icon(LucideIcons.sparkles, size: 14),
+      label: Text(label),
+      labelStyle: const TextStyle(
+        color: AppTheme.onSurface,
+        fontWeight: FontWeight.w700,
+        fontSize: 12,
+      ),
+      side: BorderSide(color: AppTheme.primary.withValues(alpha: 0.22)),
+      backgroundColor: AppTheme.surfaceHighest.withValues(alpha: 0.66),
+      onPressed: () => onSelected(prompt),
+    );
   }
 }
 
@@ -1174,6 +1448,11 @@ class _MessageBubble extends StatelessWidget {
         if (card['format'] == 'a2ui-v0.9' && card['raw'] is String) {
           return A2uiSurfaceCard(
             rawA2ui: card['raw'] as String,
+            source: card['source']?.toString(),
+            fallbackReason: card['fallbackReason']?.toString(),
+            elapsedMs: card['elapsedMs'] is num
+                ? (card['elapsedMs'] as num).round()
+                : null,
             onAction: (action) {
               GenUiActionBus.instance.emit(action);
             },

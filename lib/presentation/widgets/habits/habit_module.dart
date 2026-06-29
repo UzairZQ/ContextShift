@@ -3,6 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
+import '../motion/wonderous_motion.dart';
 import 'widgets/add_habit_sheet.dart';
 import 'widgets/habit_heatmap.dart';
 import 'widgets/habit_progress.dart';
@@ -46,19 +47,27 @@ class _HabitModuleState extends State<HabitModule> {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Habits', style: Theme.of(context).textTheme.headlineMedium),
-            IconButton.filled(
-              onPressed: _openAddHabitSheet,
-              icon: const Icon(LucideIcons.plus, color: Colors.white),
-              style: IconButton.styleFrom(backgroundColor: AppTheme.primary),
-            ),
-          ],
+        WonderousReveal(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Habits', style: Theme.of(context).textTheme.headlineMedium),
+              IconButton.filled(
+                onPressed: _openAddHabitSheet,
+                icon: const Icon(LucideIcons.plus, color: Colors.white),
+                style: IconButton.styleFrom(backgroundColor: AppTheme.primary),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 8),
-        _HabitContent(stream: _habitsStream, today: DatabaseService.todayKey()),
+        WonderousReveal(
+          delay: const Duration(milliseconds: 80),
+          child: _HabitContent(
+            stream: _habitsStream,
+            today: DatabaseService.todayKey(),
+          ),
+        ),
       ],
     );
   }
@@ -100,9 +109,18 @@ class _HabitContent extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            HabitHeatmap(habits: habits),
-            HabitProgress(doneCount: doneCount, total: habits.length),
-            _HabitGrid(habits: habits, today: today),
+            WonderousReveal(
+              delay: const Duration(milliseconds: 80),
+              child: HabitHeatmap(habits: habits),
+            ),
+            WonderousReveal(
+              delay: const Duration(milliseconds: 140),
+              child: HabitProgress(doneCount: doneCount, total: habits.length),
+            ),
+            WonderousReveal(
+              delay: const Duration(milliseconds: 200),
+              child: _HabitGrid(habits: habits, today: today),
+            ),
           ],
         );
       },

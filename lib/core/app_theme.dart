@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  // ContextShift palette: private command center with warm human action.
+  // ContextShift palette: private sanctuary with warm human action.
   static const Color background = Color(0xFF0D0D1A);
   static const Color primary = Color(0xFFFF8C96); // Soft Red-Pink
   static const Color primaryDim = Color(0xFFFF6E80);

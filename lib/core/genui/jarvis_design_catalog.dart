@@ -293,25 +293,10 @@ class JarvisDesignCatalog {
     widgetBuilder: (context) {
       final data = _map(context.data);
       final tone = _toneColor(data['tone']);
-      return _Panel(
+      return _ChecklistPanel(
+        title: _text(data['title']),
         color: tone,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _PanelTitle(title: _text(data['title']), color: tone),
-            const SizedBox(height: Spacing.sm),
-            for (final item in _items(data['items']))
-              _LineItem(
-                icon: item['done'] == true
-                    ? LucideIcons.checkCircle2
-                    : LucideIcons.circle,
-                color: tone,
-                title: _text(item['title']),
-                detail: _text(item['detail']),
-              ),
-          ],
-        ),
+        items: _items(data['items']),
       );
     },
   );
@@ -710,6 +695,151 @@ class _PanelTitle extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ChecklistPanel extends StatefulWidget {
+  final String title;
+  final Color color;
+  final List<Map<String, dynamic>> items;
+
+  const _ChecklistPanel({
+    required this.title,
+    required this.color,
+    required this.items,
+  });
+
+  @override
+  State<_ChecklistPanel> createState() => _ChecklistPanelState();
+}
+
+class _ChecklistPanelState extends State<_ChecklistPanel> {
+  late List<bool> _checked;
+
+  @override
+  void initState() {
+    super.initState();
+    _checked = widget.items
+        .map((item) => item['done'] == true)
+        .toList(growable: false);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ChecklistPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.items.length != widget.items.length) {
+      _checked = widget.items
+          .map((item) => item['done'] == true)
+          .toList(growable: false);
+    }
+  }
+
+  void _toggle(int index) {
+    setState(() {
+      _checked[index] = !_checked[index];
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      color: widget.color,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _PanelTitle(title: widget.title, color: widget.color),
+          const SizedBox(height: Spacing.sm),
+          for (var index = 0; index < widget.items.length; index++)
+            _CheckableLineItem(
+              checked: _checked[index],
+              color: widget.color,
+              title: _text(widget.items[index]['title']),
+              detail: _text(widget.items[index]['detail']),
+              onTap: () => _toggle(index),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CheckableLineItem extends StatelessWidget {
+  final bool checked;
+  final Color color;
+  final String title;
+  final String detail;
+  final VoidCallback onTap;
+
+  const _CheckableLineItem({
+    required this.checked,
+    required this.color,
+    required this.title,
+    required this.detail,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      checked: checked,
+      button: true,
+      label: title,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AnimatedSwitcher(
+                duration: Motion.fast,
+                child: Icon(
+                  checked ? LucideIcons.checkCircle2 : LucideIcons.circle,
+                  key: ValueKey(checked),
+                  color: checked ? color : AppTheme.onSurfaceVariant,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: Spacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: checked
+                            ? AppTheme.onSurfaceVariant
+                            : AppTheme.onSurface,
+                        fontWeight: FontWeight.w700,
+                        decoration: checked
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
+                        decorationColor: AppTheme.onSurfaceVariant,
+                      ),
+                    ),
+                    if (detail.isNotEmpty)
+                      Text(
+                        detail,
+                        style: TextStyle(
+                          color: AppTheme.onSurfaceVariant.withValues(
+                            alpha: 0.75,
+                          ),
+                          fontSize: 12,
+                          height: 1.35,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

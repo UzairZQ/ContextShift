@@ -6,7 +6,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/ai_service.dart';
 import '../../../core/ai/action_executor.dart';
 import '../../../core/ai/generated_ui_action_mapper.dart';
-import '../../../core/ai/jarvis_intent_router.dart';
 import '../../../core/app_spacing.dart';
 import '../../../core/app_routes.dart';
 import '../../../core/app_theme.dart';
@@ -29,7 +28,9 @@ import 'widgets/floating_nav_bar.dart';
 import 'widgets/home_tab.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final bool hideWordmark;
+
+  const HomeScreen({super.key, this.hideWordmark = false});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -37,7 +38,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _currentIndex = 0;
-  int _previousIndex = 0;
   String _greeting = '';
   String? _aiInsight;
   String? _aiResponse;
@@ -47,6 +47,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _focusMinutesToday = 0;
   String? _todayMood;
   String? _activeSurfaceRawA2ui;
+  String? _activeSurfaceSource;
+  String? _activeSurfaceFallbackReason;
+  int? _activeSurfaceElapsedMs;
 
   final TextEditingController _commandController = TextEditingController();
   JarvisGenUiRuntime? _homeGenUiRuntime;
@@ -164,109 +167,46 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (command.trim().isEmpty) return;
 
     try {
-      final intentDecision = await JarvisIntentRouter.instance.classify(
-        message: command,
-      );
-      debugPrint(
-        '[HomeScreen] Intent=${intentDecision.intent} '
-        'fromModel=${intentDecision.fromModel} '
-        'reason=${intentDecision.reason}',
-      );
-
-      if (intentDecision.intent != JarvisIntent.action &&
-          !FeatureManager.instance.isE2bAvailable &&
+      if (!FeatureManager.instance.isE2bAvailable &&
           !FeatureManager.instance.isE4bAvailable) {
         if (!mounted) return;
         _openModelDownload();
         return;
       }
 
-      if (intentDecision.intent == JarvisIntent.chat) {
-        debugPrint(
-          '[HomeScreen] Opening JARVIS chat. '
-          'modelLoaded=${GemmaService.instance.isModelLoaded}, '
-          'e2b=${FeatureManager.instance.isE2bAvailable}, '
-          'e4b=${FeatureManager.instance.isE4bAvailable}',
-        );
-        if (!mounted) return;
-        await _pushChat(initialMessage: command);
-        _commandController.clear();
-        return;
-      }
-
       _commandController.clear();
       if (mounted) setState(() => _isProcessingCommand = true);
-      bool navigatedByAction = false;
 
-      if (intentDecision.intent == JarvisIntent.genui) {
-        await _ensureJarvisReadyForHome(command);
-        final generation = await _homeGenUiRuntimeInstance.generate(
-          userMessage: command,
-          timeout: const Duration(seconds: 45),
-        );
-
-        final response = generation.text.isEmpty
-            ? 'I shaped that into an interactive view.'
-            : generation.text;
-        await DatabaseService.instance.saveAiCommand(
-          command: command,
-          response: response,
-          actions: [
-            {'type': 'a2ui_surface', 'surface_ids': generation.surfaceIds},
-          ],
-        );
-        if (!mounted) return;
-        setState(() {
-          _aiResponse = response;
-          _activeSurfaceRawA2ui =
-              generation.surfaceIds.isEmpty || generation.rawA2ui.trim().isEmpty
-              ? null
-              : generation.rawA2ui;
-          _currentIndex = 0;
-        });
-        _responseAnimController.forward(from: 0);
-        _showResponseSnackBar(response);
-        return;
-      }
-
-      final result = await AiService.instance.processCommand(
-        command: command,
-        userName: DatabaseService.instance.firstName,
+      await _ensureJarvisReadyForHome(command);
+      final generation = await _homeGenUiRuntimeInstance.generate(
+        userMessage: command,
+        timeout: const Duration(seconds: 24),
       );
 
-      if (!mounted) return;
-
-      for (final action in result.actions) {
-        await _executeAction(
-          action,
-          onNavigated: () => navigatedByAction = true,
-        );
-      }
-
+      final response = generation.text.isEmpty
+          ? 'I shaped that into an interactive view.'
+          : generation.text;
       await DatabaseService.instance.saveAiCommand(
         command: command,
-        response: result.response,
-        actions: result.actions
-            .map((a) => {'type': a.type, ...a.params})
-            .toList(),
+        response: response,
+        actions: [
+          {'type': 'a2ui_surface', 'surface_ids': generation.surfaceIds},
+        ],
       );
-
       if (!mounted) return;
       setState(() {
-        _aiResponse = result.response;
-        if (result.greetingUpdate != null) {
-          _greeting = result.greetingUpdate!;
-        }
-        if (!navigatedByAction) {
-          _currentIndex = 0;
-        }
+        _aiResponse = response;
+        _activeSurfaceRawA2ui =
+            generation.surfaceIds.isEmpty || generation.rawA2ui.trim().isEmpty
+            ? null
+            : generation.rawA2ui;
+        _activeSurfaceSource = generation.source.name;
+        _activeSurfaceFallbackReason = generation.fallbackReason;
+        _activeSurfaceElapsedMs = generation.elapsed.inMilliseconds;
+        _currentIndex = 0;
       });
       _responseAnimController.forward(from: 0);
-      _showResponseSnackBar(result.response);
-
-      Future.delayed(const Duration(seconds: 5), () {
-        if (mounted) setState(() => _aiResponse = null);
-      });
+      _showResponseSnackBar(response);
     } catch (error, stackTrace) {
       debugPrint('[HomeScreen] JARVIS command failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -281,45 +221,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
     } finally {
       if (mounted) setState(() => _isProcessingCommand = false);
-    }
-  }
-
-  Future<void> _executeAction(
-    AiAction action, {
-    required VoidCallback onNavigated,
-  }) async {
-    switch (action.type) {
-      case 'add_task':
-        await ActionExecutor.instance.executeAll([action]);
-        break;
-      case 'add_habit':
-        await ActionExecutor.instance.executeAll([action]);
-        break;
-      case 'add_note':
-        await ActionExecutor.instance.executeAll([action]);
-        break;
-      case 'start_focus':
-        await ActionExecutor.instance.executeAll([action]);
-        break;
-      case 'navigate':
-        const tabMap = {
-          'home': 0,
-          'tasks': 1,
-          'habits': 2,
-          'focus': 3,
-          'journal': 4,
-          'notes': 4,
-          'mood': 4,
-        };
-        final tab = action.params['tab'] as String?;
-        if (tab == 'chat' || tab == 'jarvis') {
-          await _pushChat();
-          onNavigated();
-        } else if (tab != null && tabMap.containsKey(tab)) {
-          _switchTab(tabMap[tab]!);
-          onNavigated();
-        }
-        break;
     }
   }
 
@@ -377,10 +278,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _switchTab(int index) {
     if (_currentIndex == index) return;
-    setState(() {
-      _previousIndex = _currentIndex;
-      _currentIndex = index;
-    });
+    setState(() => _currentIndex = index);
     DatabaseService.instance.logEvent(
       eventType: 'tab_tap',
       module: ['home', 'tasks', 'habits', 'focus', 'journal'][index],
@@ -449,10 +347,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           settings: const RouteSettings(name: 'jarvis_chat_fab'),
           builder: (_) {
             debugPrint('[HomeScreen] Building stable ChatScreen route');
-            return const ChatScreen(
-              startNewOnOpen: true,
-              enableInputHero: false,
-            );
+            return const ChatScreen(startNewOnOpen: true);
           },
         ),
       );
@@ -473,35 +368,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _pushChat({
     String? initialMessage,
     bool startNewOnOpen = false,
-    bool enableInputHero = true,
   }) {
     return Navigator.of(context).push<void>(
-      PageRouteBuilder<void>(
-        transitionDuration: Motion.heroFlight,
-        reverseTransitionDuration: Motion.smoothScreenReverse,
-        pageBuilder: (context, animation, secondaryAnimation) {
-          return ChatScreen(
-            initialMessage: initialMessage,
-            startNewOnOpen: startNewOnOpen,
-            enableInputHero: enableInputHero,
-          );
-        },
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final curved = CurvedAnimation(
-            parent: animation,
-            curve: Motion.smoothEnter,
-            reverseCurve: Motion.smoothExit,
-          );
-          final slide = Tween<Offset>(
-            begin: const Offset(0, 0.08),
-            end: Offset.zero,
-          ).animate(curved);
-          final scale = Tween<double>(begin: 0.968, end: 1).animate(curved);
-          return ScaleTransition(
-            scale: scale,
-            child: SlideTransition(position: slide, child: child),
-          );
-        },
+      MaterialPageRoute<void>(
+        builder: (_) => ChatScreen(
+          initialMessage: initialMessage,
+          startNewOnOpen: startNewOnOpen,
+        ),
       ),
     );
   }
@@ -526,6 +399,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         onRefresh: _loadInitialData,
         child: HomeTab(
           greeting: _greeting,
+          hideWordmark: widget.hideWordmark,
           commandController: _commandController,
           isJarvisOnline: GemmaService.instance.isModelLoaded,
           hasCheckedJarvisStatus: true,
@@ -545,6 +419,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           focusMinutesToday: _focusMinutesToday,
           todayMood: _todayMood,
           activeSurfaceRawA2ui: _activeSurfaceRawA2ui,
+          activeSurfaceSource: _activeSurfaceSource,
+          activeSurfaceFallbackReason: _activeSurfaceFallbackReason,
+          activeSurfaceElapsedMs: _activeSurfaceElapsedMs,
           onOpenDashboard: _openDashboard,
           onOpenProfile: _openProfile,
           onOpenChat: _openChat,
@@ -620,55 +497,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 padding: EdgeInsets.symmetric(
                   horizontal: Responsive.horizontalPadding(context),
                 ),
-                child: ResponsiveWrapper(
-                  maxWidth: 1000,
-                  child: AnimatedSwitcher(
-                    duration: Motion.smoothTab,
-                    reverseDuration: Motion.smoothTab,
-                    switchInCurve: Motion.smoothEnter,
-                    switchOutCurve: Motion.smoothExit,
-                    layoutBuilder: (currentChild, previousChildren) {
-                      return Stack(
-                        alignment: Alignment.topCenter,
-                        children: <Widget>[?currentChild, ...previousChildren],
-                      );
-                    },
-                    transitionBuilder: (child, animation) {
-                      final childKey = child.key;
-                      final childIndex = childKey is ValueKey<int>
-                          ? childKey.value
-                          : _currentIndex;
-                      final movingForward = _currentIndex > _previousIndex;
-                      final isCurrent = childIndex == _currentIndex;
-                      final movement = CurvedAnimation(
-                        parent: animation,
-                        curve: Motion.smoothEnter,
-                        reverseCurve: Motion.smoothExit,
-                      );
-                      final offset = Tween<Offset>(
-                        begin: Offset(
-                          isCurrent
-                              ? (movingForward ? 0.16 : -0.16)
-                              : (movingForward ? -0.10 : 0.10),
-                          0,
-                        ),
-                        end: Offset.zero,
-                      ).animate(movement);
-                      final scale = Tween<double>(
-                        begin: isCurrent ? 0.97 : 0.99,
-                        end: 1,
-                      ).animate(movement);
-                      return SlideTransition(
-                        position: offset,
-                        child: ScaleTransition(scale: scale, child: child),
-                      );
-                    },
-                    child: KeyedSubtree(
-                      key: ValueKey(_currentIndex),
-                      child: _buildBody(),
-                    ),
-                  ),
-                ),
+                child: ResponsiveWrapper(maxWidth: 1000, child: _buildBody()),
               ),
             ),
           ],

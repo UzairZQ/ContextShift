@@ -12,17 +12,42 @@ class GenUiGeneration {
   final String text;
   final String rawA2ui;
   final List<String> surfaceIds;
+  final GenUiGenerationSource source;
+  final String? fallbackReason;
+  final Duration elapsed;
 
   const GenUiGeneration({
     required this.text,
     required this.rawA2ui,
     required this.surfaceIds,
+    required this.source,
+    required this.elapsed,
+    this.fallbackReason,
   });
 
   Map<String, dynamic> toPersistenceJson() => {
     'format': 'a2ui-v0.9',
     'raw': rawA2ui,
+    'source': source.name,
+    'fallbackReason': fallbackReason,
+    'elapsedMs': elapsed.inMilliseconds,
   };
+}
+
+enum GenUiGenerationSource { gemma, fallback }
+
+enum _FallbackDomain {
+  workout('Workout'),
+  schedule('Schedule'),
+  dashboard('Dashboard'),
+  comparison('Comparison'),
+  tracker('Tracker'),
+  form('Form'),
+  checklist('Checklist'),
+  plan('Plan');
+
+  final String label;
+  const _FallbackDomain(this.label);
 }
 
 /// Connects the official GenUI A2UI runtime to the on-device Gemma model.
@@ -74,25 +99,51 @@ class JarvisGenUiRuntime {
     int? conversationId,
     Duration timeout = const Duration(seconds: 45),
   }) async {
-    final plannedMessage = _withPlanningInstruction(userMessage);
-    final first = await _generateOnce(
-      userMessage: plannedMessage,
-      conversationId: conversationId,
-      timeout: timeout,
-    );
-    if (first.surfaceIds.isNotEmpty && first.rawA2ui.trim().isNotEmpty) {
-      return first;
-    }
+    final stopwatch = Stopwatch()..start();
+    try {
+      final plannedMessage = _withPlanningInstruction(userMessage);
+      final first = await _generateOnce(
+        userMessage: plannedMessage,
+        conversationId: conversationId,
+        timeout: timeout,
+      );
+      if (first.surfaceIds.isNotEmpty && first.rawA2ui.trim().isNotEmpty) {
+        stopwatch.stop();
+        return GenUiGeneration(
+          text: first.text,
+          rawA2ui: first.rawA2ui,
+          surfaceIds: first.surfaceIds,
+          source: GenUiGenerationSource.gemma,
+          elapsed: stopwatch.elapsed,
+        );
+      }
 
-    final repaired = await _generateOnce(
-      userMessage: _withRepairInstruction(userMessage),
-      conversationId: conversationId,
-      timeout: timeout,
-    );
-    if (repaired.surfaceIds.isNotEmpty || repaired.text.isNotEmpty) {
-      return repaired;
+      stopwatch.stop();
+      return _fallbackGeneration(
+        userMessage,
+        reason: 'no-visible-surface',
+        elapsed: stopwatch.elapsed,
+      );
+    } on TimeoutException catch (error) {
+      stopwatch.stop();
+      debugPrint(
+        '[GenUI] Generation timed out, using fallback surface: $error',
+      );
+      return _fallbackGeneration(
+        userMessage,
+        reason: 'timeout',
+        elapsed: stopwatch.elapsed,
+      );
+    } catch (error, stackTrace) {
+      stopwatch.stop();
+      debugPrint('[GenUI] Generation failed, using fallback surface: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      return _fallbackGeneration(
+        userMessage,
+        reason: 'runtime-error',
+        elapsed: stopwatch.elapsed,
+      );
     }
-    return first;
   }
 
   Future<GenUiGeneration> _generateOnce({
@@ -113,6 +164,8 @@ class JarvisGenUiRuntime {
       text: _latestText.trim(),
       rawA2ui: _rawResponse.toString(),
       surfaceIds: controller.activeSurfaceIds.toList(growable: false),
+      source: GenUiGenerationSource.gemma,
+      elapsed: Duration.zero,
     );
   }
 
@@ -167,11 +220,11 @@ class JarvisGenUiRuntime {
         in GemmaService.instance
             .generateStream(prompt.toString(), maxTokens: 900, temperature: 0.2)
             .timeout(
-              const Duration(seconds: 30),
+              const Duration(seconds: 20),
               onTimeout: (sink) {
                 sink.addError(
                   TimeoutException(
-                    'JARVIS stream produced no output for 30 seconds.',
+                    'JARVIS stream produced no output for 20 seconds.',
                   ),
                 );
                 sink.close();
@@ -218,12 +271,339 @@ User request: $userMessage
 ''';
   }
 
-  String _withRepairInstruction(String userMessage) {
-    return '''
-Your previous response did not create a valid visible A2UI surface.
-Create one valid, compact surface now using the available catalog. Use safe defaults and visible assumptions for missing details. Use plain text only if the request truly does not need UI.
+  GenUiGeneration _fallbackGeneration(
+    String userMessage, {
+    required String reason,
+    required Duration elapsed,
+  }) {
+    final lower = userMessage.toLowerCase();
+    final domain = _fallbackDomain(lower);
+    final title = _fallbackTitle(userMessage, domain);
+    final components = <Map<String, Object?>>[
+      {
+        'id': 'root',
+        'component': 'Column',
+        'children': _fallbackChildren(domain),
+      },
+      {
+        'id': 'hero',
+        'component': 'HeroPanel',
+        'eyebrow': domain.label,
+        'title': title,
+        'subtitle':
+            'A usable first version created locally because the live generated UI hit a $reason fallback.',
+        'tone': 'primary',
+      },
+      {
+        'id': 'assumptions',
+        'component': 'InsightCallout',
+        'title': 'Starter assumptions',
+        'body':
+            'JARVIS used safe defaults from your request. Add details and ask to refine this card.',
+        'tone': 'accent',
+        'icon': 'info',
+      },
+      ..._fallbackBodyComponents(domain),
+      {
+        'id': 'actions',
+        'component': 'ActionDock',
+        'tone': 'primary',
+        'actions': [
+          {'label': 'Save as task', 'event': 'create_task', 'title': title},
+          {
+            'label': 'Refine',
+            'event': 'continue_conversation',
+            'message':
+                'Refine this generated ${domain.label.toLowerCase()} with more specifics: $userMessage',
+          },
+        ],
+      },
+    ];
 
-User request: $userMessage
-''';
+    return GenUiGeneration(
+      text:
+          'I made a starter ${domain.label.toLowerCase()} card while JARVIS finished thinking.',
+      rawA2ui: _encodeA2ui([
+        {
+          'version': 'v0.9',
+          'createSurface': {
+            'surfaceId': 'jarvis_fallback',
+            'catalogId':
+                'https://a2ui.org/specification/v0_9/basic_catalog.json',
+            'sendDataModel': true,
+          },
+        },
+        {
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 'jarvis_fallback',
+            'components': components,
+          },
+        },
+      ]),
+      surfaceIds: const ['jarvis_fallback'],
+      source: GenUiGenerationSource.fallback,
+      fallbackReason: reason,
+      elapsed: elapsed,
+    );
+  }
+
+  _FallbackDomain _fallbackDomain(String lower) {
+    if (RegExp(
+      r'\b(workout|work out|exercise|training|full body|strength|gym|cardio)\b',
+    ).hasMatch(lower)) {
+      return _FallbackDomain.workout;
+    }
+    if (RegExp(
+      r'\b(schedule|calendar|timeline|itinerary|tomorrow|today|week|day plan|time block)\b',
+    ).hasMatch(lower)) {
+      return _FallbackDomain.schedule;
+    }
+    if (RegExp(
+      r'\b(dashboard|stats|metrics|overview|report|analysis|progress)\b',
+    ).hasMatch(lower)) {
+      return _FallbackDomain.dashboard;
+    }
+    if (RegExp(
+      r'\b(compare|comparison|versus|vs|pros|cons|choose)\b',
+    ).hasMatch(lower)) {
+      return _FallbackDomain.comparison;
+    }
+    if (RegExp(
+      r'\b(tracker|track|habit|streak|log|monitor)\b',
+    ).hasMatch(lower)) {
+      return _FallbackDomain.tracker;
+    }
+    if (RegExp(
+      r'\b(form|input|survey|questionnaire|collect)\b',
+    ).hasMatch(lower)) {
+      return _FallbackDomain.form;
+    }
+    if (RegExp(r'\b(checklist|steps|todo|to-do|tasks)\b').hasMatch(lower)) {
+      return _FallbackDomain.checklist;
+    }
+    return _FallbackDomain.plan;
+  }
+
+  String _fallbackTitle(String userMessage, _FallbackDomain domain) {
+    final cleaned = userMessage
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(RegExp(r'[?.!]+$'), '')
+        .trim();
+    if (cleaned.isEmpty) return 'Generated ${domain.label}';
+    final max = cleaned.length > 34
+        ? '${cleaned.substring(0, 34)}...'
+        : cleaned;
+    return max[0].toUpperCase() + max.substring(1);
+  }
+
+  List<String> _fallbackChildren(_FallbackDomain domain) {
+    return switch (domain) {
+      _FallbackDomain.workout => [
+        'hero',
+        'assumptions',
+        'workout',
+        'support',
+        'actions',
+      ],
+      _FallbackDomain.schedule => [
+        'hero',
+        'assumptions',
+        'timeline',
+        'support',
+        'actions',
+      ],
+      _FallbackDomain.dashboard => [
+        'hero',
+        'assumptions',
+        'metric1',
+        'metric2',
+        'metric3',
+        'support',
+        'actions',
+      ],
+      _FallbackDomain.comparison => [
+        'hero',
+        'assumptions',
+        'comparison',
+        'support',
+        'actions',
+      ],
+      _FallbackDomain.tracker => [
+        'hero',
+        'assumptions',
+        'progress',
+        'support',
+        'actions',
+      ],
+      _FallbackDomain.form => [
+        'hero',
+        'assumptions',
+        'field1',
+        'field2',
+        'support',
+        'actions',
+      ],
+      _FallbackDomain.checklist || _FallbackDomain.plan => [
+        'hero',
+        'assumptions',
+        'steps',
+        'support',
+        'actions',
+      ],
+    };
+  }
+
+  List<Map<String, Object?>> _fallbackBodyComponents(_FallbackDomain domain) {
+    return switch (domain) {
+      _FallbackDomain.workout => [
+        {
+          'id': 'workout',
+          'component': 'WorkoutBlock',
+          'title': 'Main Block',
+          'focus': 'Safe starter structure',
+          'tone': 'primary',
+          'exercises': [
+            {
+              'name': 'Primary movement',
+              'sets': '3 sets',
+              'reps': '8-12 reps',
+              'rest': '60-90 sec',
+              'cue': 'Keep form clean and stop before failure.',
+            },
+            {
+              'name': 'Secondary movement',
+              'sets': '3 sets',
+              'reps': '10 reps',
+              'rest': '60 sec',
+              'cue': 'Use a controlled tempo.',
+            },
+          ],
+        },
+        _supportChecklist([
+          'Warm up for 5 minutes',
+          'Keep intensity moderate',
+          'Progress by one rep or a small weight jump next time',
+        ]),
+      ],
+      _FallbackDomain.schedule => [
+        {
+          'id': 'timeline',
+          'component': 'Timeline',
+          'title': 'Draft Timeline',
+          'tone': 'primary',
+          'items': [
+            {
+              'time': 'Start',
+              'title': 'Set the outcome',
+              'body': 'Decide what finished looks like.',
+            },
+            {
+              'time': 'Middle',
+              'title': 'Do the core work',
+              'body': 'Protect the main block from distractions.',
+            },
+            {
+              'time': 'End',
+              'title': 'Review and save',
+              'body': 'Capture the next action before closing.',
+            },
+          ],
+        },
+        _supportChecklist(['Add exact times', 'Remove one low-value block']),
+      ],
+      _FallbackDomain.dashboard => [
+        _metric('metric1', 'Focus', '0m', 'Update with real progress'),
+        _metric('metric2', 'Tasks', '0', 'Open items to review'),
+        _metric('metric3', 'Mood', '--', 'Log context when ready'),
+        _supportChecklist(['Pick the key metric', 'Review the trend weekly']),
+      ],
+      _FallbackDomain.comparison => [
+        {
+          'id': 'comparison',
+          'component': 'ComparisonTable',
+          'title': 'Decision Draft',
+          'tone': 'primary',
+          'columns': ['Option', 'Upside', 'Tradeoff'],
+          'rows': [
+            ['Option A', 'Fastest to try', 'May need refinement'],
+            ['Option B', 'More complete', 'Takes more setup'],
+          ],
+        },
+        _supportChecklist(['Add real options', 'Choose based on current goal']),
+      ],
+      _FallbackDomain.tracker => [
+        {
+          'id': 'progress',
+          'component': 'ProgressMeter',
+          'label': 'Starter progress',
+          'value': 0.25,
+          'caption': 'First version ready to refine',
+          'tone': 'primary',
+        },
+        _supportChecklist(['Define the target', 'Log one update today']),
+      ],
+      _FallbackDomain.form => [
+        {
+          'id': 'field1',
+          'component': 'TextField',
+          'label': 'Main input',
+          'placeholder': 'Add the key detail',
+        },
+        {
+          'id': 'field2',
+          'component': 'TextField',
+          'label': 'Notes',
+          'placeholder': 'Add constraints or preferences',
+        },
+        _supportChecklist(['Collect only what matters', 'Keep it short']),
+      ],
+      _FallbackDomain.checklist || _FallbackDomain.plan => [
+        {
+          'id': 'steps',
+          'component': 'Checklist',
+          'title': 'Starter Steps',
+          'tone': 'primary',
+          'items': [
+            {'title': 'Clarify the outcome'},
+            {'title': 'Pick the smallest useful first action'},
+            {'title': 'Review and refine with JARVIS'},
+          ],
+        },
+        _supportChecklist(['Use this as a first draft', 'Ask for specifics']),
+      ],
+    };
+  }
+
+  Map<String, Object?> _supportChecklist(List<String> items) {
+    return {
+      'id': 'support',
+      'component': 'Checklist',
+      'title': 'Refine next',
+      'tone': 'accent',
+      'items': items.map((title) => {'title': title}).toList(),
+    };
+  }
+
+  Map<String, Object?> _metric(
+    String id,
+    String label,
+    String value,
+    String caption,
+  ) {
+    return {
+      'id': id,
+      'component': 'MetricTile',
+      'label': label,
+      'value': value,
+      'caption': caption,
+      'tone': 'primary',
+      'icon': 'activity',
+    };
+  }
+
+  String _encodeA2ui(List<Map<String, Object?>> messages) {
+    const encoder = JsonEncoder.withIndent('  ');
+    return '```json\n${encoder.convert(messages)}\n```';
   }
 }

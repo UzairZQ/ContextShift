@@ -5,6 +5,7 @@ import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
 import '../../../../core/database/database_service.dart';
 import '../../../../core/responsive.dart';
+import '../../../widgets/context_shift_wordmark.dart';
 import 'ai_pulsar.dart';
 
 class HomeHeader extends StatelessWidget {
@@ -13,6 +14,7 @@ class HomeHeader extends StatelessWidget {
   final VoidCallback onOpenDashboard;
   final VoidCallback onOpenProfile;
   final bool isAuthGuest;
+  final bool hideWordmark;
 
   const HomeHeader({
     super.key,
@@ -21,6 +23,7 @@ class HomeHeader extends StatelessWidget {
     required this.onOpenDashboard,
     required this.onOpenProfile,
     this.isAuthGuest = false,
+    this.hideWordmark = false,
   });
 
   @override
@@ -34,16 +37,12 @@ class HomeHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'ContextShift',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    letterSpacing: -1,
-                    fontWeight: FontWeight.w900,
-                    fontSize: Responsive.isMobile(context) ? 28 : 36,
-                  ),
+                Opacity(
+                  opacity: hideWordmark ? 0 : 1,
+                  child: const ContextShiftWordmark(),
                 ),
                 Text(
-                  '${DatabaseService.instance.firstName}\'s command center',
+                  '${DatabaseService.instance.firstName}\'s sanctuary',
                   style: TextStyle(
                     color: AppTheme.intelligence,
                     fontSize: Responsive.isMobile(context) ? 10 : 12,

@@ -12,11 +12,17 @@ import '../motion/wonderous_motion.dart';
 class A2uiSurfaceCard extends StatefulWidget {
   final String rawA2ui;
   final ValueChanged<WidgetAction> onAction;
+  final String? source;
+  final String? fallbackReason;
+  final int? elapsedMs;
 
   const A2uiSurfaceCard({
     super.key,
     required this.rawA2ui,
     required this.onAction,
+    this.source,
+    this.fallbackReason,
+    this.elapsedMs,
   });
 
   @override
@@ -90,6 +96,15 @@ class _A2uiSurfaceCardState extends State<A2uiSurfaceCard> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (widget.source != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: Spacing.xs),
+            child: _GenerationSourceBadge(
+              source: widget.source!,
+              fallbackReason: widget.fallbackReason,
+              elapsedMs: widget.elapsedMs,
+            ),
+          ),
         for (final surfaceId in _surfaceIds)
           Padding(
             padding: const EdgeInsets.only(top: Spacing.sm),
@@ -101,6 +116,55 @@ class _A2uiSurfaceCardState extends State<A2uiSurfaceCard> {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _GenerationSourceBadge extends StatelessWidget {
+  final String source;
+  final String? fallbackReason;
+  final int? elapsedMs;
+
+  const _GenerationSourceBadge({
+    required this.source,
+    this.fallbackReason,
+    this.elapsedMs,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isFallback = source == 'fallback';
+    final color = isFallback ? AppTheme.warning : AppTheme.success;
+    final seconds = elapsedMs == null
+        ? null
+        : (elapsedMs! / 1000).toStringAsFixed(1);
+    final label = [
+      isFallback ? 'Local fallback' : 'Gemma generated',
+      if (seconds != null) '${seconds}s',
+      if (isFallback && fallbackReason != null) fallbackReason!,
+    ].join(' · ');
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.sm,
+          vertical: 5,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: 0.22)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
     );
   }
 }
