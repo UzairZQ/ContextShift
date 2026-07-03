@@ -100,7 +100,17 @@ class _HabitContent extends StatelessWidget {
           return const _HabitsEmptyState();
         }
 
-        final doneCount = habits.where((h) {
+        final buildHabits = habits
+            .where((h) => (h['kind'] ?? 'build') != 'reduce')
+            .toList();
+        final reduceHabits = habits
+            .where((h) => h['kind'] == 'reduce')
+            .toList();
+        final doneCount = buildHabits.where((h) {
+          final completedDates = (h['completedDates'] as List<dynamic>?) ?? [];
+          return completedDates.contains(today);
+        }).length;
+        final protectedCount = reduceHabits.where((h) {
           final completedDates = (h['completedDates'] as List<dynamic>?) ?? [];
           return completedDates.contains(today);
         }).length;
@@ -115,7 +125,12 @@ class _HabitContent extends StatelessWidget {
             ),
             WonderousReveal(
               delay: const Duration(milliseconds: 140),
-              child: HabitProgress(doneCount: doneCount, total: habits.length),
+              child: HabitProgress(
+                doneCount: doneCount,
+                buildTotal: buildHabits.length,
+                protectedCount: protectedCount,
+                reduceTotal: reduceHabits.length,
+              ),
             ),
             WonderousReveal(
               delay: const Duration(milliseconds: 200),
@@ -158,7 +173,7 @@ class _HabitGrid extends StatelessWidget {
               crossAxisCount: 2,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              mainAxisExtent: 100,
+              mainAxisExtent: 148,
             ),
             itemCount: habits.length,
             itemBuilder: (context, index) => itemBuilder(habits[index]),

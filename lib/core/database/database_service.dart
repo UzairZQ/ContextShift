@@ -228,11 +228,11 @@ class DatabaseService {
         _db.habitTable,
       )..where((t) => t.userId.equals(_deviceId))).get();
 
-      final missingHabits = <String>[];
+      final openBehaviorSignals = <String>[];
       for (final h in allHabits) {
         final dates = jsonDecode(h.completedDates) as List<dynamic>? ?? [];
         if (!dates.contains(todayStr)) {
-          missingHabits.add(h.name);
+          openBehaviorSignals.add(h.name);
         }
       }
 
@@ -293,7 +293,7 @@ class DatabaseService {
         },
         'habits': {
           'total': allHabits.length,
-          'missing_today': missingHabits.take(10).toList(),
+          'open_today': openBehaviorSignals.take(10).toList(),
           'items': allHabits.map(_habitToMap).take(10).toList(),
         },
         'recent_note': recentNote,
@@ -450,6 +450,21 @@ class DatabaseService {
   }
 
   Future<void> addHabit({required String name, required String icon}) async {
+    final kind = _inferHabitKind(name);
+    await addHabitWithKind(name: name, icon: icon, kind: kind);
+  }
+
+  Future<void> addHabitWithKind({
+    required String name,
+    required String icon,
+    required String kind,
+    String? cue,
+    String? tinyStep,
+    String? reward,
+    String? friction,
+  }) async {
+    final normalizedKind = kind == 'reduce' ? 'reduce' : 'build';
+    final defaults = _defaultHabitStrategy(name, normalizedKind);
     await _db
         .into(_db.habitTable)
         .insert(
@@ -457,10 +472,19 @@ class DatabaseService {
             userId: _deviceId,
             name: name,
             icon: icon,
+            kind: Value(normalizedKind),
+            cue: Value(_cleanNullable(cue) ?? defaults.cue),
+            tinyStep: Value(_cleanNullable(tinyStep) ?? defaults.tinyStep),
+            reward: Value(_cleanNullable(reward) ?? defaults.reward),
+            friction: Value(_cleanNullable(friction) ?? defaults.friction),
             createdAt: DateTime.now(),
           ),
         );
-    await logEvent(eventType: 'habit_created', module: 'habits');
+    await logEvent(
+      eventType: 'habit_created',
+      module: 'habits',
+      metadata: {'kind': normalizedKind},
+    );
   }
 
   Future<void> toggleHabitToday(String habitId, bool isDone) async {
@@ -493,9 +517,48 @@ class DatabaseService {
       'userId': h.userId,
       'name': h.name,
       'icon': h.icon,
+      'kind': h.kind,
+      'cue': h.cue,
+      'tinyStep': h.tinyStep,
+      'reward': h.reward,
+      'friction': h.friction,
       'completedDates': jsonDecode(h.completedDates) as List<dynamic>? ?? [],
       'createdAt': h.createdAt,
     };
+  }
+
+  ({String cue, String tinyStep, String reward, String friction})
+  _defaultHabitStrategy(String name, String kind) {
+    if (kind == 'reduce') {
+      return (
+        cue: 'When the urge shows up',
+        tinyStep: 'Do a 2-minute replacement first',
+        reward: 'Mark the day protected',
+        friction: 'Put one extra step between you and $name',
+      );
+    }
+    return (
+      cue: 'After an existing routine',
+      tinyStep: 'Do the smallest 2-minute version',
+      reward: 'Mark the win immediately',
+      friction: 'Keep the first step visible and ready',
+    );
+  }
+
+  String? _cleanNullable(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    return trimmed;
+  }
+
+  String _inferHabitKind(String name) {
+    final lower = name.toLowerCase();
+    if (RegExp(
+      r'\b(nicotine|smok(e|ing)?|vape|alcohol|drink less|junk food|doomscroll|scroll less|avoid|stop|quit|reduce|less)\b',
+    ).hasMatch(lower)) {
+      return 'reduce';
+    }
+    return 'build';
   }
 
   // ── Focus Sessions ───────────────────────────────────────────
@@ -546,7 +609,7 @@ class DatabaseService {
           final d = s.completedAt!;
           final dateStr = dateKey(d);
           if (dateStr == todayStr) {
-            total += s.durationMinutes;
+            total += _actualFocusMinutes(s.startedAt, d, s.durationMinutes);
           }
         }
       }
@@ -555,6 +618,17 @@ class DatabaseService {
       debugPrint('DatabaseService.getTodayFocusMinutes error: $e');
       return 0;
     }
+  }
+
+  int _actualFocusMinutes(
+    DateTime startedAt,
+    DateTime completedAt,
+    int plannedMinutes,
+  ) {
+    final elapsedSeconds = completedAt.difference(startedAt).inSeconds;
+    if (elapsedSeconds <= 0) return 0;
+    final actualMinutes = (elapsedSeconds / 60).round();
+    return actualMinutes.clamp(0, plannedMinutes);
   }
 
   // ── Notes ────────────────────────────────────────────────────
@@ -720,6 +794,78 @@ class DatabaseService {
       'actions': jsonDecode(cmd.actions) as List<dynamic>? ?? [],
       'timestamp': cmd.timestamp,
     };
+  }
+
+  // ── Saved Generated Cards ───────────────────────────────────
+
+  Future<SavedGeneratedCardTableData> saveGeneratedCard({
+    required String title,
+    required String domain,
+    required String rawA2ui,
+    String? source,
+    String? fallbackReason,
+    int? elapsedMs,
+    String? originalPrompt,
+  }) async {
+    final now = DateTime.now();
+    final id = await _db
+        .into(_db.savedGeneratedCardTable)
+        .insert(
+          SavedGeneratedCardTableCompanion.insert(
+            userId: _deviceId,
+            title: _clipText(title.trim().isEmpty ? 'Generated card' : title),
+            domain: Value(_clipText(domain.trim().isEmpty ? 'card' : domain)),
+            rawA2ui: rawA2ui,
+            source: Value(_clipNullable(source)),
+            fallbackReason: Value(_clipNullable(fallbackReason)),
+            elapsedMs: Value(elapsedMs),
+            originalPrompt: Value(_clipNullable(originalPrompt, max: 1000)),
+            createdAt: now,
+            updatedAt: now,
+          ),
+        );
+    await logEvent(
+      eventType: 'generated_card_saved',
+      module: 'jarvis',
+      metadata: {'domain': domain, 'source': source},
+    );
+    return (_db.select(
+      _db.savedGeneratedCardTable,
+    )..where((t) => t.id.equals(id))).getSingle();
+  }
+
+  Stream<List<SavedGeneratedCardTableData>> watchSavedGeneratedCards({
+    int limit = 1,
+  }) {
+    return (_db.select(_db.savedGeneratedCardTable)
+          ..where((t) => t.userId.equals(_deviceId))
+          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+          ..limit(limit))
+        .watch();
+  }
+
+  Future<void> deleteSavedGeneratedCard(int id) async {
+    await (_db.delete(
+      _db.savedGeneratedCardTable,
+    )..where((t) => t.id.equals(id) & t.userId.equals(_deviceId))).go();
+    await logEvent(
+      eventType: 'generated_card_deleted',
+      module: 'jarvis',
+      metadata: {'cardId': id},
+    );
+  }
+
+  String _clipText(String value, {int max = 240}) {
+    final text = value.trim();
+    if (text.length <= max) return text;
+    return text.substring(0, max);
+  }
+
+  String? _clipNullable(String? value, {int max = 240}) {
+    if (value == null) return null;
+    final text = value.trim();
+    if (text.isEmpty) return null;
+    return _clipText(text, max: max);
   }
 
   // ── Conversations (Jarvis chat) ─────────────────────────────

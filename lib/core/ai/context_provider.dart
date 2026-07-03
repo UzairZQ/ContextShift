@@ -12,7 +12,10 @@ class ContextProvider {
 
   static const int _maxContextCharacters = 6000;
 
-  Future<Map<String, Object?>> buildGenUiContext({int? conversationId}) async {
+  Future<Map<String, Object?>> buildGenUiContext({
+    int? conversationId,
+    required String userMessage,
+  }) async {
     final fullSnapshot = _jsonSafeMap(
       await DatabaseService.instance.buildContextSnapshot(),
     );
@@ -21,6 +24,7 @@ class ContextProvider {
         conversationId: conversationId,
       ),
     );
+    final compactMemory = _compactForPrompt(memory) as Map<String, Object?>;
     final history = conversationId == null
         ? const <MessageTableData>[]
         : await DatabaseService.instance.getMessages(conversationId);
@@ -28,34 +32,38 @@ class ContextProvider {
         .where((message) => message.content.trim().isNotEmpty)
         .toList()
         .reversed
-        .take(6)
+        .take(2)
         .toList()
         .reversed
         .map(
           (message) => <String, Object?>{
             'role': message.role,
-            'content': message.content,
+            'content': _clipForPrompt(message.content, 180),
           },
         )
         .toList(growable: false);
 
-    final selectedSnapshot = _selectSnapshotForMessage(
-      fullSnapshot,
-      '',
-      memory,
-      mode: 'generate',
-    );
+    final selectedSnapshot =
+        _compactForPrompt(
+              _selectSnapshotForMessage(
+                fullSnapshot,
+                userMessage,
+                compactMemory,
+                mode: 'generate',
+              ),
+            )
+            as Map<String, Object?>;
     _debugPromptContext(
       mode: 'generate',
       snapshot: selectedSnapshot,
       recentCount: recent.length,
-      memory: memory,
+      memory: compactMemory,
     );
 
     return <String, Object?>{
       'app': 'ContextShift',
       'localSnapshot': selectedSnapshot,
-      'jarvisMemory': memory,
+      'jarvisMemory': compactMemory,
       'recentConversation': recent,
       'allowedActionContext': {
         'create_task': ['title', 'priority'],
@@ -239,10 +247,17 @@ class ContextProvider {
 
     bool mentions(RegExp pattern) =>
         pattern.hasMatch(lower) || pattern.hasMatch(topic);
-    final includeEverything = mode == 'generate' || lower.trim().isEmpty;
+    final wantsOverview =
+        mode == 'generate' &&
+        mentions(
+          RegExp(
+            r'\b(dashboard|overview|summary|stats|metrics|report|everything|all)\b',
+          ),
+        );
+    final includeEverything = lower.trim().isEmpty || wantsOverview;
     final wantsTasks =
         includeEverything ||
-        mentions(RegExp(r'\b(task|todo|priority|deadline|plan)\b'));
+        mentions(RegExp(r'\b(task|todo|priority|deadline)\b'));
     final wantsHabits =
         includeEverything || mentions(RegExp(r'\b(habit|routine|streak)\b'));
     final wantsNotes =
@@ -300,6 +315,26 @@ class ContextProvider {
 
   Map<String, Object?> _jsonSafeMap(Map<String, Object?> value) {
     return _jsonSafe(value) as Map<String, Object?>;
+  }
+
+  Object? _compactForPrompt(Object? value) {
+    if (value is String) return _clipForPrompt(value, 220);
+    if (value is Map) {
+      return value.map<String, Object?>(
+        (key, mapValue) =>
+            MapEntry(key.toString(), _compactForPrompt(mapValue)),
+      );
+    }
+    if (value is Iterable) {
+      return value.take(4).map(_compactForPrompt).toList(growable: false);
+    }
+    return value;
+  }
+
+  String _clipForPrompt(String value, int maxLength) {
+    final cleaned = value.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (cleaned.length <= maxLength) return cleaned;
+    return '${cleaned.substring(0, maxLength - 3).trim()}...';
   }
 
   Object? _jsonSafe(Object? value) {

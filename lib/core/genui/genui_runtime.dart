@@ -2,11 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:genui/genui.dart';
 
 import '../ai/context_provider.dart';
 import '../local_llm/gemma_service.dart';
-import 'jarvis_design_catalog.dart';
 
 class GenUiGeneration {
   final String text;
@@ -52,47 +50,7 @@ enum _FallbackDomain {
 
 /// Connects the official GenUI A2UI runtime to the on-device Gemma model.
 class JarvisGenUiRuntime {
-  JarvisGenUiRuntime() {
-    catalog = JarvisDesignCatalog.extend(
-      BasicCatalogItems.asNoAssetCatalog(
-        systemPromptFragments: const [
-          'Use compact, mobile-first layouts that fit ContextShift.',
-          'Use the basic Flutter-style GenUI catalog as a creative construction '
-              'kit: Column, Row, Card, Text, Button, CheckBox, ChoicePicker, '
-              'DateTimeInput, Divider, Icon, List, Modal, Slider, Tabs, and '
-              'TextField. Combine them into the UI the user actually needs.',
-          'Do not default to the same generic card. First infer the domain and '
-              'the job-to-be-done, then choose the smallest useful interface: '
-              'for workout requests, include concrete exercise blocks, sets or '
-              'time ranges, rest guidance, and progression cues; for schedules, '
-              'include time blocks; for choices, include pickers or checkboxes.',
-          'For clear plan, routine, workout, schedule, checklist, or dashboard '
-              'requests, generate a useful first version instead of asking many '
-              'questions. If details are missing, choose sensible safe defaults '
-              'and make the assumptions visible in the surface.',
-          'Prefer one clear hierarchy and one primary action, but use multiple '
-              'sections, tabs, checkboxes, sliders, or inputs when the request '
-              'benefits from them.',
-          'Use event names create_task, create_habit, create_note, start_focus, '
-              'or continue_conversation when an interaction should affect the app.',
-        ],
-      ),
-    );
-    controller = SurfaceController(catalogs: [catalog]);
-    transport = A2uiTransportAdapter(onSend: _sendToModel);
-    conversation = Conversation(controller: controller, transport: transport);
-    _eventsSubscription = conversation.events.listen(_handleEvent);
-  }
-
-  late final Catalog catalog;
-  late final SurfaceController controller;
-  late final A2uiTransportAdapter transport;
-  late final Conversation conversation;
-
-  final StringBuffer _rawResponse = StringBuffer();
-  String _latestText = '';
-  int? _conversationId;
-  StreamSubscription<ConversationEvent>? _eventsSubscription;
+  JarvisGenUiRuntime();
 
   Future<GenUiGeneration> generate({
     required String userMessage,
@@ -101,9 +59,8 @@ class JarvisGenUiRuntime {
   }) async {
     final stopwatch = Stopwatch()..start();
     try {
-      final plannedMessage = _withPlanningInstruction(userMessage);
       final first = await _generateOnce(
-        userMessage: plannedMessage,
+        userMessage: userMessage,
         conversationId: conversationId,
         timeout: timeout,
       );
@@ -151,124 +108,578 @@ class JarvisGenUiRuntime {
     int? conversationId,
     required Duration timeout,
   }) async {
-    _rawResponse.clear();
-    _latestText = '';
-    _conversationId = conversationId;
+    final localContext = await ContextProvider.instance.buildGenUiContext(
+      conversationId: conversationId,
+      userMessage: userMessage,
+    );
+    final prompt = _buildSurfaceSpecPrompt(
+      request: userMessage,
+      localContext: localContext,
+    );
+    debugPrint('[GenUI] E2B spec prompt length=${prompt.length}');
+    final modelText = await GemmaService.instance.generate(
+      prompt,
+      maxTokens: _maxOutputTokensForRequest(userMessage),
+      temperature: 0.2,
+      timeout: timeout,
+    );
+    var spec = _parseSurfaceSpec(modelText);
+    spec ??= await _repairSurfaceSpec(
+      userMessage: userMessage,
+      invalidOutput: modelText,
+      timeout: timeout,
+    );
+    if (spec == null) {
+      debugPrint('[GenUI] Gemma surface spec was not valid JSON: $modelText');
+      return const GenUiGeneration(
+        text: '',
+        rawA2ui: '',
+        surfaceIds: [],
+        source: GenUiGenerationSource.gemma,
+        elapsed: Duration.zero,
+      );
+    }
 
-    await conversation
-        .sendRequest(ChatMessage.user(userMessage))
-        .timeout(timeout);
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+    final rawA2ui = _a2uiFromSpec(spec, userMessage);
 
     return GenUiGeneration(
-      text: _latestText.trim(),
-      rawA2ui: _rawResponse.toString(),
-      surfaceIds: controller.activeSurfaceIds.toList(growable: false),
+      text: _responseTextFromSpec(spec),
+      rawA2ui: rawA2ui,
+      surfaceIds: const ['jarvis_generated'],
       source: GenUiGenerationSource.gemma,
       elapsed: Duration.zero,
     );
   }
 
-  Future<void> _sendToModel(ChatMessage message) async {
-    if (!GemmaService.instance.isModelLoaded) {
-      throw const GemmaException(
-        code: GemmaErrorCode.modelNotLoaded,
-        message: 'The on-device model is not ready.',
-      );
-    }
+  Future<Map<String, Object?>?> _repairSurfaceSpec({
+    required String userMessage,
+    required String invalidOutput,
+    required Duration timeout,
+  }) async {
+    final clipped = invalidOutput.length > 900
+        ? invalidOutput.substring(0, 900)
+        : invalidOutput;
+    final prompt =
+        '''
+Your previous card spec was invalid or incomplete JSON.
+Return one corrected compact JSON object only. No Markdown. No comments.
 
-    final localContext = await ContextProvider.instance.buildGenUiContext(
-      conversationId: _conversationId,
-    );
-    final prompt = StringBuffer()
-      ..writeln(
-        PromptBuilder.chat(
-          catalog: catalog,
-          systemPromptFragments: [
-            PromptFragments.acknowledgeUser(),
-            PromptFragments.currentDate(),
-            'You are JARVIS, a warm, concise, action-oriented private guide.',
-            'Respond with short useful text and create a surface only when '
-                'interactive or structured UI is genuinely useful.',
-            'Before creating UI, silently infer the user intent, the needed '
-                'data, and the most helpful component structure. Ask a brief '
-                'clarifying question only when a useful UI cannot be made.',
-            'When this runtime is called, the app has already decided GenUI is '
-                'appropriate. Do not keep interviewing the user. Generate the '
-                'card/surface now unless the request is truly unsafe or '
-                'impossible without one missing fact.',
-            'When creating a surface, avoid pre-made templates. Build a fresh '
-                'composition from the available catalog components that fits '
-                'the user prompt and any local ContextShift data.',
-            'Use jarvisMemory, recentConversation, tasks, habits, notes, mood, '
-                'and focus data when relevant. Prefer specific user context '
-                'over generic advice.',
-            'If the user asks for a plan, routine, workout, dashboard, card, '
-                'screen, checklist, program, or visual structure, create an '
-                'A2UI surface unless a plain chat answer is clearly better.',
-            'For workout plans, use practical defaults when unspecified: '
-                'beginner-to-intermediate level, full-body balance, safe warmup, '
-                '3 to 5 movements, rest guidance, and one progression cue.',
-          ],
-          clientDataModel: localContext,
-        ).systemPromptJoined(),
-      )
-      ..writeln('Conversation input:')
-      ..writeln(jsonEncode(message.toJson()));
+Allowed shapes:
+Workout: {"domain":"workout","title":"","subtitle":"","exercises":[{"name":"","sets":"","reps":"","duration":"","rest":"","cue":""}],"tips":[""],"actionTitle":""}
+Schedule: {"domain":"schedule","title":"","subtitle":"","timeline":[{"time":"","title":"","detail":""}],"tips":[""],"actionTitle":""}
+Other: {"domain":"plan","title":"","subtitle":"","items":[{"title":"","detail":""}],"tips":[""],"actionTitle":""}
 
-    await for (final token
-        in GemmaService.instance
-            .generateStream(prompt.toString(), maxTokens: 900, temperature: 0.2)
-            .timeout(
-              const Duration(seconds: 20),
-              onTimeout: (sink) {
-                sink.addError(
-                  TimeoutException(
-                    'JARVIS stream produced no output for 20 seconds.',
-                  ),
-                );
-                sink.close();
-              },
-            )) {
-      _rawResponse.write(token);
-      transport.addChunk(token);
-    }
-    transport.addChunk('\n');
-  }
+Rules:
+- Pick the best shape for the original request.
+- Maximum 4 exercises, 5 timeline blocks, or 5 items.
+- Short values. Finish the JSON object.
 
-  void _handleEvent(ConversationEvent event) {
-    switch (event) {
-      case ConversationContentReceived(:final text):
-        _latestText = text;
-      case ConversationError(:final error, :final stackTrace):
-        debugPrint('[GenUI] Conversation failed: $error');
-        if (stackTrace != null) debugPrintStack(stackTrace: stackTrace);
-      default:
-        break;
-    }
-  }
+Original request: $userMessage
 
-  void dispose() {
-    _eventsSubscription?.cancel();
-    conversation.dispose();
-    transport.dispose();
-    controller.dispose();
-  }
-
-  String _withPlanningInstruction(String userMessage) {
-    return '''
-Think silently before answering.
-1. Identify the user's real request.
-2. Decide whether an interactive/structured surface is useful.
-3. Choose only the catalog widgets/components needed.
-4. Build a fresh composition grounded in the provided ContextShift data.
-5. If the request is a workout, plan, routine, schedule, checklist, dashboard,
-   or card, create the surface now. Do not ask follow-up questions unless the
-   surface would be unsafe or impossible. Use visible assumptions for missing
-   details.
-
-User request: $userMessage
+Invalid output:
+$clipped
 ''';
+
+    try {
+      debugPrint('[GenUI] Repairing invalid Gemma spec');
+      final repaired = await GemmaService.instance.generate(
+        prompt,
+        maxTokens: _maxOutputTokensForRequest(userMessage),
+        temperature: 0.1,
+        timeout: timeout,
+      );
+      return _parseSurfaceSpec(repaired);
+    } catch (error, stackTrace) {
+      debugPrint('[GenUI] Gemma spec repair failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      return null;
+    }
+  }
+
+  void dispose() {}
+
+  String _buildSurfaceSpecPrompt({
+    required String request,
+    required Map<String, Object?> localContext,
+  }) {
+    final forcedRefineDomain = _refineDomainFromRequest(request);
+    final isWorkout = RegExp(
+      r'\b(workout|work out|exercise|training|full body|strength|gym|cardio)\b',
+      caseSensitive: false,
+    ).hasMatch(request);
+    if (forcedRefineDomain != null &&
+        forcedRefineDomain != 'workout' &&
+        forcedRefineDomain != 'schedule') {
+      return '''
+You are JARVIS inside ContextShift. Return one compact JSON object only.
+No Markdown. No comments. No keys except the schema keys.
+
+Schema:
+{"domain":"$forcedRefineDomain","title":"","subtitle":"","items":[{"title":"","detail":""}],"tips":[""],"actionTitle":""}
+
+Rules:
+- Keep domain exactly "$forcedRefineDomain".
+- Use 3-5 useful items.
+- No timeline, no exercises, no extra keys.
+- Short values. Finish the JSON object.
+
+Context JSON:
+${jsonEncode(localContext)}
+
+User request: $request
+''';
+    }
+    if (isWorkout) {
+      return '''
+You are JARVIS inside ContextShift. Return one compact JSON object only.
+No Markdown. No comments. No keys except the schema keys.
+
+Schema:
+{"domain":"workout","title":"","subtitle":"","exercises":[{"name":"","sets":"","reps":"","duration":"","rest":"","cue":""}],"tips":[""],"actionTitle":""}
+
+Rules:
+- Exactly 4 exercise objects.
+- No timeline, no items, no extra keys.
+- Short values. Finish the JSON object.
+- Use safe beginner/intermediate defaults if details are missing.
+
+Context JSON:
+${jsonEncode(localContext)}
+
+User request: $request
+''';
+    }
+
+    final isSchedule = RegExp(
+      r'\b(schedule|calendar|timeline|itinerary|tomorrow|today|week|day plan|time block|time-blocked)\b',
+      caseSensitive: false,
+    ).hasMatch(request);
+    if (isSchedule) {
+      return '''
+You are JARVIS inside ContextShift. Return one compact JSON object only.
+No Markdown. No comments. No keys except the schema keys.
+
+Schema:
+{"domain":"schedule","title":"","subtitle":"","timeline":[{"time":"","title":"","detail":""}],"tips":[""],"actionTitle":""}
+
+Rules:
+- Exactly 5 timeline objects.
+- Include concrete times or durations in the time fields.
+- Cover every named priority in the request.
+- Include breaks and one low-energy fallback block.
+- Short values. Finish the JSON object.
+
+Context JSON:
+${jsonEncode(localContext)}
+
+User request: $request
+''';
+    }
+
+    return '''
+You are JARVIS inside ContextShift. Return one compact JSON object only.
+No Markdown. No comments. Keep values short and useful.
+
+Schema:
+{"domain":"workout|schedule|dashboard|comparison|tracker|form|checklist|plan","title":"","subtitle":"","exercises":[{"name":"","sets":"","reps":"","duration":"","rest":"","cue":""}],"timeline":[{"time":"","title":"","detail":""}],"items":[{"title":"","detail":""}],"tips":[""],"actionTitle":""}
+
+Rules:
+- For workout requests, include 3-4 safe exercises with sets/reps/rest/cues.
+- For schedule requests, include timeline items with times.
+- For everything else, use items and tips.
+- Use sensible defaults if details are missing.
+- Maximum 4 exercises, 5 items, 3 tips.
+
+Context JSON:
+${jsonEncode(localContext)}
+
+User request: $request
+''';
+  }
+
+  int _maxOutputTokensForRequest(String request) {
+    final forcedRefineDomain = _refineDomainFromRequest(request);
+    if (forcedRefineDomain != null && forcedRefineDomain != 'schedule') {
+      return 280;
+    }
+    if (RegExp(
+      r'\b(schedule|calendar|timeline|itinerary|time block|time-blocked)\b',
+      caseSensitive: false,
+    ).hasMatch(request)) {
+      return 360;
+    }
+    return 280;
+  }
+
+  String? _refineDomainFromRequest(String request) {
+    final match = RegExp(
+      r'refine this gemma-generated\s+([a-z]+)\s+card',
+      caseSensitive: false,
+    ).firstMatch(request);
+    final domain = match?.group(1)?.toLowerCase();
+    return switch (domain) {
+      'workout' => 'workout',
+      'schedule' => 'schedule',
+      'dashboard' => 'dashboard',
+      'comparison' => 'comparison',
+      'tracker' => 'tracker',
+      'form' => 'form',
+      'checklist' => 'checklist',
+      'plan' => 'plan',
+      _ => null,
+    };
+  }
+
+  Map<String, Object?>? _parseSurfaceSpec(String text) {
+    final trimmed = text.trim();
+    final fenced = RegExp(
+      r'```(?:json)?\s*([\s\S]*?)\s*```',
+    ).firstMatch(trimmed);
+    final candidate = fenced?.group(1) ?? _firstJsonObject(trimmed);
+    if (candidate == null) return _partialSurfaceSpec(trimmed);
+    try {
+      final decoded = jsonDecode(candidate);
+      if (decoded is Map) return Map<String, Object?>.from(decoded);
+    } catch (_) {
+      return _partialSurfaceSpec(trimmed);
+    }
+    return _partialSurfaceSpec(trimmed);
+  }
+
+  String? _firstJsonObject(String text) {
+    final start = text.indexOf('{');
+    if (start == -1) return null;
+
+    var depth = 0;
+    var inString = false;
+    var escaped = false;
+    for (var i = start; i < text.length; i++) {
+      final char = text[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char == r'\') {
+        escaped = true;
+        continue;
+      }
+      if (char == '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (char == '{') depth++;
+      if (char == '}') {
+        depth--;
+        if (depth == 0) return text.substring(start, i + 1);
+      }
+    }
+    return null;
+  }
+
+  Map<String, Object?>? _partialSurfaceSpec(String text) {
+    final exercises = _partialObjectsWithKey(text, 'name');
+    if (exercises.isNotEmpty) {
+      debugPrint(
+        '[GenUI] Recovered partial Gemma workout spec with '
+        '${exercises.length} exercises',
+      );
+      return {
+        'domain': _regexValue(text, 'domain') ?? 'workout',
+        'title': _regexValue(text, 'title') ?? 'Generated workout',
+        'subtitle': _regexValue(text, 'subtitle') ?? 'Gemma-generated plan',
+        'exercises': exercises,
+        'tips': const ['Warm up first', 'Keep form clean'],
+        'actionTitle': _regexValue(text, 'actionTitle') ?? 'Workout plan',
+      };
+    }
+
+    final timeline = _partialObjectsWithKey(text, 'time');
+    if (timeline.isNotEmpty) {
+      debugPrint(
+        '[GenUI] Recovered partial Gemma schedule spec with '
+        '${timeline.length} blocks',
+      );
+      return {
+        'domain': _regexValue(text, 'domain') ?? 'schedule',
+        'title': _regexValue(text, 'title') ?? 'Generated schedule',
+        'subtitle': _regexValue(text, 'subtitle') ?? 'Gemma-generated plan',
+        'timeline': timeline,
+        'tips': const ['Protect breaks', 'Keep the fallback priority visible'],
+        'actionTitle': _regexValue(text, 'actionTitle') ?? 'Schedule plan',
+      };
+    }
+
+    return null;
+  }
+
+  List<Map<String, Object?>> _partialObjectsWithKey(String text, String key) {
+    final objects = <Map<String, Object?>>[];
+    final pattern = RegExp('\\{[^{}]*"$key"[^{}]*\\}');
+    for (final match in pattern.allMatches(text)) {
+      try {
+        final decoded = jsonDecode(match.group(0)!);
+        if (decoded is Map) {
+          objects.add(Map<String, Object?>.from(decoded));
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+    return objects;
+  }
+
+  String? _regexValue(String text, String key) {
+    final match = RegExp('"$key"\\s*:\\s*"([^"]*)"').firstMatch(text);
+    return match?.group(1);
+  }
+
+  String _a2uiFromSpec(Map<String, Object?> spec, String userMessage) {
+    final domain = _cleanText(spec['domain'], fallback: 'plan').toLowerCase();
+    final title = _cleanText(
+      spec['title'],
+      fallback: _fallbackTitle(
+        userMessage,
+        _fallbackDomain(userMessage.toLowerCase()),
+      ),
+    );
+    final subtitle = _cleanText(
+      spec['subtitle'],
+      fallback: 'Generated locally with Gemma.',
+    );
+    final exercises = _mapList(spec['exercises']).take(4).toList();
+    final timeline = _mapList(spec['timeline']).take(5).toList();
+    final items = _mapList(spec['items']).take(5).toList();
+    final tips = _stringList(spec['tips']).take(3).toList();
+    final children = <String>['hero'];
+    final components = <Map<String, Object?>>[
+      {'id': 'root', 'component': 'Column', 'children': children},
+      {
+        'id': 'hero',
+        'component': 'HeroPanel',
+        'eyebrow': _domainLabel(domain),
+        'title': title,
+        'subtitle': subtitle,
+        'tone': 'primary',
+      },
+    ];
+
+    if (exercises.isNotEmpty) {
+      children.add('main');
+      components.add({
+        'id': 'main',
+        'component': 'WorkoutBlock',
+        'title': _domainLabel(domain) == 'Workout' ? 'Main block' : title,
+        'focus': subtitle,
+        'tone': 'primary',
+        'exercises': exercises.map(_exerciseJson).toList(),
+      });
+    } else if (timeline.isNotEmpty) {
+      children.add('timeline');
+      components.add({
+        'id': 'timeline',
+        'component': 'Timeline',
+        'title': 'Timeline',
+        'tone': 'primary',
+        'items': timeline.map(_timelineJson).toList(),
+      });
+    } else {
+      children.add('main');
+      components.add({
+        'id': 'main',
+        'component': 'Checklist',
+        'title': _domainLabel(domain),
+        'tone': 'primary',
+        'items': (items.isEmpty ? _defaultItems(userMessage) : items)
+            .map(_itemJson)
+            .toList(),
+      });
+    }
+
+    if (tips.isNotEmpty) {
+      children.add('tips');
+      components.add({
+        'id': 'tips',
+        'component': 'Checklist',
+        'title': 'Keep in mind',
+        'tone': 'accent',
+        'items': tips.map((tip) => {'title': tip}).toList(),
+      });
+    }
+
+    children.add('actions');
+    components.add({
+      'id': 'actions',
+      'component': 'ActionDock',
+      'tone': 'primary',
+      'actions': [
+        {
+          'label': 'Save card',
+          'event': 'save_card',
+          'title': title,
+          'domain': domain,
+        },
+        {
+          'label': 'Refine',
+          'event': 'continue_conversation',
+          'message': _refineMessageFromSpec(spec, userMessage),
+        },
+      ],
+    });
+
+    return _encodeA2ui([
+      {
+        'version': 'v0.9',
+        'createSurface': {
+          'surfaceId': 'jarvis_generated',
+          'catalogId': 'https://a2ui.org/specification/v0_9/basic_catalog.json',
+          'sendDataModel': true,
+        },
+      },
+      {
+        'version': 'v0.9',
+        'updateComponents': {
+          'surfaceId': 'jarvis_generated',
+          'components': components,
+        },
+      },
+    ]);
+  }
+
+  String _responseTextFromSpec(Map<String, Object?> spec) {
+    final domain = _domainLabel(_cleanText(spec['domain'], fallback: 'card'));
+    return 'I built a ${domain.toLowerCase()} card with Gemma.';
+  }
+
+  String _refineMessageFromSpec(Map<String, Object?> spec, String userMessage) {
+    final domain = _domainLabel(
+      _cleanText(spec['domain'], fallback: 'card').toLowerCase(),
+    );
+    final title = _cleanText(spec['title'], fallback: 'Generated card');
+    final subtitle = _cleanText(spec['subtitle']);
+    final exercises = _mapList(spec['exercises'])
+        .take(4)
+        .map((item) {
+          final name = _cleanText(item['name'], fallback: 'Exercise');
+          final sets = _cleanText(item['sets']);
+          final reps = _cleanText(item['reps']);
+          final rest = _cleanText(item['rest']);
+          final cue = _cleanText(item['cue']);
+          return [
+            name,
+            if (sets.isNotEmpty || reps.isNotEmpty) '$sets x $reps'.trim(),
+            if (rest.isNotEmpty) 'rest $rest',
+            if (cue.isNotEmpty) cue,
+          ].join(' | ');
+        })
+        .join('; ');
+    final items = _mapList(spec['items'])
+        .take(5)
+        .map((item) => _cleanText(item['title']))
+        .where((item) => item.isNotEmpty)
+        .join('; ');
+    final timeline = _mapList(spec['timeline'])
+        .take(5)
+        .map((item) {
+          final time = _cleanText(item['time']);
+          final title = _cleanText(item['title'], fallback: 'Block');
+          final detail = _cleanText(item['detail']);
+          return [
+            if (time.isNotEmpty) time,
+            title,
+            if (detail.isNotEmpty) detail,
+          ].join(' | ');
+        })
+        .join('; ');
+    final tips = _stringList(spec['tips']).take(3).join('; ');
+
+    final currentDetails = [
+      'Title: $title',
+      if (subtitle.isNotEmpty) 'Subtitle: $subtitle',
+      if (exercises.isNotEmpty) 'Exercises: $exercises',
+      if (timeline.isNotEmpty) 'Timeline: $timeline',
+      if (items.isNotEmpty) 'Items: $items',
+      if (tips.isNotEmpty) 'Tips: $tips',
+    ].join('\n');
+
+    return '''
+Refine this Gemma-generated $domain card into a better second version.
+
+Original request: $userMessage
+
+Current card:
+$currentDetails
+
+Improve it by making it more specific, useful, and personalized. Keep what works, fix weak parts, add missing details, and generate a new card instead of only explaining changes.
+''';
+  }
+
+  String _domainLabel(String domain) {
+    return switch (domain) {
+      'workout' => 'Workout',
+      'schedule' => 'Schedule',
+      'dashboard' => 'Dashboard',
+      'comparison' => 'Comparison',
+      'tracker' => 'Tracker',
+      'form' => 'Form',
+      'checklist' => 'Checklist',
+      _ => 'Plan',
+    };
+  }
+
+  List<Map<String, Object?>> _mapList(Object? value) {
+    if (value is! List) return const [];
+    return value
+        .whereType<Map>()
+        .map((item) => Map<String, Object?>.from(item))
+        .toList();
+  }
+
+  List<String> _stringList(Object? value) {
+    if (value is! List) return const [];
+    return value
+        .map((item) => _cleanText(item))
+        .where((item) => item.isNotEmpty)
+        .toList();
+  }
+
+  Map<String, Object?> _exerciseJson(Map<String, Object?> item) {
+    return {
+      'name': _cleanText(item['name'], fallback: 'Movement'),
+      'sets': _cleanText(item['sets']),
+      'reps': _cleanText(item['reps']),
+      'duration': _cleanText(item['duration']),
+      'rest': _cleanText(item['rest']),
+      'cue': _cleanText(item['cue']),
+    };
+  }
+
+  Map<String, Object?> _timelineJson(Map<String, Object?> item) {
+    return {
+      'time': _cleanText(item['time'], fallback: 'Next'),
+      'title': _cleanText(item['title'], fallback: 'Block'),
+      'detail': _cleanText(item['detail']),
+    };
+  }
+
+  Map<String, Object?> _itemJson(Map<String, Object?> item) {
+    return {
+      'title': _cleanText(item['title'], fallback: 'Step'),
+      'detail': _cleanText(item['detail']),
+    };
+  }
+
+  List<Map<String, Object?>> _defaultItems(String userMessage) {
+    return [
+      {'title': _fallbackTitle(userMessage, _FallbackDomain.plan)},
+      {'title': 'Ask JARVIS to refine with more details'},
+    ];
+  }
+
+  String _cleanText(Object? value, {String fallback = ''}) {
+    final text = value?.toString().replaceAll(RegExp(r'\s+'), ' ').trim() ?? '';
+    if (text.isEmpty) return fallback;
+    return text.length > 180 ? '${text.substring(0, 177)}...' : text;
   }
 
   GenUiGeneration _fallbackGeneration(
@@ -309,7 +720,12 @@ User request: $userMessage
         'component': 'ActionDock',
         'tone': 'primary',
         'actions': [
-          {'label': 'Save as task', 'event': 'create_task', 'title': title},
+          {
+            'label': 'Save card',
+            'event': 'save_card',
+            'title': title,
+            'domain': domain.label.toLowerCase(),
+          },
           {
             'label': 'Refine',
             'event': 'continue_conversation',

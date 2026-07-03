@@ -127,7 +127,6 @@ class _LaunchGateState extends State<_LaunchGate> {
       }
 
       final needsProfile = !DatabaseService.instance.hasProfileData;
-      if (!needsProfile) unawaited(_warmJarvisDuringSplash());
       await _holdSplash(startedAt);
       if (!mounted) return;
       if (!needsProfile) {
@@ -157,19 +156,6 @@ class _LaunchGateState extends State<_LaunchGate> {
     final remaining = _minimumSplash - elapsed;
     if (remaining > Duration.zero) {
       await Future<void>.delayed(remaining);
-    }
-  }
-
-  Future<void> _warmJarvisDuringSplash() async {
-    if (GemmaService.instance.isModelLoaded) return;
-    if (!FeatureManager.instance.hasVerifiedModel) return;
-    try {
-      await GemmaService.instance.loadBestAvailableModel().timeout(
-        const Duration(seconds: 45),
-      );
-    } catch (error, stackTrace) {
-      debugPrint('[_LaunchGate] Splash JARVIS warmup skipped: $error');
-      debugPrintStack(stackTrace: stackTrace);
     }
   }
 

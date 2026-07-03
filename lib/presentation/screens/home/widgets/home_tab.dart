@@ -30,6 +30,7 @@ class HomeTab extends StatelessWidget {
   final int focusMinutesToday;
   final String? todayMood;
   final String? activeSurfaceRawA2ui;
+  final String? activeSurfaceTitle;
   final String? activeSurfaceSource;
   final String? activeSurfaceFallbackReason;
   final int? activeSurfaceElapsedMs;
@@ -44,6 +45,7 @@ class HomeTab extends StatelessWidget {
   final ValueChanged<String> onSubmitCommand;
   final ValueChanged<String> onSelectMood;
   final VoidCallback onDismissResponse;
+  final VoidCallback? onDeleteActiveSurface;
 
   const HomeTab({
     super.key,
@@ -60,6 +62,7 @@ class HomeTab extends StatelessWidget {
     required this.aiInsight,
     required this.focusMinutesToday,
     required this.todayMood,
+    required this.activeSurfaceTitle,
     required this.activeSurfaceRawA2ui,
     required this.activeSurfaceSource,
     required this.activeSurfaceFallbackReason,
@@ -75,6 +78,7 @@ class HomeTab extends StatelessWidget {
     required this.onSubmitCommand,
     required this.onSelectMood,
     required this.onDismissResponse,
+    required this.onDeleteActiveSurface,
   });
 
   @override
@@ -118,11 +122,13 @@ class HomeTab extends StatelessWidget {
             WonderousReveal(
               delay: const Duration(milliseconds: 120),
               child: _ActiveSurfaceFrame(
+                title: activeSurfaceTitle,
                 rawA2ui: activeSurfaceRawA2ui!,
                 source: activeSurfaceSource,
                 fallbackReason: activeSurfaceFallbackReason,
                 elapsedMs: activeSurfaceElapsedMs,
                 onAction: onSurfaceAction,
+                onDelete: onDeleteActiveSurface,
               ),
             ),
           ],
@@ -237,18 +243,22 @@ class _HeroCommandPanel extends StatelessWidget {
 }
 
 class _ActiveSurfaceFrame extends StatelessWidget {
+  final String? title;
   final String rawA2ui;
   final String? source;
   final String? fallbackReason;
   final int? elapsedMs;
   final ValueChanged<WidgetAction> onAction;
+  final VoidCallback? onDelete;
 
   const _ActiveSurfaceFrame({
+    this.title,
     required this.rawA2ui,
     required this.onAction,
     this.source,
     this.fallbackReason,
     this.elapsedMs,
+    this.onDelete,
   });
 
   @override
@@ -269,13 +279,27 @@ class _ActiveSurfaceFrame extends StatelessWidget {
                 color: AppTheme.intelligence,
               ),
               const SizedBox(width: 8),
-              Text(
-                'Generated surface',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: AppTheme.onSurface,
-                  fontWeight: FontWeight.w900,
+              Expanded(
+                child: Text(
+                  title ?? 'Generated surface',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppTheme.onSurface,
+                    fontWeight: FontWeight.w900,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (onDelete != null) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Remove from Home',
+                  onPressed: onDelete,
+                  icon: const Icon(LucideIcons.x, size: 16),
+                  color: AppTheme.onSurfaceVariant,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 10),
@@ -425,6 +449,7 @@ class _TodaySnapshot {
   final int totalTasks;
   final int priorityTasks;
   final int habitsDone;
+  final int reduceHabitsProtected;
   final int totalHabits;
   final int focusMinutesToday;
   final int noteCount;
@@ -436,6 +461,7 @@ class _TodaySnapshot {
     required this.totalTasks,
     required this.priorityTasks,
     required this.habitsDone,
+    required this.reduceHabitsProtected,
     required this.totalHabits,
     required this.focusMinutesToday,
     required this.noteCount,
@@ -456,7 +482,17 @@ class _TodaySnapshot {
       final priority = task['priority'] as String? ?? 'normal';
       return !done && (priority == 'high' || priority == 'urgent');
     }).length;
-    final habitsDone = habits.where((habit) {
+    final buildHabits = habits
+        .where((habit) => (habit['kind'] ?? 'build') != 'reduce')
+        .toList();
+    final reduceHabits = habits
+        .where((habit) => habit['kind'] == 'reduce')
+        .toList();
+    final habitsDone = buildHabits.where((habit) {
+      final dates = (habit['completedDates'] as List<dynamic>?) ?? [];
+      return dates.contains(today);
+    }).length;
+    final reduceHabitsProtected = reduceHabits.where((habit) {
       final dates = (habit['completedDates'] as List<dynamic>?) ?? [];
       return dates.contains(today);
     }).length;
@@ -467,6 +503,7 @@ class _TodaySnapshot {
       totalTasks: tasks.length,
       priorityTasks: priorityTasks,
       habitsDone: habitsDone,
+      reduceHabitsProtected: reduceHabitsProtected,
       totalHabits: habits.length,
       focusMinutesToday: focusMinutesToday,
       noteCount: notes.length,
@@ -480,13 +517,15 @@ class _TodaySnapshot {
 
   double get taskProgress => totalTasks == 0 ? 0 : completedTasks / totalTasks;
 
-  double get habitProgress => totalHabits == 0 ? 0 : habitsDone / totalHabits;
+  int get behaviorWins => habitsDone + reduceHabitsProtected;
+
+  double get habitProgress => totalHabits == 0 ? 0 : behaviorWins / totalHabits;
 
   String get nextMoveTitle {
     if (priorityTasks > 0) return 'Clear the sharp edge first';
     if (pendingTasks > 0) return 'Pick one task and make it small';
-    if (totalHabits > 0 && habitsDone < totalHabits) {
-      return 'Keep the streak alive';
+    if (totalHabits > 0 && behaviorWins < totalHabits) {
+      return 'Make the behavior obvious';
     }
     if (focusMinutesToday < 25) return 'Protect one focus block';
     if (todayMood == null) return 'Check in before the day runs away';
@@ -501,8 +540,9 @@ class _TodaySnapshot {
     if (pendingTasks > 0) {
       return '$pendingTasks pending ${pendingTasks == 1 ? 'task' : 'tasks'}. JARVIS can help turn one into a clean next action.';
     }
-    if (totalHabits > 0 && habitsDone < totalHabits) {
-      return '${totalHabits - habitsDone} habit ${totalHabits - habitsDone == 1 ? 'check' : 'checks'} left today. Tiny wins still count.';
+    if (totalHabits > 0 && behaviorWins < totalHabits) {
+      final remaining = totalHabits - behaviorWins;
+      return '$remaining behavior ${remaining == 1 ? 'signal is' : 'signals are'} still open. Practice, protect, or make the next move smaller.';
     }
     if (focusMinutesToday < 25) {
       return 'A 25-minute session is enough to shift the whole day. Start before the context leaks.';
@@ -518,7 +558,7 @@ class _TodaySnapshot {
 
   IconData get nextMoveIcon {
     if (priorityTasks > 0 || pendingTasks > 0) return LucideIcons.checkSquare;
-    if (totalHabits > 0 && habitsDone < totalHabits) {
+    if (totalHabits > 0 && behaviorWins < totalHabits) {
       return LucideIcons.activity;
     }
     if (focusMinutesToday < 25) return LucideIcons.timer;
@@ -646,7 +686,7 @@ class _NextMoveCard extends StatelessWidget {
       return ('Open tasks', onOpenTasks);
     }
     if (snapshot.totalHabits > 0 &&
-        snapshot.habitsDone < snapshot.totalHabits) {
+        snapshot.behaviorWins < snapshot.totalHabits) {
       return ('Open habits', onOpenHabits);
     }
     if (snapshot.focusMinutesToday < 25) return ('Start focus', onOpenFocus);
@@ -691,8 +731,8 @@ class _GlanceGrid extends StatelessWidget {
         ),
         _GlanceCard(
           label: 'Habits',
-          value: '${snapshot.habitsDone}/${snapshot.totalHabits}',
-          detail: snapshot.totalHabits == 0 ? 'none yet' : 'done today',
+          value: '${snapshot.behaviorWins}/${snapshot.totalHabits}',
+          detail: snapshot.totalHabits == 0 ? 'none yet' : 'signals today',
           icon: LucideIcons.activity,
           color: AppTheme.success,
           progress: snapshot.habitProgress,

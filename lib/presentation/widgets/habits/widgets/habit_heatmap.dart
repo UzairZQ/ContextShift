@@ -37,7 +37,7 @@ class HabitHeatmap extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                "Activity History",
+                "Behavior History",
                 style: TextStyle(
                   color: Colors.white70,
                   fontSize: 13,
@@ -45,7 +45,7 @@ class HabitHeatmap extends StatelessWidget {
                 ),
               ),
               Text(
-                "Last 28 Days",
+                "practice + protected days",
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.3),
                   fontSize: 11,

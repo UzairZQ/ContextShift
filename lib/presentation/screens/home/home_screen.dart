@@ -10,6 +10,7 @@ import '../../../core/app_spacing.dart';
 import '../../../core/app_routes.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
+import '../../../core/database/schema.dart';
 import '../../../core/genui/genui_runtime.dart';
 import '../../../core/genui/widget_node.dart';
 import '../../../core/local_llm/gemma_service.dart';
@@ -43,16 +44,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? _aiResponse;
   bool _isProcessingCommand = false;
   bool _isLoadingInsight = true;
-  bool _isAutoWarmingJarvis = false;
   int _focusMinutesToday = 0;
   String? _todayMood;
   String? _activeSurfaceRawA2ui;
   String? _activeSurfaceSource;
   String? _activeSurfaceFallbackReason;
   int? _activeSurfaceElapsedMs;
+  SavedGeneratedCardTableData? _savedGeneratedCard;
 
   final TextEditingController _commandController = TextEditingController();
   JarvisGenUiRuntime? _homeGenUiRuntime;
+  StreamSubscription<List<SavedGeneratedCardTableData>>? _savedCardSub;
   late final AnimationController _responseAnimController;
 
   @override
@@ -64,13 +66,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
     GemmaService.instance.statusRevision.addListener(_refreshJarvisStatus);
     _computeGreeting();
+    _watchSavedGeneratedCard();
     _loadInitialData();
-    unawaited(_maybeWarmVerifiedJarvis());
   }
 
   @override
   void dispose() {
     GemmaService.instance.statusRevision.removeListener(_refreshJarvisStatus);
+    _savedCardSub?.cancel();
     _homeGenUiRuntime?.dispose();
     _responseAnimController.dispose();
     _commandController.dispose();
@@ -85,28 +88,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return _homeGenUiRuntime ??= JarvisGenUiRuntime();
   }
 
-  Future<void> _maybeWarmVerifiedJarvis() async {
-    if (_isAutoWarmingJarvis || GemmaService.instance.isModelLoaded) return;
-    if (!FeatureManager.instance.hasVerifiedModel) return;
-
-    final model = FeatureManager.instance.resolveBestModelDef();
-    if (model == null) return;
-
-    debugPrint(
-      '[HomeScreen] Auto-warming verified JARVIS model: ${model.modelId}',
-    );
-    if (mounted) setState(() => _isAutoWarmingJarvis = true);
-    try {
-      await GemmaService.instance
-          .loadModel(model)
-          .timeout(const Duration(seconds: 60));
-      debugPrint('[HomeScreen] Verified JARVIS model warmed successfully');
-    } catch (error, stackTrace) {
-      debugPrint('[HomeScreen] Auto-warm JARVIS failed: $error');
-      debugPrintStack(stackTrace: stackTrace);
-    } finally {
-      if (mounted) setState(() => _isAutoWarmingJarvis = false);
-    }
+  void _watchSavedGeneratedCard() {
+    _savedCardSub = DatabaseService.instance.watchSavedGeneratedCards().listen((
+      cards,
+    ) {
+      if (!mounted) return;
+      setState(() {
+        _savedGeneratedCard = cards.isEmpty ? null : cards.first;
+      });
+    });
   }
 
   void _computeGreeting() {
@@ -167,8 +157,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (command.trim().isEmpty) return;
 
     try {
-      if (!FeatureManager.instance.isE2bAvailable &&
-          !FeatureManager.instance.isE4bAvailable) {
+      if (!FeatureManager.instance.isE2bAvailable) {
         if (!mounted) return;
         _openModelDownload();
         return;
@@ -180,7 +169,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       await _ensureJarvisReadyForHome(command);
       final generation = await _homeGenUiRuntimeInstance.generate(
         userMessage: command,
-        timeout: const Duration(seconds: 24),
+        timeout: const Duration(seconds: 38),
       );
 
       final response = generation.text.isEmpty
@@ -278,11 +267,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _switchTab(int index) {
     if (_currentIndex == index) return;
+    final previousIndex = _currentIndex;
     setState(() => _currentIndex = index);
+    if (previousIndex == 3 || index == 0) {
+      unawaited(_refreshFocusMinutes());
+    }
     DatabaseService.instance.logEvent(
       eventType: 'tab_tap',
       module: ['home', 'tasks', 'habits', 'focus', 'journal'][index],
     );
+  }
+
+  Future<void> _refreshFocusMinutes() async {
+    final focusMinutes = await DatabaseService.instance.getTodayFocusMinutes();
+    if (!mounted) return;
+    setState(() => _focusMinutesToday = focusMinutes);
   }
 
   Future<void> _saveMood(String mood) async {
@@ -368,29 +367,79 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _pushChat({
     String? initialMessage,
     bool startNewOnOpen = false,
+    bool initialGenerateMode = false,
   }) {
     return Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => ChatScreen(
           initialMessage: initialMessage,
           startNewOnOpen: startNewOnOpen,
+          initialGenerateMode: initialGenerateMode,
         ),
       ),
     );
   }
 
   Future<void> _handleHomeSurfaceAction(WidgetAction action) async {
+    if (action.action == 'save_card') {
+      await _saveGeneratedCard(action);
+      return;
+    }
+
     final aiAction = GeneratedUiActionMapper.toAiAction(action);
     if (aiAction == null) {
       final message = GeneratedUiActionMapper.continuationMessage(action);
       if (message != null && message.isNotEmpty) {
-        await _pushChat(initialMessage: message);
+        await _pushChat(
+          initialMessage: message,
+          initialGenerateMode: action.action == 'continue_conversation',
+        );
       }
       return;
     }
     await ActionExecutor.instance.executeAll([aiAction]);
     if (!mounted) return;
     _showResponseSnackBar('Done');
+  }
+
+  Future<void> _saveGeneratedCard(WidgetAction action) async {
+    final rawA2ui = _textParam(action, 'rawA2ui');
+    if (rawA2ui == null) {
+      _showResponseSnackBar('This card could not be saved.');
+      return;
+    }
+    if (_savedGeneratedCard?.rawA2ui == rawA2ui) {
+      _showResponseSnackBar('Already saved on Home');
+      return;
+    }
+    await DatabaseService.instance.saveGeneratedCard(
+      title: _textParam(action, 'title') ?? 'Generated card',
+      domain: _textParam(action, 'domain') ?? 'card',
+      rawA2ui: rawA2ui,
+      source: _textParam(action, 'source'),
+      fallbackReason: _textParam(action, 'fallbackReason'),
+      elapsedMs: _intParam(action, 'elapsedMs'),
+    );
+    if (!mounted) return;
+    _showResponseSnackBar('Saved to Home');
+  }
+
+  Future<void> _deleteSavedGeneratedCard(int id) async {
+    await DatabaseService.instance.deleteSavedGeneratedCard(id);
+    if (!mounted) return;
+    _showResponseSnackBar('Removed from Home');
+  }
+
+  String? _textParam(WidgetAction action, String key) {
+    final value = action.params[key];
+    if (value is! String) return null;
+    final text = value.trim();
+    return text.isEmpty ? null : text;
+  }
+
+  int? _intParam(WidgetAction action, String key) {
+    final value = action.params[key];
+    return value is num ? value.round() : null;
   }
 
   Widget _buildBody() {
@@ -404,12 +453,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           isJarvisOnline: GemmaService.instance.isModelLoaded,
           hasCheckedJarvisStatus: true,
           isProcessingCommand: _isProcessingCommand,
-          offlineHint: _isAutoWarmingJarvis
-              ? 'Warming up JARVIS...'
-              : FeatureManager.instance.hasVerifiedModel
-              ? 'JARVIS will wake up automatically'
-              : FeatureManager.instance.isE2bAvailable ||
-                    FeatureManager.instance.isE4bAvailable
+          offlineHint: FeatureManager.instance.hasVerifiedModel
+              ? 'Ready. Send to initialize JARVIS'
+              : FeatureManager.instance.isE2bAvailable
               ? 'Initialize JARVIS in Manage AI'
               : 'Download JARVIS to chat',
           aiResponse: _aiResponse,
@@ -418,10 +464,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           aiInsight: _aiInsight,
           focusMinutesToday: _focusMinutesToday,
           todayMood: _todayMood,
-          activeSurfaceRawA2ui: _activeSurfaceRawA2ui,
-          activeSurfaceSource: _activeSurfaceSource,
-          activeSurfaceFallbackReason: _activeSurfaceFallbackReason,
-          activeSurfaceElapsedMs: _activeSurfaceElapsedMs,
+          activeSurfaceTitle: _savedGeneratedCard?.title,
+          activeSurfaceRawA2ui:
+              _savedGeneratedCard?.rawA2ui ?? _activeSurfaceRawA2ui,
+          activeSurfaceSource:
+              _savedGeneratedCard?.source ?? _activeSurfaceSource,
+          activeSurfaceFallbackReason:
+              _savedGeneratedCard?.fallbackReason ??
+              _activeSurfaceFallbackReason,
+          activeSurfaceElapsedMs:
+              _savedGeneratedCard?.elapsedMs ?? _activeSurfaceElapsedMs,
+          onDeleteActiveSurface: _savedGeneratedCard == null
+              ? null
+              : () => unawaited(
+                  _deleteSavedGeneratedCard(_savedGeneratedCard!.id),
+                ),
           onOpenDashboard: _openDashboard,
           onOpenProfile: _openProfile,
           onOpenChat: _openChat,
@@ -454,8 +511,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         bottom: false,
         child: Column(
           children: [
-            if (!FeatureManager.instance.isE2bAvailable &&
-                !FeatureManager.instance.isE4bAvailable)
+            if (!FeatureManager.instance.isE2bAvailable)
               GestureDetector(
                 onTap: _openModelDownload,
                 child: Container(
@@ -531,7 +587,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
     if (!mounted) return;
     setState(() {});
-    unawaited(_maybeWarmVerifiedJarvis());
   }
 }
 

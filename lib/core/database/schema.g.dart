@@ -1772,6 +1772,56 @@ class $HabitTableTable extends HabitTable
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('build'),
+  );
+  static const VerificationMeta _cueMeta = const VerificationMeta('cue');
+  @override
+  late final GeneratedColumn<String> cue = GeneratedColumn<String>(
+    'cue',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _tinyStepMeta = const VerificationMeta(
+    'tinyStep',
+  );
+  @override
+  late final GeneratedColumn<String> tinyStep = GeneratedColumn<String>(
+    'tiny_step',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _rewardMeta = const VerificationMeta('reward');
+  @override
+  late final GeneratedColumn<String> reward = GeneratedColumn<String>(
+    'reward',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _frictionMeta = const VerificationMeta(
+    'friction',
+  );
+  @override
+  late final GeneratedColumn<String> friction = GeneratedColumn<String>(
+    'friction',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _completedDatesMeta = const VerificationMeta(
     'completedDates',
   );
@@ -1801,6 +1851,11 @@ class $HabitTableTable extends HabitTable
     userId,
     name,
     icon,
+    kind,
+    cue,
+    tinyStep,
+    reward,
+    friction,
     completedDates,
     createdAt,
   ];
@@ -1842,6 +1897,36 @@ class $HabitTableTable extends HabitTable
       );
     } else if (isInserting) {
       context.missing(_iconMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
+    if (data.containsKey('cue')) {
+      context.handle(
+        _cueMeta,
+        cue.isAcceptableOrUnknown(data['cue']!, _cueMeta),
+      );
+    }
+    if (data.containsKey('tiny_step')) {
+      context.handle(
+        _tinyStepMeta,
+        tinyStep.isAcceptableOrUnknown(data['tiny_step']!, _tinyStepMeta),
+      );
+    }
+    if (data.containsKey('reward')) {
+      context.handle(
+        _rewardMeta,
+        reward.isAcceptableOrUnknown(data['reward']!, _rewardMeta),
+      );
+    }
+    if (data.containsKey('friction')) {
+      context.handle(
+        _frictionMeta,
+        friction.isAcceptableOrUnknown(data['friction']!, _frictionMeta),
+      );
     }
     if (data.containsKey('completed_dates')) {
       context.handle(
@@ -1885,6 +1970,26 @@ class $HabitTableTable extends HabitTable
         DriftSqlType.string,
         data['${effectivePrefix}icon'],
       )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      cue: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cue'],
+      ),
+      tinyStep: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tiny_step'],
+      ),
+      reward: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reward'],
+      ),
+      friction: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}friction'],
+      ),
       completedDates: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}completed_dates'],
@@ -1907,6 +2012,11 @@ class HabitTableData extends DataClass implements Insertable<HabitTableData> {
   final String userId;
   final String name;
   final String icon;
+  final String kind;
+  final String? cue;
+  final String? tinyStep;
+  final String? reward;
+  final String? friction;
   final String completedDates;
   final DateTime createdAt;
   const HabitTableData({
@@ -1914,6 +2024,11 @@ class HabitTableData extends DataClass implements Insertable<HabitTableData> {
     required this.userId,
     required this.name,
     required this.icon,
+    required this.kind,
+    this.cue,
+    this.tinyStep,
+    this.reward,
+    this.friction,
     required this.completedDates,
     required this.createdAt,
   });
@@ -1924,6 +2039,19 @@ class HabitTableData extends DataClass implements Insertable<HabitTableData> {
     map['user_id'] = Variable<String>(userId);
     map['name'] = Variable<String>(name);
     map['icon'] = Variable<String>(icon);
+    map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || cue != null) {
+      map['cue'] = Variable<String>(cue);
+    }
+    if (!nullToAbsent || tinyStep != null) {
+      map['tiny_step'] = Variable<String>(tinyStep);
+    }
+    if (!nullToAbsent || reward != null) {
+      map['reward'] = Variable<String>(reward);
+    }
+    if (!nullToAbsent || friction != null) {
+      map['friction'] = Variable<String>(friction);
+    }
     map['completed_dates'] = Variable<String>(completedDates);
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
@@ -1935,6 +2063,17 @@ class HabitTableData extends DataClass implements Insertable<HabitTableData> {
       userId: Value(userId),
       name: Value(name),
       icon: Value(icon),
+      kind: Value(kind),
+      cue: cue == null && nullToAbsent ? const Value.absent() : Value(cue),
+      tinyStep: tinyStep == null && nullToAbsent
+          ? const Value.absent()
+          : Value(tinyStep),
+      reward: reward == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reward),
+      friction: friction == null && nullToAbsent
+          ? const Value.absent()
+          : Value(friction),
       completedDates: Value(completedDates),
       createdAt: Value(createdAt),
     );
@@ -1950,6 +2089,11 @@ class HabitTableData extends DataClass implements Insertable<HabitTableData> {
       userId: serializer.fromJson<String>(json['userId']),
       name: serializer.fromJson<String>(json['name']),
       icon: serializer.fromJson<String>(json['icon']),
+      kind: serializer.fromJson<String>(json['kind']),
+      cue: serializer.fromJson<String?>(json['cue']),
+      tinyStep: serializer.fromJson<String?>(json['tinyStep']),
+      reward: serializer.fromJson<String?>(json['reward']),
+      friction: serializer.fromJson<String?>(json['friction']),
       completedDates: serializer.fromJson<String>(json['completedDates']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
@@ -1962,6 +2106,11 @@ class HabitTableData extends DataClass implements Insertable<HabitTableData> {
       'userId': serializer.toJson<String>(userId),
       'name': serializer.toJson<String>(name),
       'icon': serializer.toJson<String>(icon),
+      'kind': serializer.toJson<String>(kind),
+      'cue': serializer.toJson<String?>(cue),
+      'tinyStep': serializer.toJson<String?>(tinyStep),
+      'reward': serializer.toJson<String?>(reward),
+      'friction': serializer.toJson<String?>(friction),
       'completedDates': serializer.toJson<String>(completedDates),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
@@ -1972,6 +2121,11 @@ class HabitTableData extends DataClass implements Insertable<HabitTableData> {
     String? userId,
     String? name,
     String? icon,
+    String? kind,
+    Value<String?> cue = const Value.absent(),
+    Value<String?> tinyStep = const Value.absent(),
+    Value<String?> reward = const Value.absent(),
+    Value<String?> friction = const Value.absent(),
     String? completedDates,
     DateTime? createdAt,
   }) => HabitTableData(
@@ -1979,6 +2133,11 @@ class HabitTableData extends DataClass implements Insertable<HabitTableData> {
     userId: userId ?? this.userId,
     name: name ?? this.name,
     icon: icon ?? this.icon,
+    kind: kind ?? this.kind,
+    cue: cue.present ? cue.value : this.cue,
+    tinyStep: tinyStep.present ? tinyStep.value : this.tinyStep,
+    reward: reward.present ? reward.value : this.reward,
+    friction: friction.present ? friction.value : this.friction,
     completedDates: completedDates ?? this.completedDates,
     createdAt: createdAt ?? this.createdAt,
   );
@@ -1988,6 +2147,11 @@ class HabitTableData extends DataClass implements Insertable<HabitTableData> {
       userId: data.userId.present ? data.userId.value : this.userId,
       name: data.name.present ? data.name.value : this.name,
       icon: data.icon.present ? data.icon.value : this.icon,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      cue: data.cue.present ? data.cue.value : this.cue,
+      tinyStep: data.tinyStep.present ? data.tinyStep.value : this.tinyStep,
+      reward: data.reward.present ? data.reward.value : this.reward,
+      friction: data.friction.present ? data.friction.value : this.friction,
       completedDates: data.completedDates.present
           ? data.completedDates.value
           : this.completedDates,
@@ -2002,6 +2166,11 @@ class HabitTableData extends DataClass implements Insertable<HabitTableData> {
           ..write('userId: $userId, ')
           ..write('name: $name, ')
           ..write('icon: $icon, ')
+          ..write('kind: $kind, ')
+          ..write('cue: $cue, ')
+          ..write('tinyStep: $tinyStep, ')
+          ..write('reward: $reward, ')
+          ..write('friction: $friction, ')
           ..write('completedDates: $completedDates, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
@@ -2009,8 +2178,19 @@ class HabitTableData extends DataClass implements Insertable<HabitTableData> {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, userId, name, icon, completedDates, createdAt);
+  int get hashCode => Object.hash(
+    id,
+    userId,
+    name,
+    icon,
+    kind,
+    cue,
+    tinyStep,
+    reward,
+    friction,
+    completedDates,
+    createdAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2019,6 +2199,11 @@ class HabitTableData extends DataClass implements Insertable<HabitTableData> {
           other.userId == this.userId &&
           other.name == this.name &&
           other.icon == this.icon &&
+          other.kind == this.kind &&
+          other.cue == this.cue &&
+          other.tinyStep == this.tinyStep &&
+          other.reward == this.reward &&
+          other.friction == this.friction &&
           other.completedDates == this.completedDates &&
           other.createdAt == this.createdAt);
 }
@@ -2028,6 +2213,11 @@ class HabitTableCompanion extends UpdateCompanion<HabitTableData> {
   final Value<String> userId;
   final Value<String> name;
   final Value<String> icon;
+  final Value<String> kind;
+  final Value<String?> cue;
+  final Value<String?> tinyStep;
+  final Value<String?> reward;
+  final Value<String?> friction;
   final Value<String> completedDates;
   final Value<DateTime> createdAt;
   const HabitTableCompanion({
@@ -2035,6 +2225,11 @@ class HabitTableCompanion extends UpdateCompanion<HabitTableData> {
     this.userId = const Value.absent(),
     this.name = const Value.absent(),
     this.icon = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.cue = const Value.absent(),
+    this.tinyStep = const Value.absent(),
+    this.reward = const Value.absent(),
+    this.friction = const Value.absent(),
     this.completedDates = const Value.absent(),
     this.createdAt = const Value.absent(),
   });
@@ -2043,6 +2238,11 @@ class HabitTableCompanion extends UpdateCompanion<HabitTableData> {
     required String userId,
     required String name,
     required String icon,
+    this.kind = const Value.absent(),
+    this.cue = const Value.absent(),
+    this.tinyStep = const Value.absent(),
+    this.reward = const Value.absent(),
+    this.friction = const Value.absent(),
     this.completedDates = const Value.absent(),
     required DateTime createdAt,
   }) : userId = Value(userId),
@@ -2054,6 +2254,11 @@ class HabitTableCompanion extends UpdateCompanion<HabitTableData> {
     Expression<String>? userId,
     Expression<String>? name,
     Expression<String>? icon,
+    Expression<String>? kind,
+    Expression<String>? cue,
+    Expression<String>? tinyStep,
+    Expression<String>? reward,
+    Expression<String>? friction,
     Expression<String>? completedDates,
     Expression<DateTime>? createdAt,
   }) {
@@ -2062,6 +2267,11 @@ class HabitTableCompanion extends UpdateCompanion<HabitTableData> {
       if (userId != null) 'user_id': userId,
       if (name != null) 'name': name,
       if (icon != null) 'icon': icon,
+      if (kind != null) 'kind': kind,
+      if (cue != null) 'cue': cue,
+      if (tinyStep != null) 'tiny_step': tinyStep,
+      if (reward != null) 'reward': reward,
+      if (friction != null) 'friction': friction,
       if (completedDates != null) 'completed_dates': completedDates,
       if (createdAt != null) 'created_at': createdAt,
     });
@@ -2072,6 +2282,11 @@ class HabitTableCompanion extends UpdateCompanion<HabitTableData> {
     Value<String>? userId,
     Value<String>? name,
     Value<String>? icon,
+    Value<String>? kind,
+    Value<String?>? cue,
+    Value<String?>? tinyStep,
+    Value<String?>? reward,
+    Value<String?>? friction,
     Value<String>? completedDates,
     Value<DateTime>? createdAt,
   }) {
@@ -2080,6 +2295,11 @@ class HabitTableCompanion extends UpdateCompanion<HabitTableData> {
       userId: userId ?? this.userId,
       name: name ?? this.name,
       icon: icon ?? this.icon,
+      kind: kind ?? this.kind,
+      cue: cue ?? this.cue,
+      tinyStep: tinyStep ?? this.tinyStep,
+      reward: reward ?? this.reward,
+      friction: friction ?? this.friction,
       completedDates: completedDates ?? this.completedDates,
       createdAt: createdAt ?? this.createdAt,
     );
@@ -2100,6 +2320,21 @@ class HabitTableCompanion extends UpdateCompanion<HabitTableData> {
     if (icon.present) {
       map['icon'] = Variable<String>(icon.value);
     }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (cue.present) {
+      map['cue'] = Variable<String>(cue.value);
+    }
+    if (tinyStep.present) {
+      map['tiny_step'] = Variable<String>(tinyStep.value);
+    }
+    if (reward.present) {
+      map['reward'] = Variable<String>(reward.value);
+    }
+    if (friction.present) {
+      map['friction'] = Variable<String>(friction.value);
+    }
     if (completedDates.present) {
       map['completed_dates'] = Variable<String>(completedDates.value);
     }
@@ -2116,6 +2351,11 @@ class HabitTableCompanion extends UpdateCompanion<HabitTableData> {
           ..write('userId: $userId, ')
           ..write('name: $name, ')
           ..write('icon: $icon, ')
+          ..write('kind: $kind, ')
+          ..write('cue: $cue, ')
+          ..write('tinyStep: $tinyStep, ')
+          ..write('reward: $reward, ')
+          ..write('friction: $friction, ')
           ..write('completedDates: $completedDates, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
@@ -4257,6 +4497,667 @@ class BehaviorEventTableCompanion
   }
 }
 
+class $SavedGeneratedCardTableTable extends SavedGeneratedCardTable
+    with TableInfo<$SavedGeneratedCardTableTable, SavedGeneratedCardTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SavedGeneratedCardTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _domainMeta = const VerificationMeta('domain');
+  @override
+  late final GeneratedColumn<String> domain = GeneratedColumn<String>(
+    'domain',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('card'),
+  );
+  static const VerificationMeta _rawA2uiMeta = const VerificationMeta(
+    'rawA2ui',
+  );
+  @override
+  late final GeneratedColumn<String> rawA2ui = GeneratedColumn<String>(
+    'raw_a2ui',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _fallbackReasonMeta = const VerificationMeta(
+    'fallbackReason',
+  );
+  @override
+  late final GeneratedColumn<String> fallbackReason = GeneratedColumn<String>(
+    'fallback_reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _elapsedMsMeta = const VerificationMeta(
+    'elapsedMs',
+  );
+  @override
+  late final GeneratedColumn<int> elapsedMs = GeneratedColumn<int>(
+    'elapsed_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _originalPromptMeta = const VerificationMeta(
+    'originalPrompt',
+  );
+  @override
+  late final GeneratedColumn<String> originalPrompt = GeneratedColumn<String>(
+    'original_prompt',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    userId,
+    title,
+    domain,
+    rawA2ui,
+    source,
+    fallbackReason,
+    elapsedMs,
+    originalPrompt,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'saved_generated_card_table';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SavedGeneratedCardTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('domain')) {
+      context.handle(
+        _domainMeta,
+        domain.isAcceptableOrUnknown(data['domain']!, _domainMeta),
+      );
+    }
+    if (data.containsKey('raw_a2ui')) {
+      context.handle(
+        _rawA2uiMeta,
+        rawA2ui.isAcceptableOrUnknown(data['raw_a2ui']!, _rawA2uiMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_rawA2uiMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    }
+    if (data.containsKey('fallback_reason')) {
+      context.handle(
+        _fallbackReasonMeta,
+        fallbackReason.isAcceptableOrUnknown(
+          data['fallback_reason']!,
+          _fallbackReasonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('elapsed_ms')) {
+      context.handle(
+        _elapsedMsMeta,
+        elapsedMs.isAcceptableOrUnknown(data['elapsed_ms']!, _elapsedMsMeta),
+      );
+    }
+    if (data.containsKey('original_prompt')) {
+      context.handle(
+        _originalPromptMeta,
+        originalPrompt.isAcceptableOrUnknown(
+          data['original_prompt']!,
+          _originalPromptMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SavedGeneratedCardTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SavedGeneratedCardTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      domain: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}domain'],
+      )!,
+      rawA2ui: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}raw_a2ui'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      ),
+      fallbackReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}fallback_reason'],
+      ),
+      elapsedMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}elapsed_ms'],
+      ),
+      originalPrompt: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}original_prompt'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $SavedGeneratedCardTableTable createAlias(String alias) {
+    return $SavedGeneratedCardTableTable(attachedDatabase, alias);
+  }
+}
+
+class SavedGeneratedCardTableData extends DataClass
+    implements Insertable<SavedGeneratedCardTableData> {
+  final int id;
+  final String userId;
+  final String title;
+  final String domain;
+  final String rawA2ui;
+  final String? source;
+  final String? fallbackReason;
+  final int? elapsedMs;
+  final String? originalPrompt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const SavedGeneratedCardTableData({
+    required this.id,
+    required this.userId,
+    required this.title,
+    required this.domain,
+    required this.rawA2ui,
+    this.source,
+    this.fallbackReason,
+    this.elapsedMs,
+    this.originalPrompt,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['user_id'] = Variable<String>(userId);
+    map['title'] = Variable<String>(title);
+    map['domain'] = Variable<String>(domain);
+    map['raw_a2ui'] = Variable<String>(rawA2ui);
+    if (!nullToAbsent || source != null) {
+      map['source'] = Variable<String>(source);
+    }
+    if (!nullToAbsent || fallbackReason != null) {
+      map['fallback_reason'] = Variable<String>(fallbackReason);
+    }
+    if (!nullToAbsent || elapsedMs != null) {
+      map['elapsed_ms'] = Variable<int>(elapsedMs);
+    }
+    if (!nullToAbsent || originalPrompt != null) {
+      map['original_prompt'] = Variable<String>(originalPrompt);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  SavedGeneratedCardTableCompanion toCompanion(bool nullToAbsent) {
+    return SavedGeneratedCardTableCompanion(
+      id: Value(id),
+      userId: Value(userId),
+      title: Value(title),
+      domain: Value(domain),
+      rawA2ui: Value(rawA2ui),
+      source: source == null && nullToAbsent
+          ? const Value.absent()
+          : Value(source),
+      fallbackReason: fallbackReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fallbackReason),
+      elapsedMs: elapsedMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(elapsedMs),
+      originalPrompt: originalPrompt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(originalPrompt),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory SavedGeneratedCardTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SavedGeneratedCardTableData(
+      id: serializer.fromJson<int>(json['id']),
+      userId: serializer.fromJson<String>(json['userId']),
+      title: serializer.fromJson<String>(json['title']),
+      domain: serializer.fromJson<String>(json['domain']),
+      rawA2ui: serializer.fromJson<String>(json['rawA2ui']),
+      source: serializer.fromJson<String?>(json['source']),
+      fallbackReason: serializer.fromJson<String?>(json['fallbackReason']),
+      elapsedMs: serializer.fromJson<int?>(json['elapsedMs']),
+      originalPrompt: serializer.fromJson<String?>(json['originalPrompt']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'userId': serializer.toJson<String>(userId),
+      'title': serializer.toJson<String>(title),
+      'domain': serializer.toJson<String>(domain),
+      'rawA2ui': serializer.toJson<String>(rawA2ui),
+      'source': serializer.toJson<String?>(source),
+      'fallbackReason': serializer.toJson<String?>(fallbackReason),
+      'elapsedMs': serializer.toJson<int?>(elapsedMs),
+      'originalPrompt': serializer.toJson<String?>(originalPrompt),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  SavedGeneratedCardTableData copyWith({
+    int? id,
+    String? userId,
+    String? title,
+    String? domain,
+    String? rawA2ui,
+    Value<String?> source = const Value.absent(),
+    Value<String?> fallbackReason = const Value.absent(),
+    Value<int?> elapsedMs = const Value.absent(),
+    Value<String?> originalPrompt = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => SavedGeneratedCardTableData(
+    id: id ?? this.id,
+    userId: userId ?? this.userId,
+    title: title ?? this.title,
+    domain: domain ?? this.domain,
+    rawA2ui: rawA2ui ?? this.rawA2ui,
+    source: source.present ? source.value : this.source,
+    fallbackReason: fallbackReason.present
+        ? fallbackReason.value
+        : this.fallbackReason,
+    elapsedMs: elapsedMs.present ? elapsedMs.value : this.elapsedMs,
+    originalPrompt: originalPrompt.present
+        ? originalPrompt.value
+        : this.originalPrompt,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  SavedGeneratedCardTableData copyWithCompanion(
+    SavedGeneratedCardTableCompanion data,
+  ) {
+    return SavedGeneratedCardTableData(
+      id: data.id.present ? data.id.value : this.id,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      title: data.title.present ? data.title.value : this.title,
+      domain: data.domain.present ? data.domain.value : this.domain,
+      rawA2ui: data.rawA2ui.present ? data.rawA2ui.value : this.rawA2ui,
+      source: data.source.present ? data.source.value : this.source,
+      fallbackReason: data.fallbackReason.present
+          ? data.fallbackReason.value
+          : this.fallbackReason,
+      elapsedMs: data.elapsedMs.present ? data.elapsedMs.value : this.elapsedMs,
+      originalPrompt: data.originalPrompt.present
+          ? data.originalPrompt.value
+          : this.originalPrompt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SavedGeneratedCardTableData(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('title: $title, ')
+          ..write('domain: $domain, ')
+          ..write('rawA2ui: $rawA2ui, ')
+          ..write('source: $source, ')
+          ..write('fallbackReason: $fallbackReason, ')
+          ..write('elapsedMs: $elapsedMs, ')
+          ..write('originalPrompt: $originalPrompt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    userId,
+    title,
+    domain,
+    rawA2ui,
+    source,
+    fallbackReason,
+    elapsedMs,
+    originalPrompt,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SavedGeneratedCardTableData &&
+          other.id == this.id &&
+          other.userId == this.userId &&
+          other.title == this.title &&
+          other.domain == this.domain &&
+          other.rawA2ui == this.rawA2ui &&
+          other.source == this.source &&
+          other.fallbackReason == this.fallbackReason &&
+          other.elapsedMs == this.elapsedMs &&
+          other.originalPrompt == this.originalPrompt &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class SavedGeneratedCardTableCompanion
+    extends UpdateCompanion<SavedGeneratedCardTableData> {
+  final Value<int> id;
+  final Value<String> userId;
+  final Value<String> title;
+  final Value<String> domain;
+  final Value<String> rawA2ui;
+  final Value<String?> source;
+  final Value<String?> fallbackReason;
+  final Value<int?> elapsedMs;
+  final Value<String?> originalPrompt;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  const SavedGeneratedCardTableCompanion({
+    this.id = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.domain = const Value.absent(),
+    this.rawA2ui = const Value.absent(),
+    this.source = const Value.absent(),
+    this.fallbackReason = const Value.absent(),
+    this.elapsedMs = const Value.absent(),
+    this.originalPrompt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  SavedGeneratedCardTableCompanion.insert({
+    this.id = const Value.absent(),
+    required String userId,
+    required String title,
+    this.domain = const Value.absent(),
+    required String rawA2ui,
+    this.source = const Value.absent(),
+    this.fallbackReason = const Value.absent(),
+    this.elapsedMs = const Value.absent(),
+    this.originalPrompt = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+  }) : userId = Value(userId),
+       title = Value(title),
+       rawA2ui = Value(rawA2ui),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<SavedGeneratedCardTableData> custom({
+    Expression<int>? id,
+    Expression<String>? userId,
+    Expression<String>? title,
+    Expression<String>? domain,
+    Expression<String>? rawA2ui,
+    Expression<String>? source,
+    Expression<String>? fallbackReason,
+    Expression<int>? elapsedMs,
+    Expression<String>? originalPrompt,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (userId != null) 'user_id': userId,
+      if (title != null) 'title': title,
+      if (domain != null) 'domain': domain,
+      if (rawA2ui != null) 'raw_a2ui': rawA2ui,
+      if (source != null) 'source': source,
+      if (fallbackReason != null) 'fallback_reason': fallbackReason,
+      if (elapsedMs != null) 'elapsed_ms': elapsedMs,
+      if (originalPrompt != null) 'original_prompt': originalPrompt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  SavedGeneratedCardTableCompanion copyWith({
+    Value<int>? id,
+    Value<String>? userId,
+    Value<String>? title,
+    Value<String>? domain,
+    Value<String>? rawA2ui,
+    Value<String?>? source,
+    Value<String?>? fallbackReason,
+    Value<int?>? elapsedMs,
+    Value<String?>? originalPrompt,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+  }) {
+    return SavedGeneratedCardTableCompanion(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      title: title ?? this.title,
+      domain: domain ?? this.domain,
+      rawA2ui: rawA2ui ?? this.rawA2ui,
+      source: source ?? this.source,
+      fallbackReason: fallbackReason ?? this.fallbackReason,
+      elapsedMs: elapsedMs ?? this.elapsedMs,
+      originalPrompt: originalPrompt ?? this.originalPrompt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (domain.present) {
+      map['domain'] = Variable<String>(domain.value);
+    }
+    if (rawA2ui.present) {
+      map['raw_a2ui'] = Variable<String>(rawA2ui.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (fallbackReason.present) {
+      map['fallback_reason'] = Variable<String>(fallbackReason.value);
+    }
+    if (elapsedMs.present) {
+      map['elapsed_ms'] = Variable<int>(elapsedMs.value);
+    }
+    if (originalPrompt.present) {
+      map['original_prompt'] = Variable<String>(originalPrompt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SavedGeneratedCardTableCompanion(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('title: $title, ')
+          ..write('domain: $domain, ')
+          ..write('rawA2ui: $rawA2ui, ')
+          ..write('source: $source, ')
+          ..write('fallbackReason: $fallbackReason, ')
+          ..write('elapsedMs: $elapsedMs, ')
+          ..write('originalPrompt: $originalPrompt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $ConversationTableTable extends ConversationTable
     with TableInfo<$ConversationTableTable, ConversationTableData> {
   @override
@@ -5988,6 +6889,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $AiCommandTableTable aiCommandTable = $AiCommandTableTable(this);
   late final $BehaviorEventTableTable behaviorEventTable =
       $BehaviorEventTableTable(this);
+  late final $SavedGeneratedCardTableTable savedGeneratedCardTable =
+      $SavedGeneratedCardTableTable(this);
   late final $ConversationTableTable conversationTable =
       $ConversationTableTable(this);
   late final $ConversationMemoryTableTable conversationMemoryTable =
@@ -6009,6 +6912,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     moodEntryTable,
     aiCommandTable,
     behaviorEventTable,
+    savedGeneratedCardTable,
     conversationTable,
     conversationMemoryTable,
     jarvisMemoryTable,
@@ -6877,6 +7781,11 @@ typedef $$HabitTableTableCreateCompanionBuilder =
       required String userId,
       required String name,
       required String icon,
+      Value<String> kind,
+      Value<String?> cue,
+      Value<String?> tinyStep,
+      Value<String?> reward,
+      Value<String?> friction,
       Value<String> completedDates,
       required DateTime createdAt,
     });
@@ -6886,6 +7795,11 @@ typedef $$HabitTableTableUpdateCompanionBuilder =
       Value<String> userId,
       Value<String> name,
       Value<String> icon,
+      Value<String> kind,
+      Value<String?> cue,
+      Value<String?> tinyStep,
+      Value<String?> reward,
+      Value<String?> friction,
       Value<String> completedDates,
       Value<DateTime> createdAt,
     });
@@ -6916,6 +7830,31 @@ class $$HabitTableTableFilterComposer
 
   ColumnFilters<String> get icon => $composableBuilder(
     column: $table.icon,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cue => $composableBuilder(
+    column: $table.cue,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tinyStep => $composableBuilder(
+    column: $table.tinyStep,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reward => $composableBuilder(
+    column: $table.reward,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get friction => $composableBuilder(
+    column: $table.friction,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6959,6 +7898,31 @@ class $$HabitTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cue => $composableBuilder(
+    column: $table.cue,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tinyStep => $composableBuilder(
+    column: $table.tinyStep,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reward => $composableBuilder(
+    column: $table.reward,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get friction => $composableBuilder(
+    column: $table.friction,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get completedDates => $composableBuilder(
     column: $table.completedDates,
     builder: (column) => ColumnOrderings(column),
@@ -6990,6 +7954,21 @@ class $$HabitTableTableAnnotationComposer
 
   GeneratedColumn<String> get icon =>
       $composableBuilder(column: $table.icon, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get cue =>
+      $composableBuilder(column: $table.cue, builder: (column) => column);
+
+  GeneratedColumn<String> get tinyStep =>
+      $composableBuilder(column: $table.tinyStep, builder: (column) => column);
+
+  GeneratedColumn<String> get reward =>
+      $composableBuilder(column: $table.reward, builder: (column) => column);
+
+  GeneratedColumn<String> get friction =>
+      $composableBuilder(column: $table.friction, builder: (column) => column);
 
   GeneratedColumn<String> get completedDates => $composableBuilder(
     column: $table.completedDates,
@@ -7035,6 +8014,11 @@ class $$HabitTableTableTableManager
                 Value<String> userId = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<String> icon = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String?> cue = const Value.absent(),
+                Value<String?> tinyStep = const Value.absent(),
+                Value<String?> reward = const Value.absent(),
+                Value<String?> friction = const Value.absent(),
                 Value<String> completedDates = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
               }) => HabitTableCompanion(
@@ -7042,6 +8026,11 @@ class $$HabitTableTableTableManager
                 userId: userId,
                 name: name,
                 icon: icon,
+                kind: kind,
+                cue: cue,
+                tinyStep: tinyStep,
+                reward: reward,
+                friction: friction,
                 completedDates: completedDates,
                 createdAt: createdAt,
               ),
@@ -7051,6 +8040,11 @@ class $$HabitTableTableTableManager
                 required String userId,
                 required String name,
                 required String icon,
+                Value<String> kind = const Value.absent(),
+                Value<String?> cue = const Value.absent(),
+                Value<String?> tinyStep = const Value.absent(),
+                Value<String?> reward = const Value.absent(),
+                Value<String?> friction = const Value.absent(),
                 Value<String> completedDates = const Value.absent(),
                 required DateTime createdAt,
               }) => HabitTableCompanion.insert(
@@ -7058,6 +8052,11 @@ class $$HabitTableTableTableManager
                 userId: userId,
                 name: name,
                 icon: icon,
+                kind: kind,
+                cue: cue,
+                tinyStep: tinyStep,
+                reward: reward,
+                friction: friction,
                 completedDates: completedDates,
                 createdAt: createdAt,
               ),
@@ -8250,6 +9249,337 @@ typedef $$BehaviorEventTableTableProcessedTableManager =
       BehaviorEventTableData,
       PrefetchHooks Function()
     >;
+typedef $$SavedGeneratedCardTableTableCreateCompanionBuilder =
+    SavedGeneratedCardTableCompanion Function({
+      Value<int> id,
+      required String userId,
+      required String title,
+      Value<String> domain,
+      required String rawA2ui,
+      Value<String?> source,
+      Value<String?> fallbackReason,
+      Value<int?> elapsedMs,
+      Value<String?> originalPrompt,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+    });
+typedef $$SavedGeneratedCardTableTableUpdateCompanionBuilder =
+    SavedGeneratedCardTableCompanion Function({
+      Value<int> id,
+      Value<String> userId,
+      Value<String> title,
+      Value<String> domain,
+      Value<String> rawA2ui,
+      Value<String?> source,
+      Value<String?> fallbackReason,
+      Value<int?> elapsedMs,
+      Value<String?> originalPrompt,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
+
+class $$SavedGeneratedCardTableTableFilterComposer
+    extends Composer<_$AppDatabase, $SavedGeneratedCardTableTable> {
+  $$SavedGeneratedCardTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get domain => $composableBuilder(
+    column: $table.domain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get rawA2ui => $composableBuilder(
+    column: $table.rawA2ui,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fallbackReason => $composableBuilder(
+    column: $table.fallbackReason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get elapsedMs => $composableBuilder(
+    column: $table.elapsedMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get originalPrompt => $composableBuilder(
+    column: $table.originalPrompt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SavedGeneratedCardTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $SavedGeneratedCardTableTable> {
+  $$SavedGeneratedCardTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get domain => $composableBuilder(
+    column: $table.domain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get rawA2ui => $composableBuilder(
+    column: $table.rawA2ui,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fallbackReason => $composableBuilder(
+    column: $table.fallbackReason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get elapsedMs => $composableBuilder(
+    column: $table.elapsedMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get originalPrompt => $composableBuilder(
+    column: $table.originalPrompt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SavedGeneratedCardTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SavedGeneratedCardTableTable> {
+  $$SavedGeneratedCardTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get domain =>
+      $composableBuilder(column: $table.domain, builder: (column) => column);
+
+  GeneratedColumn<String> get rawA2ui =>
+      $composableBuilder(column: $table.rawA2ui, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get fallbackReason => $composableBuilder(
+    column: $table.fallbackReason,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get elapsedMs =>
+      $composableBuilder(column: $table.elapsedMs, builder: (column) => column);
+
+  GeneratedColumn<String> get originalPrompt => $composableBuilder(
+    column: $table.originalPrompt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$SavedGeneratedCardTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SavedGeneratedCardTableTable,
+          SavedGeneratedCardTableData,
+          $$SavedGeneratedCardTableTableFilterComposer,
+          $$SavedGeneratedCardTableTableOrderingComposer,
+          $$SavedGeneratedCardTableTableAnnotationComposer,
+          $$SavedGeneratedCardTableTableCreateCompanionBuilder,
+          $$SavedGeneratedCardTableTableUpdateCompanionBuilder,
+          (
+            SavedGeneratedCardTableData,
+            BaseReferences<
+              _$AppDatabase,
+              $SavedGeneratedCardTableTable,
+              SavedGeneratedCardTableData
+            >,
+          ),
+          SavedGeneratedCardTableData,
+          PrefetchHooks Function()
+        > {
+  $$SavedGeneratedCardTableTableTableManager(
+    _$AppDatabase db,
+    $SavedGeneratedCardTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SavedGeneratedCardTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$SavedGeneratedCardTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$SavedGeneratedCardTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> userId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> domain = const Value.absent(),
+                Value<String> rawA2ui = const Value.absent(),
+                Value<String?> source = const Value.absent(),
+                Value<String?> fallbackReason = const Value.absent(),
+                Value<int?> elapsedMs = const Value.absent(),
+                Value<String?> originalPrompt = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => SavedGeneratedCardTableCompanion(
+                id: id,
+                userId: userId,
+                title: title,
+                domain: domain,
+                rawA2ui: rawA2ui,
+                source: source,
+                fallbackReason: fallbackReason,
+                elapsedMs: elapsedMs,
+                originalPrompt: originalPrompt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String userId,
+                required String title,
+                Value<String> domain = const Value.absent(),
+                required String rawA2ui,
+                Value<String?> source = const Value.absent(),
+                Value<String?> fallbackReason = const Value.absent(),
+                Value<int?> elapsedMs = const Value.absent(),
+                Value<String?> originalPrompt = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+              }) => SavedGeneratedCardTableCompanion.insert(
+                id: id,
+                userId: userId,
+                title: title,
+                domain: domain,
+                rawA2ui: rawA2ui,
+                source: source,
+                fallbackReason: fallbackReason,
+                elapsedMs: elapsedMs,
+                originalPrompt: originalPrompt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SavedGeneratedCardTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SavedGeneratedCardTableTable,
+      SavedGeneratedCardTableData,
+      $$SavedGeneratedCardTableTableFilterComposer,
+      $$SavedGeneratedCardTableTableOrderingComposer,
+      $$SavedGeneratedCardTableTableAnnotationComposer,
+      $$SavedGeneratedCardTableTableCreateCompanionBuilder,
+      $$SavedGeneratedCardTableTableUpdateCompanionBuilder,
+      (
+        SavedGeneratedCardTableData,
+        BaseReferences<
+          _$AppDatabase,
+          $SavedGeneratedCardTableTable,
+          SavedGeneratedCardTableData
+        >,
+      ),
+      SavedGeneratedCardTableData,
+      PrefetchHooks Function()
+    >;
 typedef $$ConversationTableTableCreateCompanionBuilder =
     ConversationTableCompanion Function({
       Value<int> id,
@@ -9217,6 +10547,11 @@ class $AppDatabaseManager {
       $$AiCommandTableTableTableManager(_db, _db.aiCommandTable);
   $$BehaviorEventTableTableTableManager get behaviorEventTable =>
       $$BehaviorEventTableTableTableManager(_db, _db.behaviorEventTable);
+  $$SavedGeneratedCardTableTableTableManager get savedGeneratedCardTable =>
+      $$SavedGeneratedCardTableTableTableManager(
+        _db,
+        _db.savedGeneratedCardTable,
+      );
   $$ConversationTableTableTableManager get conversationTable =>
       $$ConversationTableTableTableManager(_db, _db.conversationTable);
   $$ConversationMemoryTableTableTableManager get conversationMemoryTable =>

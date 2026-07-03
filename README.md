@@ -104,6 +104,10 @@ The current screenshots are available in `screenshots/` and show the app in the 
 
 ## Architecture
 
+For a visual overview of how the Flutter app, local database, on-device Gemma
+model, JARVIS memory, and GenUI runtime fit together, see
+[docs/architecture.md](docs/architecture.md).
+
 ### Flutter app
 
 The Flutter application is the sole client and contains:
@@ -193,7 +197,7 @@ Insights are generated locally based on time of day and recent activity patterns
 - [lib/core/database/schema.dart](lib/core/database/schema.dart) — Drift table definitions
 - [lib/core/ai_service.dart](lib/core/ai_service.dart) — Local command parsing, keyword matching, Gemma NLU fallback, insight generation
 - [lib/core/ai/jarvis_memory_service.dart](lib/core/ai/jarvis_memory_service.dart) — Local JARVIS memory and conversation summaries
-- [lib/core/genui/genui_runtime.dart](lib/core/genui/genui_runtime.dart) — Gemma-backed GenUI runtime with planning and repair retry
+- [lib/core/genui/genui_runtime.dart](lib/core/genui/genui_runtime.dart) — Gemma-backed GenUI runtime with planning, safe rendering, and labeled local fallback
 - [lib/core/local_llm/gemma_service.dart](lib/core/local_llm/gemma_service.dart) — FlutterGemma wrapper (init, load, generate, streaming)
 - [lib/core/local_llm/model_downloader.dart](lib/core/local_llm/model_downloader.dart) — HuggingFace model download with progress and resume
 - [lib/core/local_llm/model_tier.dart](lib/core/local_llm/model_tier.dart) — Model tier definitions (E2B, E4B)
@@ -211,7 +215,7 @@ Insights are generated locally based on time of day and recent activity patterns
    - First tries keyword/pattern matching (instant, no model)
    - If no match and Gemma is loaded, sends to on-device Gemma for NLU parsing
    - Falls back to creating a task with the full text
-4. GenUI requests go through a planning prompt, catalog-constrained surface generation, and repair retry if the first output is malformed
+4. GenUI requests go through a planning prompt and catalog-constrained surface generation, with a labeled local fallback if Gemma times out or does not produce a visible surface
 5. The AI response adapts the UI (adds tasks, starts focus, shows insights, generates cards, or renders an A2UI surface)
 6. Conversation summaries and explicitly learned user facts are saved locally so future interactions become more contextual
 

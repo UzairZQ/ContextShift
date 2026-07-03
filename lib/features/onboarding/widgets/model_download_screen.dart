@@ -118,11 +118,7 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
       _progress = info;
     });
     if (info.state == DownloadState.completed) {
-      if (widget.model.tier == ModelTier.e2b) {
-        FeatureManager.instance.setE2bDownloaded(true);
-      } else {
-        FeatureManager.instance.setE4bDownloaded(true);
-      }
+      FeatureManager.instance.setE2bDownloaded(true);
       setState(() {
         _healthCheckPassed = false;
         _statusDetail = 'Downloaded. Initialize JARVIS before using chat.';
@@ -224,11 +220,7 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
     try {
       await GemmaService.instance.disposeModel();
       await _downloader.deleteModel(widget.model);
-      if (widget.model.tier == ModelTier.e2b) {
-        FeatureManager.instance.setE2bDownloaded(false);
-      } else {
-        FeatureManager.instance.setE4bDownloaded(false);
-      }
+      FeatureManager.instance.setE2bDownloaded(false);
       FeatureManager.instance.setModelVerified(widget.model.tier, false);
       if (!mounted) return;
       setState(() {

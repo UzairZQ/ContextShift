@@ -7,7 +7,6 @@ import '../../../core/app_spacing.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/genui/jarvis_design_catalog.dart';
 import '../../../core/genui/widget_node.dart';
-import '../motion/wonderous_motion.dart';
 
 class A2uiSurfaceCard extends StatefulWidget {
   final String rawA2ui;
@@ -108,11 +107,9 @@ class _A2uiSurfaceCardState extends State<A2uiSurfaceCard> {
         for (final surfaceId in _surfaceIds)
           Padding(
             padding: const EdgeInsets.only(top: Spacing.sm),
-            child: WonderousReveal(
-              child: Surface(
-                surfaceContext: _controller.contextFor(surfaceId),
-                actionDelegate: _JarvisActionDelegate(widget.onAction),
-              ),
+            child: Surface(
+              surfaceContext: _controller.contextFor(surfaceId),
+              actionDelegate: _JarvisActionDelegate(widget.onAction, widget),
             ),
           ),
       ],
@@ -171,8 +168,9 @@ class _GenerationSourceBadge extends StatelessWidget {
 
 class _JarvisActionDelegate implements ActionDelegate {
   final ValueChanged<WidgetAction> onAction;
+  final A2uiSurfaceCard widget;
 
-  const _JarvisActionDelegate(this.onAction);
+  const _JarvisActionDelegate(this.onAction, this.widget);
 
   @override
   bool handleEvent(
@@ -183,12 +181,17 @@ class _JarvisActionDelegate implements ActionDelegate {
     buildWidget,
   ) {
     if (event is! UserActionEvent) return false;
-    onAction(
-      WidgetAction(
-        action: event.name,
-        params: Map<String, dynamic>.from(event.context),
-      ),
-    );
+    final params = Map<String, dynamic>.from(event.context);
+    if (event.name == 'save_card') {
+      params.addAll({
+        'rawA2ui': widget.rawA2ui,
+        if (widget.source != null) 'source': widget.source,
+        if (widget.fallbackReason != null)
+          'fallbackReason': widget.fallbackReason,
+        if (widget.elapsedMs != null) 'elapsedMs': widget.elapsedMs,
+      });
+    }
+    onAction(WidgetAction(action: event.name, params: params));
     return true;
   }
 }

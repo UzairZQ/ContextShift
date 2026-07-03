@@ -455,6 +455,8 @@ class JarvisDesignCatalog {
                       'message': _text(action['message']),
                     if (_text(action['title']).isNotEmpty)
                       'title': _text(action['title']),
+                    if (_text(action['domain']).isNotEmpty)
+                      'domain': _text(action['domain']),
                     if (_text(action['name']).isNotEmpty)
                       'name': _text(action['name']),
                     if (_text(action['content']).isNotEmpty)
@@ -527,10 +529,12 @@ final _actionSchema = ObjectSchema(
         'create_habit',
         'create_note',
         'start_focus',
+        'save_card',
         'continue_conversation',
       ],
     ),
     'title': _string('Optional title payload.'),
+    'domain': _string('Optional generated card domain.'),
     'name': _string('Optional habit name payload.'),
     'content': _string('Optional note content payload.'),
     'priority': StringSchema(

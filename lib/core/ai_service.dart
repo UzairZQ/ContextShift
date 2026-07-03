@@ -289,7 +289,7 @@ class AiService {
     }
     if (totalHabits > 0 && completedHabits < totalHabits) {
       final remaining = totalHabits - completedHabits;
-      return '$remaining habit${remaining == 1 ? '' : 's'} left today. A quick check-in can protect your momentum.';
+      return '$remaining behavior signal${remaining == 1 ? '' : 's'} still open today. Make the next move tiny.';
     }
     if (focusMinutes >= 60) {
       return 'You have already logged $focusMinutes focused minutes today. Take a short recovery break before the next sprint.';

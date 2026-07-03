@@ -1,6 +1,6 @@
 import 'package:flutter_gemma/flutter_gemma.dart';
 
-enum ModelTier { e2b, e4b }
+enum ModelTier { e2b }
 
 class ModelDefinition {
   final ModelTier tier;
@@ -42,7 +42,6 @@ class ModelDefinition {
   }
 
   static ModelDefinition get e2b => _e2b;
-  static ModelDefinition get e4b => _e4b;
 
   static const ModelDefinition _e2b = ModelDefinition(
     tier: ModelTier.e2b,
@@ -57,26 +56,6 @@ class ModelDefinition {
     fileType: ModelFileType.litertlm,
     maxTokens: 2048,
   );
-
-  static const ModelDefinition _e4b = ModelDefinition(
-    tier: ModelTier.e4b,
-    displayName: 'E4B',
-    modelId: 'gemma-4-E4B-it.litertlm',
-    downloadUrl:
-        'https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm',
-    downloadSizeMb: 3660,
-    minRamMb: 8192,
-    requiresPurchase: true,
-    modelType: ModelType.gemma4,
-    fileType: ModelFileType.litertlm,
-    maxTokens: 4096,
-  );
-
-  static ModelDefinition fromTier(ModelTier tier) {
-    return tier == ModelTier.e2b ? _e2b : _e4b;
-  }
-
-  static List<ModelDefinition> get all => [_e2b, _e4b];
 }
 
 enum DownloadState {

@@ -39,7 +39,7 @@ class ActivityHeatmap extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   Text(
-                    'habit completions',
+                    'behavior wins',
                     style: TextStyle(
                       color: AppTheme.onSurfaceVariant.withValues(alpha: 0.5),
                       fontSize: 11,

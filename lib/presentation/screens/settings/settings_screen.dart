@@ -78,9 +78,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final active = GemmaService.instance.activeModelDef?.displayName;
       return active == null ? 'JARVIS model active' : '$active model active';
     }
-    if (FeatureManager.instance.isE4bAvailable) {
-      return 'E4B downloaded, activation pending';
-    }
     if (FeatureManager.instance.isE2bAvailable) {
       return 'E2B downloaded, activation pending';
     }

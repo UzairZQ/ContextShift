@@ -46,7 +46,7 @@ class InsightCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       const Text(
-                        'Context read',
+                        'AI analysis summary',
                         style: TextStyle(
                           color: AppTheme.intelligence,
                           fontSize: 14,

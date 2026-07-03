@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
+import '../../../core/services/focus_timer_controller.dart';
 import '../../../core/responsive.dart';
 import '../motion/wonderous_motion.dart';
 import 'widgets/control_button.dart';
@@ -21,12 +22,9 @@ class FocusTimerModule extends StatefulWidget {
 
 class _FocusTimerModuleState extends State<FocusTimerModule>
     with SingleTickerProviderStateMixin {
-  String _sessionType = 'Focus';
-  int _selectedMinutes = 25;
-  late int _remainingSeconds;
-  bool _isRunning = false;
-  Timer? _timer;
-  String? _sessionId;
+  final _focusTimer = FocusTimerController.instance;
+  FocusTimerState _timerState = FocusTimerController.instance.state.value;
+  StreamSubscription<void>? _completionSub;
 
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnim;
@@ -34,7 +32,7 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
   @override
   void initState() {
     super.initState();
-    _remainingSeconds = _selectedMinutes * 60;
+    _timerState = _focusTimer.state.value;
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 1),
@@ -46,70 +44,59 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
       eventType: 'screen_open',
       module: 'focus',
     );
+    _focusTimer.state.addListener(_syncTimerState);
+    _completionSub = _focusTimer.completed.listen((_) {
+      if (mounted) _showCompletionSnackBar();
+    });
+    _syncPulse();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _focusTimer.state.removeListener(_syncTimerState);
+    _completionSub?.cancel();
     _pulseController.dispose();
     super.dispose();
   }
 
+  void _syncTimerState() {
+    if (!mounted) return;
+    setState(() => _timerState = _focusTimer.state.value);
+    _syncPulse();
+  }
+
+  void _syncPulse() {
+    if (_timerState.isRunning) {
+      if (!_pulseController.isAnimating) {
+        _pulseController.repeat(reverse: true);
+      }
+    } else {
+      _pulseController.stop();
+      _pulseController.value = 0;
+    }
+  }
+
   void _updateSession(String type, int minutes) {
-    if (_isRunning) return;
-    setState(() {
-      _sessionType = type;
-      _selectedMinutes = minutes;
-      _remainingSeconds = minutes * 60;
-    });
+    _focusTimer.updateSession(type, minutes);
   }
 
   Future<void> _startTimer() async {
-    _sessionId = await DatabaseService.instance.startFocusSession(
-      durationMinutes: _selectedMinutes,
-    );
-    _pulseController.repeat(reverse: true);
-    if (mounted) setState(() => _isRunning = true);
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (_remainingSeconds <= 0) {
-        _completeSession();
-      } else {
-        if (mounted) setState(() => _remainingSeconds--);
-      }
-    });
+    await _focusTimer.start();
   }
 
   void _pauseTimer() {
-    _timer?.cancel();
-    _pulseController.stop();
-    _pulseController.value = 0;
-    if (mounted) setState(() => _isRunning = false);
+    _focusTimer.pause();
   }
 
   void _resetTimer() {
-    _timer?.cancel();
-    _pulseController.stop();
-    _pulseController.value = 0;
-    if (mounted) {
-      setState(() {
-        _isRunning = false;
-        _remainingSeconds = _selectedMinutes * 60;
-      });
-    }
+    _focusTimer.reset();
   }
 
   Future<void> _completeSession() async {
-    _timer?.cancel();
-    _pulseController.stop();
-    _pulseController.value = 0;
-    if (_sessionId != null) {
-      await DatabaseService.instance.completeFocusSession(_sessionId!);
-    }
-    if (!mounted) return;
-    setState(() {
-      _isRunning = false;
-      _remainingSeconds = _selectedMinutes * 60;
-    });
+    await _focusTimer.complete();
+  }
+
+  void _showCompletionSnackBar() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -141,14 +128,15 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
   }
 
   String get _timeDisplay {
-    final m = (_remainingSeconds ~/ 60).toString().padLeft(2, '0');
-    final s = (_remainingSeconds % 60).toString().padLeft(2, '0');
+    final m = (_timerState.remainingSeconds ~/ 60).toString().padLeft(2, '0');
+    final s = (_timerState.remainingSeconds % 60).toString().padLeft(2, '0');
     return '$m:$s';
   }
 
   double get _progress {
-    final total = _selectedMinutes * 60;
-    return 1.0 - (_remainingSeconds / total);
+    final total = _timerState.selectedMinutes * 60;
+    if (total == 0) return 0;
+    return 1.0 - (_timerState.remainingSeconds / total);
   }
 
   @override
@@ -173,7 +161,7 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
                 WonderousReveal(
                   delay: const Duration(milliseconds: 80),
                   child: _SessionTypeSelector(
-                    selectedType: _sessionType,
+                    selectedType: _timerState.sessionType,
                     onSelect: _updateSession,
                   ),
                 ),
@@ -183,8 +171,10 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
                   child: TimerRing(
                     progress: _progress,
                     timeDisplay: _timeDisplay,
-                    sessionLabel: _isRunning ? _sessionType : 'Ready',
-                    pulseAnimation: _isRunning
+                    sessionLabel: _timerState.isRunning
+                        ? _timerState.sessionType
+                        : 'Ready',
+                    pulseAnimation: _timerState.isRunning
                         ? _pulseAnim
                         : const AlwaysStoppedAnimation(1.0),
                   ),
@@ -193,9 +183,10 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
                 WonderousReveal(
                   delay: const Duration(milliseconds: 200),
                   child: _TimerControls(
-                    isRunning: _isRunning,
+                    isRunning: _timerState.isRunning,
                     onReset: _resetTimer,
-                    onToggle: () => _isRunning ? _pauseTimer() : _startTimer(),
+                    onToggle: () =>
+                        _timerState.isRunning ? _pauseTimer() : _startTimer(),
                     onComplete: _completeSession,
                   ),
                 ),

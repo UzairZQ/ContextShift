@@ -19,7 +19,7 @@ class AiInsightCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'Context read, tap to open dashboard',
+      label: 'AI analysis, tap to open dashboard',
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
@@ -50,7 +50,7 @@ class AiInsightCard extends StatelessWidget {
                   ),
                   SizedBox(width: Spacing.sm),
                   Text(
-                    'Context read',
+                    'AI analysis',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: AppTheme.intelligence,
                       fontWeight: FontWeight.bold,

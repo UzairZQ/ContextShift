@@ -42,6 +42,7 @@ class GemmaService {
   ModelDefinition? _activeModelDef;
   InferenceModel? _model;
   InferenceChat? _chat;
+  Future<void> _inferenceGate = Future<void>.value();
   final ValueNotifier<int> statusRevision = ValueNotifier<int>(0);
 
   bool get isModelLoaded => _modelLoaded;
@@ -209,6 +210,7 @@ class GemmaService {
       );
     }
 
+    final releaseSlot = await _acquireInferenceSlot(requestId);
     InferenceModelSession? session;
     try {
       debugPrint('[GemmaService][$requestId] Opening one-shot session...');
@@ -265,6 +267,7 @@ class GemmaService {
         );
         debugPrintStack(stackTrace: closeStack);
       }
+      releaseSlot();
     }
   }
 
@@ -294,29 +297,70 @@ class GemmaService {
     int maxTokens = 512,
     double temperature = 0.1,
   }) async* {
-    debugPrint('[GemmaService] Generate stream called');
+    final requestId = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
+    debugPrint('[GemmaService][$requestId] Generate stream called');
+    debugPrint('[GemmaService][$requestId]   Max output tokens: $maxTokens');
 
-    if (!_modelLoaded || _chat == null) {
+    if (!_modelLoaded || _model == null) {
       throw GemmaException(
         code: GemmaErrorCode.modelNotLoaded,
         message: 'No model loaded. Call loadModel() first.',
       );
     }
 
+    final releaseSlot = await _acquireInferenceSlot(requestId);
+    InferenceModelSession? session;
     try {
-      final message = Message(text: prompt, isUser: true);
-      await _chat!.addQuery(message);
+      session = await _model!.openSession(
+        temperature: temperature,
+        topK: 1,
+        maxOutputTokens: maxTokens,
+      );
+      await session.addQueryChunk(Message(text: prompt, isUser: true));
 
-      await for (final response in _chat!.generateChatResponseAsync()) {
-        if (response is TextResponse) {
-          yield response.token;
-        }
+      await for (final token in session.getResponseAsync()) {
+        yield token;
       }
     } catch (e, stack) {
-      debugPrint('[GemmaService] Stream generation error: $e');
-      debugPrint('[GemmaService]   Stack: $stack');
+      debugPrint('[GemmaService][$requestId] Stream generation error: $e');
+      debugPrint('[GemmaService][$requestId]   Stack: $stack');
+      final errMsg = e.toString().toLowerCase();
+      if (errMsg.contains('oom') || errMsg.contains('out of memory')) {
+        throw GemmaException(
+          code: GemmaErrorCode.oomError,
+          message:
+              'Out of memory during streamed inference. Try a shorter prompt or restart the app.',
+          detail: e.toString(),
+        );
+      }
       rethrow;
+    } finally {
+      try {
+        await session?.close();
+        debugPrint('[GemmaService][$requestId] Stream session closed');
+      } catch (closeError, closeStack) {
+        debugPrint(
+          '[GemmaService][$requestId] Stream session close failed: $closeError',
+        );
+        debugPrintStack(stackTrace: closeStack);
+      }
+      releaseSlot();
     }
+  }
+
+  Future<void Function()> _acquireInferenceSlot(String requestId) async {
+    final previous = _inferenceGate;
+    final release = Completer<void>();
+    _inferenceGate = previous.catchError((_) {}).then((_) => release.future);
+    debugPrint('[GemmaService][$requestId] Waiting for inference slot...');
+    await previous.catchError((_) {});
+    debugPrint('[GemmaService][$requestId] Inference slot acquired');
+    return () {
+      if (!release.isCompleted) {
+        release.complete();
+        debugPrint('[GemmaService][$requestId] Inference slot released');
+      }
+    };
   }
 
   Future<void> disposeModel() async {

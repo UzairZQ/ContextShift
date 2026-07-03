@@ -18,6 +18,25 @@ class HabitTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final kind = habit['kind'] == 'reduce' ? 'reduce' : 'build';
+    final isReduce = kind == 'reduce';
+    final activeColor = isReduce ? AppTheme.warning : Colors.green;
+    final cue = (habit['cue'] as String?)?.trim();
+    final tinyStep = (habit['tinyStep'] as String?)?.trim();
+    final reward = (habit['reward'] as String?)?.trim();
+    final friction = (habit['friction'] as String?)?.trim();
+    final strategy = isReduce
+        ? [
+            if (cue != null && cue.isNotEmpty) 'Trigger: $cue',
+            if (tinyStep != null && tinyStep.isNotEmpty) 'Swap: $tinyStep',
+            if (friction != null && friction.isNotEmpty) 'Friction: $friction',
+          ]
+        : [
+            if (cue != null && cue.isNotEmpty) 'Cue: $cue',
+            if (tinyStep != null && tinyStep.isNotEmpty) 'Tiny: $tinyStep',
+            if (reward != null && reward.isNotEmpty) 'Reward: $reward',
+          ];
+
     return GestureDetector(
       onTap: () => onToggle(!isDoneToday),
       child: AnimatedContainer(
@@ -26,12 +45,12 @@ class HabitTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: isDoneToday
-              ? Colors.green.withValues(alpha: 0.1)
+              ? activeColor.withValues(alpha: 0.1)
               : AppTheme.surfaceHigh,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isDoneToday
-                ? Colors.green.withValues(alpha: 0.4)
+                ? activeColor.withValues(alpha: 0.4)
                 : Colors.white.withValues(alpha: 0.05),
           ),
         ),
@@ -44,20 +63,62 @@ class HabitTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  Row(
+                    children: [
+                      _KindPill(
+                        label: isReduce ? 'Reduce' : 'Build',
+                        color: isReduce ? AppTheme.warning : AppTheme.success,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          isReduce
+                              ? (isDoneToday
+                                    ? 'Protected today'
+                                    : 'Protect today')
+                              : (isDoneToday
+                                    ? 'Practiced today'
+                                    : 'Practice today'),
+                          style: TextStyle(
+                            color: AppTheme.onSurfaceVariant.withValues(
+                              alpha: 0.62,
+                            ),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
                   Text(
                     habit['name'] ?? '',
                     style: TextStyle(
-                      color: isDoneToday ? Colors.white60 : Colors.white,
+                      color: isDoneToday
+                          ? AppTheme.onSurface.withValues(alpha: 0.68)
+                          : AppTheme.onSurface,
                       fontSize: 15,
-                      decoration: isDoneToday
-                          ? TextDecoration.lineThrough
-                          : null,
-                      decorationColor: Colors.white38,
+                      fontWeight: FontWeight.w700,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 6),
+                  if (strategy.isNotEmpty) ...[
+                    Text(
+                      strategy.take(2).join(' · '),
+                      style: TextStyle(
+                        color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
+                        fontSize: 11.5,
+                        height: 1.25,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   _MiniHeatmap(completedDates: habit['completedDates']),
                 ],
               ),
@@ -69,18 +130,45 @@ class HabitTile extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: isDoneToday
-                    ? Colors.green.withValues(alpha: 0.25)
+                    ? activeColor.withValues(alpha: 0.25)
                     : Colors.transparent,
                 border: Border.all(
-                  color: isDoneToday ? Colors.green : Colors.white24,
+                  color: isDoneToday ? activeColor : Colors.white24,
                   width: 2,
                 ),
               ),
               child: isDoneToday
-                  ? const Icon(LucideIcons.check, color: Colors.green, size: 14)
+                  ? Icon(LucideIcons.check, color: activeColor, size: 14)
                   : null,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _KindPill extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _KindPill({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
         ),
       ),
     );

@@ -25,18 +25,24 @@ import '../../../core/responsive.dart';
 import '../../widgets/genui/a2ui_surface_card.dart';
 import '../../widgets/motion/wonderous_motion.dart';
 
+part 'widgets/chat_widgets.dart';
+
 enum _JarvisChatMode { chat, generate }
+
+enum _JarvisBusyStage { idle, loadingModel, generatingSurface, thinking }
 
 class ChatScreen extends StatefulWidget {
   final String? initialMessage;
   final int? conversationId;
   final bool startNewOnOpen;
+  final bool initialGenerateMode;
 
   const ChatScreen({
     super.key,
     this.initialMessage,
     this.conversationId,
     this.startNewOnOpen = false,
+    this.initialGenerateMode = false,
   });
 
   @override
@@ -51,6 +57,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final _speech = stt.SpeechToText();
   JarvisGenUiRuntime? _genUiRuntime;
   bool _isProcessing = false;
+  _JarvisBusyStage _busyStage = _JarvisBusyStage.idle;
   bool _speechReady = false;
   bool _isListening = false;
   String _dictationBaseText = '';
@@ -58,6 +65,7 @@ class _ChatScreenState extends State<ChatScreen> {
   _JarvisChatMode _mode = _JarvisChatMode.chat;
   late final bool _forceComposer;
   bool _loggedFirstBuild = false;
+  bool _forceNextMessageAutoScroll = false;
 
   int? _activeConversationId;
   List<ConversationTableData> _conversations = [];
@@ -68,6 +76,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialGenerateMode) {
+      _mode = _JarvisChatMode.generate;
+    }
     debugPrint(
       '[ChatScreen] initState start. '
       'initialMessage=${widget.initialMessage?.trim().isNotEmpty == true}, '
@@ -112,18 +123,167 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _handleGenUiAction(WidgetAction action) async {
+    if (action.action == 'save_card') {
+      await _saveGeneratedCard(action);
+      return;
+    }
+
     final aiAction = GeneratedUiActionMapper.toAiAction(action);
     if (aiAction == null) {
       final message =
           GeneratedUiActionMapper.continuationMessage(action) ??
           'The generated UI action was "${action.action}" with '
               'context ${jsonEncode(action.params)}.';
+      if (action.action == 'continue_conversation' && mounted) {
+        setState(() => _mode = _JarvisChatMode.generate);
+        final editedMessage = await _showRefineSheet(message);
+        if (editedMessage == null || editedMessage.trim().isEmpty) return;
+        await _sendMessage(editedMessage);
+        return;
+      }
       await _sendMessage(message);
       return;
     }
     await ActionExecutor.instance.executeAll([aiAction]);
     if (!mounted) return;
     _showMessage('Done');
+  }
+
+  Future<void> _saveGeneratedCard(WidgetAction action) async {
+    final rawA2ui = _textParam(action, 'rawA2ui');
+    if (rawA2ui == null) {
+      _showMessage('This card could not be saved.');
+      return;
+    }
+    await DatabaseService.instance.saveGeneratedCard(
+      title: _textParam(action, 'title') ?? 'Generated card',
+      domain: _textParam(action, 'domain') ?? 'card',
+      rawA2ui: rawA2ui,
+      source: _textParam(action, 'source'),
+      fallbackReason: _textParam(action, 'fallbackReason'),
+      elapsedMs: _intParam(action, 'elapsedMs'),
+    );
+    if (!mounted) return;
+    _showMessage('Saved to Home');
+  }
+
+  String? _textParam(WidgetAction action, String key) {
+    final value = action.params[key];
+    if (value is! String) return null;
+    final text = value.trim();
+    return text.isEmpty ? null : text;
+  }
+
+  int? _intParam(WidgetAction action, String key) {
+    final value = action.params[key];
+    return value is num ? value.round() : null;
+  }
+
+  Future<String?> _showRefineSheet(String basePrompt) {
+    final extraController = TextEditingController();
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.surfaceLow,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: Spacing.lg,
+              right: Spacing.lg,
+              top: Spacing.lg,
+              bottom:
+                  MediaQuery.of(sheetContext).viewInsets.bottom + Spacing.lg,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Refine card',
+                  style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                    color: AppTheme.onSurface,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: Spacing.xs),
+                Text(
+                  'Add anything JARVIS should consider before rebuilding it.',
+                  style: Theme.of(sheetContext).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.onSurfaceVariant.withValues(alpha: 0.72),
+                  ),
+                ),
+                const SizedBox(height: Spacing.md),
+                TextField(
+                  controller: extraController,
+                  autofocus: true,
+                  minLines: 3,
+                  maxLines: 6,
+                  style: const TextStyle(color: AppTheme.onSurface),
+                  decoration: InputDecoration(
+                    hintText:
+                        'Example: make it simpler, add budget, use evening times...',
+                    hintStyle: TextStyle(
+                      color: AppTheme.onSurfaceVariant.withValues(alpha: 0.45),
+                    ),
+                    filled: true,
+                    fillColor: AppTheme.surfaceContainer,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(
+                        color: AppTheme.onSurfaceVariant.withValues(
+                          alpha: 0.12,
+                        ),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(
+                        color: AppTheme.onSurfaceVariant.withValues(
+                          alpha: 0.12,
+                        ),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: const BorderSide(color: AppTheme.primary),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: Spacing.md),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: Spacing.sm),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          final extra = extraController.text.trim();
+                          final prompt = extra.isEmpty
+                              ? basePrompt
+                              : '$basePrompt\n\nExtra refinement context from the user:\n$extra';
+                          Navigator.of(sheetContext).pop(prompt);
+                        },
+                        child: const Text('Refine'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ).whenComplete(extraController.dispose);
   }
 
   Future<void> _loadConversations() async {
@@ -162,8 +322,13 @@ class _ChatScreenState extends State<ChatScreen> {
             debugPrint(
               '[ChatScreen] Message stream update: ${msgs.length} messages',
             );
+            final shouldAutoScroll =
+                _forceNextMessageAutoScroll || _isNearMessageListBottom();
+            _forceNextMessageAutoScroll = false;
             setState(() => _messages = msgs);
-            _scrollToBottom();
+            if (shouldAutoScroll) {
+              _scrollToBottom();
+            }
           },
           onError: (error, stackTrace) {
             debugPrint('[ChatScreen] Message stream failed: $error');
@@ -182,6 +347,12 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     });
+  }
+
+  bool _isNearMessageListBottom() {
+    if (!_scrollController.hasClients) return true;
+    final position = _scrollController.position;
+    return position.maxScrollExtent - position.pixels <= 160;
   }
 
   Future<void> _selectConversation(int id) async {
@@ -243,7 +414,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (!mounted || _activeConversationId == null) return;
 
-    setState(() => _isProcessing = true);
+    setState(() {
+      _isProcessing = true;
+      _busyStage = GemmaService.instance.isModelLoaded
+          ? _nextBusyStage()
+          : _JarvisBusyStage.loadingModel;
+    });
+    _forceNextMessageAutoScroll = true;
 
     try {
       debugPrint(
@@ -274,10 +451,13 @@ class _ChatScreenState extends State<ChatScreen> {
         widgetJson = null;
       } else if (_mode == _JarvisChatMode.generate) {
         await _ensureJarvisReadyForChat(message);
+        if (mounted) {
+          setState(() => _busyStage = _JarvisBusyStage.generatingSurface);
+        }
         final generation = await _genUiRuntimeInstance.generate(
           userMessage: message,
           conversationId: _activeConversationId,
-          timeout: const Duration(seconds: 24),
+          timeout: const Duration(seconds: 38),
         );
         response = generation.text.isEmpty
             ? 'I shaped that into an interactive view.'
@@ -298,6 +478,7 @@ class _ChatScreenState extends State<ChatScreen> {
           widgetJson = null;
         } else {
           await _ensureJarvisReadyForChat(message);
+          if (mounted) setState(() => _busyStage = _JarvisBusyStage.thinking);
           response = await _generatePlainJarvisReply(message);
           debugPrint('[ChatScreen] Plain JARVIS response: $response');
           widgetJson = null;
@@ -353,7 +534,12 @@ class _ChatScreenState extends State<ChatScreen> {
       }
       if (mounted) _showMessage('JARVIS could not complete that message.');
     } finally {
-      if (mounted) setState(() => _isProcessing = false);
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+          _busyStage = _JarvisBusyStage.idle;
+        });
+      }
     }
   }
 
@@ -363,6 +549,12 @@ class _ChatScreenState extends State<ChatScreen> {
       'messageLength=${message.length}',
     );
     await GemmaService.instance.loadBestAvailableModel();
+  }
+
+  _JarvisBusyStage _nextBusyStage() {
+    return _mode == _JarvisChatMode.generate
+        ? _JarvisBusyStage.generatingSurface
+        : _JarvisBusyStage.thinking;
   }
 
   Future<String> _generatePlainJarvisReply(String message) async {
@@ -1018,80 +1210,95 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildChatView(BuildContext context) {
     if (_messages.isEmpty && !_isProcessing) {
       final isGenerate = _mode == _JarvisChatMode.generate;
-      return Center(
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: Responsive.horizontalPadding(context),
-          ),
-          child: WonderousReveal(
-            delay: const Duration(milliseconds: 160),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isGenerate ? LucideIcons.sparkles : LucideIcons.radio,
-                  size: 48,
-                  color: AppTheme.intelligence.withValues(alpha: 0.48),
-                ),
-                const SizedBox(height: Spacing.lg),
-                Text(
-                  isGenerate
-                      ? 'What should JARVIS build?'
-                      : 'What should we untangle?',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: Spacing.sm),
-                Text(
-                  isGenerate
-                      ? 'Ask for a card, plan, tracker, dashboard, or schedule.'
-                      : 'Drop the messy version. JARVIS will use your local context.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.onSurfaceVariant.withValues(alpha: 0.6),
-                  ),
-                ),
-                if (isGenerate) ...[
-                  const SizedBox(height: Spacing.lg),
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: Spacing.sm,
-                    runSpacing: Spacing.sm,
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.fromLTRB(
+              Responsive.horizontalPadding(context),
+              Spacing.md,
+              Responsive.horizontalPadding(context),
+              Spacing.xl,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: WonderousReveal(
+                  delay: const Duration(milliseconds: 160),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      _GeneratePromptChip(
-                        label: 'Workout plan',
-                        prompt: 'Build a workout plan card for tomorrow',
-                        onSelected: _sendMessage,
+                      Icon(
+                        isGenerate ? LucideIcons.sparkles : LucideIcons.radio,
+                        size: 48,
+                        color: AppTheme.intelligence.withValues(alpha: 0.48),
                       ),
-                      _GeneratePromptChip(
-                        label: 'Habit dashboard',
-                        prompt: 'Generate a habit dashboard for this week',
-                        onSelected: _sendMessage,
+                      const SizedBox(height: Spacing.lg),
+                      Text(
+                        isGenerate
+                            ? 'What should JARVIS build?'
+                            : 'What should we untangle?',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(color: AppTheme.onSurfaceVariant),
                       ),
-                      _GeneratePromptChip(
-                        label: 'Study schedule',
-                        prompt: 'Create a study schedule card for tomorrow',
-                        onSelected: _sendMessage,
+                      const SizedBox(height: Spacing.sm),
+                      Text(
+                        isGenerate
+                            ? 'Ask for a card, plan, tracker, dashboard, or schedule.'
+                            : 'Drop the messy version. JARVIS will use your local context.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.onSurfaceVariant.withValues(
+                            alpha: 0.6,
+                          ),
+                        ),
                       ),
-                      _GeneratePromptChip(
-                        label: 'Decision card',
-                        prompt: 'Make a decision comparison card',
-                        onSelected: _sendMessage,
-                      ),
+                      if (isGenerate) ...[
+                        const SizedBox(height: Spacing.lg),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: Spacing.sm,
+                          runSpacing: Spacing.sm,
+                          children: [
+                            _GeneratePromptChip(
+                              label: 'Workout plan',
+                              prompt: 'Build a workout plan card for tomorrow',
+                              onSelected: _sendMessage,
+                            ),
+                            _GeneratePromptChip(
+                              label: 'Habit dashboard',
+                              prompt:
+                                  'Generate a habit dashboard for this week',
+                              onSelected: _sendMessage,
+                            ),
+                            _GeneratePromptChip(
+                              label: 'Study schedule',
+                              prompt:
+                                  'Create a study schedule card for tomorrow',
+                              onSelected: _sendMessage,
+                            ),
+                            _GeneratePromptChip(
+                              label: 'Decision card',
+                              prompt: 'Make a decision comparison card',
+                              onSelected: _sendMessage,
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
-                ],
-              ],
+                ),
+              ),
             ),
-          ),
-        ),
+          );
+        },
       );
     }
 
     return ListView.builder(
       controller: _scrollController,
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: EdgeInsets.symmetric(
         horizontal: Responsive.horizontalPadding(context),
         vertical: Spacing.md,
@@ -1099,23 +1306,20 @@ class _ChatScreenState extends State<ChatScreen> {
       itemCount: _messages.length + (_isProcessing ? 1 : 0),
       itemBuilder: (context, index) {
         if (index == _messages.length && _isProcessing) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: Spacing.sm),
-            child: _ThinkingBubble(),
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
+            child: _ThinkingBubble(stage: _busyStage),
           );
         }
         final msg = _messages[index];
         final isUser = msg.role == 'user';
-        return WonderousReveal(
+        return _MessageBubble(
           key: ValueKey(msg.id),
-          begin: Offset(isUser ? 0.08 : -0.08, 0.03),
-          child: _MessageBubble(
-            message: msg.content,
-            isUser: isUser,
-            timestamp: msg.createdAt,
-            widgetJson: msg.widgetJson,
-            onWidgetAction: (label) => _sendMessage(label),
-          ),
+          message: msg.content,
+          isUser: isUser,
+          timestamp: msg.createdAt,
+          widgetJson: msg.widgetJson,
+          onWidgetAction: (label) => _sendMessage(label),
         );
       },
     );
@@ -1199,12 +1403,16 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               SizedBox(width: Spacing.xs),
               _isProcessing
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppTheme.intelligence,
+                  ? const SizedBox.square(
+                      dimension: 36,
+                      child: Center(
+                        child: SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppTheme.intelligence,
+                          ),
+                        ),
                       ),
                     )
                   : Semantics(
@@ -1230,392 +1438,5 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     return bar;
-  }
-}
-
-class _GeneratePromptChip extends StatelessWidget {
-  final String label;
-  final String prompt;
-  final ValueChanged<String> onSelected;
-
-  const _GeneratePromptChip({
-    required this.label,
-    required this.prompt,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ActionChip(
-      avatar: const Icon(LucideIcons.sparkles, size: 14),
-      label: Text(label),
-      labelStyle: const TextStyle(
-        color: AppTheme.onSurface,
-        fontWeight: FontWeight.w700,
-        fontSize: 12,
-      ),
-      side: BorderSide(color: AppTheme.primary.withValues(alpha: 0.22)),
-      backgroundColor: AppTheme.surfaceHighest.withValues(alpha: 0.66),
-      onPressed: () => onSelected(prompt),
-    );
-  }
-}
-
-class _ConversationTile extends StatelessWidget {
-  final ConversationTableData conversation;
-  final bool isActive;
-  final VoidCallback onTap;
-  final VoidCallback onDelete;
-
-  const _ConversationTile({
-    required this.conversation,
-    required this.isActive,
-    required this.onTap,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: Motion.fast,
-        padding: EdgeInsets.symmetric(
-          horizontal: Spacing.lg,
-          vertical: Spacing.md,
-        ),
-        decoration: BoxDecoration(
-          color: isActive
-              ? AppTheme.intelligence.withValues(alpha: 0.1)
-              : AppTheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(16),
-          border: isActive
-              ? Border.all(color: AppTheme.intelligence.withValues(alpha: 0.2))
-              : null,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              LucideIcons.messageSquare,
-              size: 18,
-              color: isActive
-                  ? AppTheme.intelligence
-                  : AppTheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: Spacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    conversation.title,
-                    style: TextStyle(
-                      color: isActive
-                          ? AppTheme.onSurface
-                          : AppTheme.onSurfaceVariant,
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                      fontSize: 14,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _formatDate(conversation.updatedAt),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppTheme.onSurfaceVariant.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            GestureDetector(
-              onTap: onDelete,
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Icon(
-                  LucideIcons.trash2,
-                  size: 16,
-                  color: AppTheme.error.withValues(alpha: 0.6),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatDate(DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inDays < 1) return '${diff.inHours}h ago';
-    return '${dt.month}/${dt.day}/${dt.year}';
-  }
-}
-
-class _MessageBubble extends StatelessWidget {
-  final String message;
-  final bool isUser;
-  final DateTime timestamp;
-  final String? widgetJson;
-  final ValueChanged<String> onWidgetAction;
-
-  const _MessageBubble({
-    required this.message,
-    required this.isUser,
-    required this.timestamp,
-    required this.widgetJson,
-    required this.onWidgetAction,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(top: Spacing.xs, bottom: Spacing.xs),
-      child: Column(
-        crossAxisAlignment: isUser
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
-        children: [
-          Container(
-            constraints: BoxConstraints(
-              maxWidth:
-                  MediaQuery.of(context).size.width * (isUser ? 0.8 : 0.9),
-            ),
-            padding: EdgeInsets.symmetric(
-              horizontal: Spacing.lg,
-              vertical: Spacing.md,
-            ),
-            decoration: BoxDecoration(
-              color: isUser
-                  ? AppTheme.primary.withValues(alpha: 0.15)
-                  : AppTheme.surfaceContainer,
-              borderRadius: BorderRadius.circular(20).copyWith(
-                bottomRight: isUser ? const Radius.circular(4) : null,
-                bottomLeft: !isUser ? const Radius.circular(4) : null,
-              ),
-              border: !isUser
-                  ? Border.all(
-                      color: AppTheme.onSurfaceVariant.withValues(alpha: 0.08),
-                    )
-                  : null,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  message,
-                  style: TextStyle(
-                    color: isUser
-                        ? AppTheme.onSurface
-                        : AppTheme.onSurfaceVariant,
-                    fontSize: 14,
-                    height: 1.5,
-                  ),
-                ),
-                if (!isUser && widgetJson != null) ...[
-                  const SizedBox(height: Spacing.md),
-                  _buildGeneratedContent(context),
-                ],
-              ],
-            ),
-          ),
-          SizedBox(height: 2),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: Spacing.sm),
-            child: Text(
-              _formatTime(timestamp),
-              style: TextStyle(
-                fontSize: 10,
-                color: AppTheme.onSurfaceVariant.withValues(alpha: 0.35),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGeneratedContent(BuildContext context) {
-    try {
-      final decoded = jsonDecode(widgetJson!);
-      if (decoded is Map) {
-        final card = Map<String, dynamic>.from(decoded);
-        if (card['format'] == 'a2ui-v0.9' && card['raw'] is String) {
-          return A2uiSurfaceCard(
-            rawA2ui: card['raw'] as String,
-            source: card['source']?.toString(),
-            fallbackReason: card['fallbackReason']?.toString(),
-            elapsedMs: card['elapsedMs'] is num
-                ? (card['elapsedMs'] as num).round()
-                : null,
-            onAction: (action) {
-              GenUiActionBus.instance.emit(action);
-            },
-          );
-        }
-      }
-      debugPrint(
-        '[ChatScreen] Ignoring non-object GenUI payload: ${decoded.runtimeType}',
-      );
-    } catch (error, stackTrace) {
-      debugPrint('[ChatScreen] Invalid stored GenUI JSON: $error');
-      debugPrintStack(stackTrace: stackTrace);
-    }
-
-    return Text(
-      'This older interactive response could not be displayed.',
-      style: Theme.of(
-        context,
-      ).textTheme.bodySmall?.copyWith(color: AppTheme.warning),
-    );
-  }
-
-  String _formatTime(DateTime dt) {
-    final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
-    final ampm = dt.hour >= 12 ? 'PM' : 'AM';
-    final min = dt.minute.toString().padLeft(2, '0');
-    return '$hour:$min $ampm';
-  }
-}
-
-class _ThinkingBubble extends StatelessWidget {
-  const _ThinkingBubble();
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: Spacing.lg,
-          vertical: Spacing.md,
-        ),
-        decoration: BoxDecoration(
-          color: AppTheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(
-            20,
-          ).copyWith(bottomLeft: const Radius.circular(4)),
-          border: Border.all(
-            color: AppTheme.onSurfaceVariant.withValues(alpha: 0.08),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _Dot(index: 0),
-            SizedBox(width: 4),
-            _Dot(index: 1),
-            SizedBox(width: 4),
-            _Dot(index: 2),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Dot extends StatefulWidget {
-  final int index;
-  const _Dot({required this.index});
-
-  @override
-  State<_Dot> createState() => _DotState();
-}
-
-class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..repeat(reverse: true);
-    _animation = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Interval(
-          widget.index * 0.2,
-          0.6 + widget.index * 0.2,
-          curve: Curves.easeInOut,
-        ),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (_, child) => Opacity(
-        opacity: _animation.value,
-        child: Container(
-          width: 6,
-          height: 6,
-          decoration: const BoxDecoration(
-            color: AppTheme.intelligence,
-            shape: BoxShape.circle,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ContextChatButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _ContextChatButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: Spacing.xxl,
-          vertical: Spacing.md,
-        ),
-        decoration: AppTheme.contextPanel(
-          color: AppTheme.intelligence.withValues(alpha: 0.1),
-          accent: AppTheme.intelligence,
-          borderRadius: 999,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: AppTheme.intelligence),
-            const SizedBox(width: Spacing.sm),
-            Text(
-              label,
-              style: const TextStyle(
-                color: AppTheme.intelligence,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

@@ -55,6 +55,11 @@ class HabitTable extends Table {
   TextColumn get userId => text()();
   TextColumn get name => text()();
   TextColumn get icon => text()();
+  TextColumn get kind => text().withDefault(const Constant('build'))();
+  TextColumn? get cue => text().nullable()();
+  TextColumn? get tinyStep => text().nullable()();
+  TextColumn? get reward => text().nullable()();
+  TextColumn? get friction => text().nullable()();
   TextColumn get completedDates => text().withDefault(const Constant('[]'))();
   DateTimeColumn get createdAt => dateTime()();
 }
@@ -117,6 +122,22 @@ class BehaviorEventTable extends Table {
   DateTimeColumn get timestamp => dateTime()();
 }
 
+// ── Saved Generated Cards ─────────────────────────────────────
+
+class SavedGeneratedCardTable extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get userId => text()();
+  TextColumn get title => text()();
+  TextColumn get domain => text().withDefault(const Constant('card'))();
+  TextColumn get rawA2ui => text()();
+  TextColumn? get source => text().nullable()();
+  TextColumn? get fallbackReason => text().nullable()();
+  IntColumn? get elapsedMs => integer().nullable()();
+  TextColumn? get originalPrompt => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+}
+
 // ── Conversations (Jarvis chat) ────────────────────────────────
 
 class ConversationTable extends Table {
@@ -176,6 +197,7 @@ class MessageTable extends Table {
     MoodEntryTable,
     AiCommandTable,
     BehaviorEventTable,
+    SavedGeneratedCardTable,
     ConversationTable,
     ConversationMemoryTable,
     JarvisMemoryTable,
@@ -186,7 +208,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration {
@@ -211,6 +233,25 @@ class AppDatabase extends _$AppDatabase {
         if (from < 3) {
           await m.createTable(conversationMemoryTable);
           await m.createTable(jarvisMemoryTable);
+        }
+        if (from < 4) {
+          await m.addColumn(habitTable, habitTable.kind);
+          await m.addColumn(habitTable, habitTable.cue);
+          await m.addColumn(habitTable, habitTable.tinyStep);
+          await m.addColumn(habitTable, habitTable.reward);
+          await m.addColumn(habitTable, habitTable.friction);
+          await customStatement(
+            "UPDATE habit_table SET kind = 'reduce' "
+            "WHERE lower(name) LIKE '%nicotine%' "
+            "OR lower(name) LIKE '%smok%' "
+            "OR lower(name) LIKE '%vape%' "
+            "OR lower(name) LIKE '%alcohol%' "
+            "OR lower(name) LIKE '%junk%' "
+            "OR lower(name) LIKE '%doomscroll%'",
+          );
+        }
+        if (from < 5) {
+          await m.createTable(savedGeneratedCardTable);
         }
       },
     );
