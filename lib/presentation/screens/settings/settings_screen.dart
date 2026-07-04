@@ -12,6 +12,8 @@ import '../../../core/services/feature_manager.dart';
 import '../../../features/onboarding/widgets/model_download_screen.dart';
 import '../../shared/context_shift_primitives.dart';
 import '../../widgets/motion/wonderous_motion.dart';
+import 'about_context_shift_screen.dart';
+import 'privacy_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -209,8 +211,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: _SettingsTile(
                         icon: LucideIcons.info,
                         title: 'ContextShift',
-                        subtitle: 'v1.0.0 — Fully offline AI',
-                        onTap: null,
+                        subtitle: 'What this workspace can do',
+                        onTap: () => Navigator.push(
+                          context,
+                          SmoothPageRoute(
+                            builder: (_) => const AboutContextShiftScreen(),
+                          ),
+                        ),
                       ),
                     ),
                     WonderousReveal(
@@ -218,8 +225,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: _SettingsTile(
                         icon: LucideIcons.shield,
                         title: 'Privacy',
-                        subtitle: 'All data stays on your device',
-                        onTap: null,
+                        subtitle: 'Local data and diagnostics',
+                        onTap: () => Navigator.push(
+                          context,
+                          SmoothPageRoute(
+                            builder: (_) => const PrivacyScreen(),
+                          ),
+                        ),
                       ),
                     ),
                   ],

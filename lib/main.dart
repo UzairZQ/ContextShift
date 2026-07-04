@@ -5,11 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/app_runtime.dart';
-import 'core/app_spacing.dart';
 import 'core/app_theme.dart';
 import 'core/database/database_service.dart';
 import 'core/local_llm/gemma_service.dart';
-import 'core/responsive.dart';
 import 'core/services/feature_manager.dart';
 import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/onboarding/onboarding_screen.dart';
@@ -102,7 +100,7 @@ enum _SetupStep { loading, onboarding, profile, homeReveal, home }
 
 class _LaunchGateState extends State<_LaunchGate> {
   static const _onboardingKey = 'has_seen_onboarding';
-  static const _minimumSplash = Duration(milliseconds: 950);
+  static const _minimumSplash = Duration(milliseconds: 320);
   _SetupStep _step = _SetupStep.loading;
   bool _navigatedHome = false;
 
@@ -213,8 +211,8 @@ class _HomeLaunchReveal extends StatefulWidget {
 
 class _HomeLaunchRevealState extends State<_HomeLaunchReveal>
     with SingleTickerProviderStateMixin {
-  static const _homeSettleDelay = Duration(milliseconds: 1200);
-  static const _revealDuration = Duration(milliseconds: 1250);
+  static const _homeSettleDelay = Duration(milliseconds: 40);
+  static const _revealDuration = Duration(milliseconds: 520);
 
   late final AnimationController _controller;
   bool _finished = false;
@@ -244,148 +242,247 @@ class _HomeLaunchRevealState extends State<_HomeLaunchReveal>
 
   @override
   Widget build(BuildContext context) {
-    final media = MediaQuery.of(context);
-    final size = media.size;
-    final targetLeft = Responsive.horizontalPadding(context);
-    final targetTop = media.padding.top + Spacing.xxl;
-    final startLeft = (size.width - 260) / 2;
-    final startTop = (size.height - 42) / 2;
+    if (_finished) return const HomeScreen();
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
     return Stack(
       children: [
         RepaintBoundary(
           child: AbsorbPointer(
             absorbing: !_finished,
-            child: HomeScreen(hideWordmark: !_finished),
+            child: const HomeScreen(),
           ),
         ),
-        if (!_finished)
-          IgnorePointer(
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) {
-                final movement = Curves.easeInOutCubic.transform(
-                  Interval(0.12, 0.92).transform(_controller.value),
-                );
-                final reveal = Curves.easeOutCubic.transform(
-                  Interval(0.34, 0.96).transform(_controller.value),
-                );
-                final subtitle =
-                    1 -
-                    Curves.easeInCubic.transform(
-                      Interval(0.12, 0.50).transform(_controller.value),
-                    );
-
-                return Stack(
-                  children: [
-                    Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: RadialGradient(
-                            center: const Alignment(0.2, -0.15),
-                            radius: 0.9,
-                            colors: [
-                              AppTheme.primary.withValues(
-                                alpha: 0.20 * (1 - reveal),
-                              ),
-                              AppTheme.surfaceLow.withValues(
-                                alpha: 0.72 * (1 - reveal),
-                              ),
-                              AppTheme.background.withValues(alpha: 1 - reveal),
-                            ],
-                            stops: const [0, 0.42, 1],
-                          ),
-                        ),
+        IgnorePointer(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              final fade = reduceMotion
+                  ? 0.0
+                  : 1 - Curves.easeOutCubic.transform(_controller.value);
+              final lift = reduceMotion
+                  ? 0.0
+                  : Curves.easeOutCubic.transform(_controller.value);
+              return Opacity(
+                opacity: fade,
+                child: DecoratedBox(
+                  decoration: _launchBackdrop(alpha: fade),
+                  child: Center(
+                    child: Transform.translate(
+                      offset: Offset(0, -10 * lift),
+                      child: Transform.scale(
+                        scale: 1 - (0.018 * lift),
+                        child: _LaunchIdentity(progress: 1 - fade),
                       ),
                     ),
-                    Positioned(
-                      left: lerpDouble(startLeft, targetLeft, movement)!,
-                      top: lerpDouble(startTop, targetTop, movement)!,
-                      width: lerpDouble(260, 240, movement)!,
-                      child: ContextShiftWordmark(
-                        textAlign: movement < 0.58
-                            ? TextAlign.center
-                            : TextAlign.start,
-                      ),
-                    ),
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      top: startTop + 58,
-                      child: Opacity(
-                        opacity: subtitle,
-                        child: Text(
-                          'Preparing your private context',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(
-                                color: AppTheme.onSurfaceVariant,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
+                  ),
+                ),
+              );
+            },
           ),
+        ),
       ],
     );
   }
 }
 
-class _BootSplash extends StatelessWidget {
+class _BootSplash extends StatefulWidget {
   const _BootSplash();
 
   @override
+  State<_BootSplash> createState() => _BootSplashState();
+}
+
+class _BootSplashState extends State<_BootSplash>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return Scaffold(
       backgroundColor: AppTheme.background,
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: const Alignment(0.2, -0.15),
-            radius: 0.9,
-            colors: [
-              AppTheme.primary.withValues(alpha: 0.20),
-              AppTheme.surfaceLow.withValues(alpha: 0.72),
-              AppTheme.background,
-            ],
-            stops: const [0, 0.42, 1],
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const ContextShiftWordmark(textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: 1),
-                  duration: const Duration(milliseconds: 520),
-                  curve: Curves.easeOutCubic,
-                  builder: (context, value, child) {
-                    return Opacity(
-                      opacity: value,
-                      child: Transform.translate(
-                        offset: Offset(0, 8 * (1 - value)),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: Text(
-                    'Preparing your private context',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: AppTheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
+      body: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          final value = reduceMotion
+              ? 1.0
+              : Curves.easeOutCubic.transform(_controller.value);
+          return DecoratedBox(
+            decoration: _launchBackdrop(),
+            child: SafeArea(
+              child: Center(
+                child: Opacity(
+                  opacity: value,
+                  child: Transform.translate(
+                    offset: Offset(0, 10 * (1 - value)),
+                    child: Transform.scale(
+                      scale: 0.96 + (0.04 * value),
+                      child: _LaunchIdentity(progress: value),
                     ),
                   ),
                 ),
-              ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+BoxDecoration _launchBackdrop({double alpha = 1}) {
+  return BoxDecoration(
+    color: AppTheme.background,
+    gradient: RadialGradient(
+      center: const Alignment(0.1, -0.28),
+      radius: 0.92,
+      colors: [
+        AppTheme.primary.withValues(alpha: 0.18 * alpha),
+        AppTheme.surfaceLow.withValues(alpha: 0.88 * alpha),
+        AppTheme.background,
+      ],
+      stops: const [0, 0.44, 1],
+    ),
+  );
+}
+
+class _LaunchIdentity extends StatelessWidget {
+  final double progress;
+
+  const _LaunchIdentity({required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'ContextShift is starting',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const _LaunchMark(),
+          const SizedBox(height: 18),
+          const ContextShiftWordmark(textAlign: TextAlign.center),
+          const SizedBox(height: 10),
+          Text(
+            'Private AI workspace',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: AppTheme.onSurfaceVariant.withValues(alpha: 0.78),
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
             ),
           ),
+          const SizedBox(height: 20),
+          _LaunchProgress(value: progress.clamp(0, 1).toDouble()),
+        ],
+      ),
+    );
+  }
+}
+
+class _LaunchMark extends StatelessWidget {
+  const _LaunchMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 58,
+      height: 58,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppTheme.surfaceHighest, AppTheme.surfaceContainer],
+        ),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.28)),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primary.withValues(alpha: 0.18),
+            blurRadius: 26,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              color: AppTheme.primary.withValues(alpha: 0.94),
+            ),
+          ),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppTheme.onSurface.withValues(alpha: 0.16),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 13,
+            right: 13,
+            child: Container(
+              width: 7,
+              height: 7,
+              decoration: const BoxDecoration(
+                color: AppTheme.success,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LaunchProgress extends StatelessWidget {
+  final double value;
+
+  const _LaunchProgress({required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 124,
+      height: 3,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(999),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ColoredBox(color: Colors.white.withValues(alpha: 0.08)),
+            FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: value,
+              child: const DecoratedBox(
+                decoration: BoxDecoration(gradient: AppTheme.primaryGradient),
+              ),
+            ),
+          ],
         ),
       ),
     );

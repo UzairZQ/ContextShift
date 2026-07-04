@@ -530,6 +530,7 @@ final _actionSchema = ObjectSchema(
         'create_note',
         'start_focus',
         'save_card',
+        'edit_schedule_times',
         'continue_conversation',
       ],
     ),

@@ -182,7 +182,7 @@ class _JarvisActionDelegate implements ActionDelegate {
   ) {
     if (event is! UserActionEvent) return false;
     final params = Map<String, dynamic>.from(event.context);
-    if (event.name == 'save_card') {
+    if (event.name == 'save_card' || event.name == 'edit_schedule_times') {
       params.addAll({
         'rawA2ui': widget.rawA2ui,
         if (widget.source != null) 'source': widget.source,

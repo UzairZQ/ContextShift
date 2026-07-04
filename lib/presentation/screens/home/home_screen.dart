@@ -19,6 +19,7 @@ import '../../../core/responsive.dart';
 import '../../../core/services/feature_manager.dart';
 import '../../../features/onboarding/widgets/model_download_screen.dart';
 import '../../widgets/focus/focus_module.dart';
+import '../../widgets/genui/schedule_card_editor.dart';
 import '../../widgets/habits/habit_module.dart';
 import '../../widgets/tasks/tasks_module.dart';
 import '../ai_dashboard/ai_dashboard_screen.dart';
@@ -368,6 +369,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     String? initialMessage,
     bool startNewOnOpen = false,
     bool initialGenerateMode = false,
+    bool initialMessageDraftOnly = false,
   }) {
     return Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -375,6 +377,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           initialMessage: initialMessage,
           startNewOnOpen: startNewOnOpen,
           initialGenerateMode: initialGenerateMode,
+          initialMessageDraftOnly: initialMessageDraftOnly,
         ),
       ),
     );
@@ -385,6 +388,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       await _saveGeneratedCard(action);
       return;
     }
+    if (action.action == 'edit_schedule_times') {
+      await _editScheduleTimes(action);
+      return;
+    }
 
     final aiAction = GeneratedUiActionMapper.toAiAction(action);
     if (aiAction == null) {
@@ -393,6 +400,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         await _pushChat(
           initialMessage: message,
           initialGenerateMode: action.action == 'continue_conversation',
+          initialMessageDraftOnly: action.action == 'continue_conversation',
         );
       }
       return;
@@ -421,13 +429,63 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       elapsedMs: _intParam(action, 'elapsedMs'),
     );
     if (!mounted) return;
+    setState(() {
+      _activeSurfaceRawA2ui = null;
+      _activeSurfaceSource = null;
+      _activeSurfaceFallbackReason = null;
+      _activeSurfaceElapsedMs = null;
+    });
     _showResponseSnackBar('Saved to Home');
+  }
+
+  Future<void> _editScheduleTimes(WidgetAction action) async {
+    final rawA2ui = _textParam(action, 'rawA2ui');
+    if (rawA2ui == null) {
+      _showResponseSnackBar('This schedule could not be edited.');
+      return;
+    }
+    final updatedRaw = await ScheduleCardEditor.editTimes(
+      context: context,
+      rawA2ui: rawA2ui,
+    );
+    if (updatedRaw == null || !mounted) return;
+
+    if (_savedGeneratedCard != null) {
+      await DatabaseService.instance.saveGeneratedCard(
+        title: _savedGeneratedCard!.title,
+        domain: _savedGeneratedCard!.domain,
+        rawA2ui: updatedRaw,
+        source: _savedGeneratedCard!.source,
+        fallbackReason: _savedGeneratedCard!.fallbackReason,
+        elapsedMs: _savedGeneratedCard!.elapsedMs,
+        originalPrompt: _savedGeneratedCard!.originalPrompt,
+      );
+    } else {
+      setState(() {
+        _activeSurfaceRawA2ui = updatedRaw;
+        _activeSurfaceSource = _textParam(action, 'source');
+        _activeSurfaceFallbackReason = _textParam(action, 'fallbackReason');
+        _activeSurfaceElapsedMs = _intParam(action, 'elapsedMs');
+      });
+    }
+    if (!mounted) return;
+    _showResponseSnackBar('Schedule updated');
   }
 
   Future<void> _deleteSavedGeneratedCard(int id) async {
     await DatabaseService.instance.deleteSavedGeneratedCard(id);
     if (!mounted) return;
     _showResponseSnackBar('Removed from Home');
+  }
+
+  void _dismissTemporaryGeneratedCard() {
+    setState(() {
+      _activeSurfaceRawA2ui = null;
+      _activeSurfaceSource = null;
+      _activeSurfaceFallbackReason = null;
+      _activeSurfaceElapsedMs = null;
+    });
+    _showResponseSnackBar('Card dismissed');
   }
 
   String? _textParam(WidgetAction action, String key) {
@@ -475,7 +533,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           activeSurfaceElapsedMs:
               _savedGeneratedCard?.elapsedMs ?? _activeSurfaceElapsedMs,
           onDeleteActiveSurface: _savedGeneratedCard == null
-              ? null
+              ? (_activeSurfaceRawA2ui == null
+                    ? null
+                    : _dismissTemporaryGeneratedCard)
               : () => unawaited(
                   _deleteSavedGeneratedCard(_savedGeneratedCard!.id),
                 ),

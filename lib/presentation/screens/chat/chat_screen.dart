@@ -23,6 +23,7 @@ import '../../../core/genui/widget_node.dart';
 import '../../../core/local_llm/gemma_service.dart';
 import '../../../core/responsive.dart';
 import '../../widgets/genui/a2ui_surface_card.dart';
+import '../../widgets/genui/schedule_card_editor.dart';
 import '../../widgets/motion/wonderous_motion.dart';
 
 part 'widgets/chat_widgets.dart';
@@ -36,6 +37,7 @@ class ChatScreen extends StatefulWidget {
   final int? conversationId;
   final bool startNewOnOpen;
   final bool initialGenerateMode;
+  final bool initialMessageDraftOnly;
 
   const ChatScreen({
     super.key,
@@ -43,6 +45,7 @@ class ChatScreen extends StatefulWidget {
     this.conversationId,
     this.startNewOnOpen = false,
     this.initialGenerateMode = false,
+    this.initialMessageDraftOnly = false,
   });
 
   @override
@@ -98,8 +101,13 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadConversations().then((_) {
       debugPrint('[ChatScreen] Initial conversation load complete');
       if (widget.initialMessage != null && widget.initialMessage!.isNotEmpty) {
-        debugPrint('[ChatScreen] Sending initial message after load');
-        _sendMessage(widget.initialMessage!);
+        if (widget.initialMessageDraftOnly) {
+          debugPrint('[ChatScreen] Drafting initial message after load');
+          _setComposerText(widget.initialMessage!);
+        } else {
+          debugPrint('[ChatScreen] Sending initial message after load');
+          _sendMessage(widget.initialMessage!);
+        }
       }
     });
   }
@@ -127,6 +135,10 @@ class _ChatScreenState extends State<ChatScreen> {
       await _saveGeneratedCard(action);
       return;
     }
+    if (action.action == 'edit_schedule_times') {
+      await _editScheduleTimes(action);
+      return;
+    }
 
     final aiAction = GeneratedUiActionMapper.toAiAction(action);
     if (aiAction == null) {
@@ -138,7 +150,8 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() => _mode = _JarvisChatMode.generate);
         final editedMessage = await _showRefineSheet(message);
         if (editedMessage == null || editedMessage.trim().isEmpty) return;
-        await _sendMessage(editedMessage);
+        _setComposerText(editedMessage);
+        _showMessage('Refine prompt is ready to edit');
         return;
       }
       await _sendMessage(message);
@@ -167,6 +180,33 @@ class _ChatScreenState extends State<ChatScreen> {
     _showMessage('Saved to Home');
   }
 
+  Future<void> _editScheduleTimes(WidgetAction action) async {
+    final rawA2ui = _textParam(action, 'rawA2ui');
+    if (rawA2ui == null || _activeConversationId == null) {
+      _showMessage('This schedule could not be edited.');
+      return;
+    }
+    final updatedRaw = await ScheduleCardEditor.editTimes(
+      context: context,
+      rawA2ui: rawA2ui,
+    );
+    if (updatedRaw == null || !mounted) return;
+    await DatabaseService.instance.addMessage(
+      conversationId: _activeConversationId!,
+      role: 'assistant',
+      content: 'I updated the schedule card locally.',
+      widgetJson: jsonEncode({
+        'format': 'a2ui-v0.9',
+        'raw': updatedRaw,
+        'source': _textParam(action, 'source') ?? 'gemma',
+        'fallbackReason': _textParam(action, 'fallbackReason'),
+        'elapsedMs': _intParam(action, 'elapsedMs'),
+      }),
+    );
+    if (!mounted) return;
+    _showMessage('Schedule updated');
+  }
+
   String? _textParam(WidgetAction action, String key) {
     final value = action.params[key];
     if (value is! String) return null;
@@ -177,6 +217,14 @@ class _ChatScreenState extends State<ChatScreen> {
   int? _intParam(WidgetAction action, String key) {
     final value = action.params[key];
     return value is num ? value.round() : null;
+  }
+
+  void _setComposerText(String text) {
+    final trimmed = text.trim();
+    _messageController.value = TextEditingValue(
+      text: trimmed,
+      selection: TextSelection.collapsed(offset: trimmed.length),
+    );
   }
 
   Future<String?> _showRefineSheet(String basePrompt) {
@@ -273,7 +321,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               : '$basePrompt\n\nExtra refinement context from the user:\n$extra';
                           Navigator.of(sheetContext).pop(prompt);
                         },
-                        child: const Text('Refine'),
+                        child: const Text('Add to composer'),
                       ),
                     ),
                   ],

@@ -808,6 +808,9 @@ class DatabaseService {
     String? originalPrompt,
   }) async {
     final now = DateTime.now();
+    await (_db.delete(
+      _db.savedGeneratedCardTable,
+    )..where((t) => t.userId.equals(_deviceId))).go();
     final id = await _db
         .into(_db.savedGeneratedCardTable)
         .insert(

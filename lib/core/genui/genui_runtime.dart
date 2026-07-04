@@ -451,6 +451,8 @@ User request: $request
     final timeline = _mapList(spec['timeline']).take(5).toList();
     final items = _mapList(spec['items']).take(5).toList();
     final tips = _stringList(spec['tips']).take(3).toList();
+    final tone = _toneForDomain(domain);
+    final supportTone = tone == 'warning' ? 'primary' : 'accent';
     final children = <String>['hero'];
     final components = <Map<String, Object?>>[
       {'id': 'root', 'component': 'Column', 'children': children},
@@ -460,7 +462,7 @@ User request: $request
         'eyebrow': _domainLabel(domain),
         'title': title,
         'subtitle': subtitle,
-        'tone': 'primary',
+        'tone': tone,
       },
     ];
 
@@ -471,7 +473,7 @@ User request: $request
         'component': 'WorkoutBlock',
         'title': _domainLabel(domain) == 'Workout' ? 'Main block' : title,
         'focus': subtitle,
-        'tone': 'primary',
+        'tone': tone,
         'exercises': exercises.map(_exerciseJson).toList(),
       });
     } else if (timeline.isNotEmpty) {
@@ -480,7 +482,7 @@ User request: $request
         'id': 'timeline',
         'component': 'Timeline',
         'title': 'Timeline',
-        'tone': 'primary',
+        'tone': tone,
         'items': timeline.map(_timelineJson).toList(),
       });
     } else {
@@ -489,7 +491,7 @@ User request: $request
         'id': 'main',
         'component': 'Checklist',
         'title': _domainLabel(domain),
-        'tone': 'primary',
+        'tone': tone,
         'items': (items.isEmpty ? _defaultItems(userMessage) : items)
             .map(_itemJson)
             .toList(),
@@ -502,29 +504,37 @@ User request: $request
         'id': 'tips',
         'component': 'Checklist',
         'title': 'Keep in mind',
-        'tone': 'accent',
+        'tone': supportTone,
         'items': tips.map((tip) => {'title': tip}).toList(),
       });
     }
 
     children.add('actions');
-    components.add({
-      'id': 'actions',
-      'component': 'ActionDock',
-      'tone': 'primary',
-      'actions': [
+    final actions = <Map<String, Object?>>[
+      {
+        'label': 'Save card',
+        'event': 'save_card',
+        'title': title,
+        'domain': domain,
+      },
+      if (timeline.isNotEmpty)
         {
-          'label': 'Save card',
-          'event': 'save_card',
+          'label': 'Edit times',
+          'event': 'edit_schedule_times',
           'title': title,
           'domain': domain,
         },
-        {
-          'label': 'Refine',
-          'event': 'continue_conversation',
-          'message': _refineMessageFromSpec(spec, userMessage),
-        },
-      ],
+      {
+        'label': 'Refine',
+        'event': 'continue_conversation',
+        'message': _refineMessageFromSpec(spec, userMessage),
+      },
+    ];
+    components.add({
+      'id': 'actions',
+      'component': 'ActionDock',
+      'tone': tone,
+      'actions': actions,
     });
 
     return _encodeA2ui([
@@ -624,6 +634,19 @@ Improve it by making it more specific, useful, and personalized. Keep what works
       'form' => 'Form',
       'checklist' => 'Checklist',
       _ => 'Plan',
+    };
+  }
+
+  String _toneForDomain(String domain) {
+    return switch (domain.toLowerCase()) {
+      'workout' => 'success',
+      'checklist' => 'success',
+      'schedule' => 'warning',
+      'dashboard' => 'accent',
+      'comparison' => 'neutral',
+      'tracker' => 'accent',
+      'form' => 'neutral',
+      _ => 'primary',
     };
   }
 
