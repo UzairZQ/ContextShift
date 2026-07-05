@@ -189,6 +189,7 @@ class GemmaService {
     String prompt, {
     int maxTokens = 512,
     double temperature = 0.1,
+    int topK = 1,
     Duration timeout = const Duration(seconds: 15),
   }) async {
     final requestId = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
@@ -198,6 +199,7 @@ class GemmaService {
     );
     debugPrint('[GemmaService][$requestId]   Max output tokens: $maxTokens');
     debugPrint('[GemmaService][$requestId]   Temperature: $temperature');
+    debugPrint('[GemmaService][$requestId]   TopK: $topK');
     debugPrint(
       '[GemmaService][$requestId]   Active model: ${_activeModelDef?.modelId}, '
       'tier=$_activeModelTier, loaded=$_modelLoaded',
@@ -216,7 +218,7 @@ class GemmaService {
       debugPrint('[GemmaService][$requestId] Opening one-shot session...');
       session = await _model!.openSession(
         temperature: temperature,
-        topK: 1,
+        topK: topK,
         maxOutputTokens: maxTokens,
       );
       debugPrint(

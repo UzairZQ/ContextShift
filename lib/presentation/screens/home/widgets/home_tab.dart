@@ -308,6 +308,7 @@ class _ActiveSurfaceFrame extends StatelessWidget {
             source: source,
             fallbackReason: fallbackReason,
             elapsedMs: elapsedMs,
+            hiddenActionNames: const {'save_card', 'continue_conversation'},
             onAction: onAction,
           ),
         ],

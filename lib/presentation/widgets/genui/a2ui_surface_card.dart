@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:genui/genui.dart';
@@ -14,6 +15,7 @@ class A2uiSurfaceCard extends StatefulWidget {
   final String? source;
   final String? fallbackReason;
   final int? elapsedMs;
+  final Set<String> hiddenActionNames;
 
   const A2uiSurfaceCard({
     super.key,
@@ -22,6 +24,7 @@ class A2uiSurfaceCard extends StatefulWidget {
     this.source,
     this.fallbackReason,
     this.elapsedMs,
+    this.hiddenActionNames = const {},
   });
 
   @override
@@ -63,7 +66,7 @@ class _A2uiSurfaceCardState extends State<A2uiSurfaceCard> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
-        _transport.addChunk(widget.rawA2ui);
+        _transport.addChunk(_displayRawA2ui());
         _transport.addChunk('\n');
       } catch (error) {
         if (mounted) setState(() => _error = error);
@@ -114,6 +117,93 @@ class _A2uiSurfaceCardState extends State<A2uiSurfaceCard> {
           ),
       ],
     );
+  }
+
+  String _displayRawA2ui() {
+    if (widget.hiddenActionNames.isEmpty) return widget.rawA2ui;
+    try {
+      final decoded = jsonDecode(_jsonPayload(widget.rawA2ui));
+      if (decoded is! List) return widget.rawA2ui;
+      final sanitized = decoded.map(_hideActionsInMessage).toList();
+      return '```json\n${const JsonEncoder.withIndent('  ').convert(sanitized)}\n```';
+    } catch (_) {
+      return widget.rawA2ui;
+    }
+  }
+
+  String _jsonPayload(String raw) {
+    final trimmed = raw.trim();
+    final fenced = RegExp(
+      r'^```(?:json)?\s*([\s\S]*?)\s*```$',
+      caseSensitive: false,
+    ).firstMatch(trimmed);
+    return fenced?.group(1)?.trim() ?? trimmed;
+  }
+
+  Object? _hideActionsInMessage(Object? message) {
+    if (message is! Map) return message;
+    final map = Map<String, Object?>.from(message);
+    final update = map['updateComponents'];
+    if (update is! Map) return map;
+
+    final updateMap = Map<String, Object?>.from(update);
+    final components = updateMap['components'];
+    if (components is! List) return map;
+
+    final removedIds = <String>{};
+    final nextComponents = <Object?>[];
+    for (final component in components) {
+      if (component is! Map || component['component'] != 'ActionDock') {
+        nextComponents.add(component);
+        continue;
+      }
+
+      final actionDock = Map<String, Object?>.from(component);
+      final actions = actionDock['actions'];
+      if (actions is! List) {
+        nextComponents.add(actionDock);
+        continue;
+      }
+
+      final visibleActions = actions
+          .where((action) {
+            if (action is! Map) return true;
+            final event = action['event']?.toString();
+            return event == null || !widget.hiddenActionNames.contains(event);
+          })
+          .toList(growable: false);
+
+      if (visibleActions.isEmpty) {
+        final id = actionDock['id']?.toString();
+        if (id != null && id.isNotEmpty) removedIds.add(id);
+        continue;
+      }
+
+      nextComponents.add({...actionDock, 'actions': visibleActions});
+    }
+
+    updateMap['components'] = removedIds.isEmpty
+        ? nextComponents
+        : _removeChildReferences(nextComponents, removedIds);
+    return {...map, 'updateComponents': updateMap};
+  }
+
+  Object? _removeChildReferences(Object? value, Set<String> removedIds) {
+    if (value is List) {
+      return value
+          .where((item) => item is! String || !removedIds.contains(item))
+          .map((item) => _removeChildReferences(item, removedIds))
+          .toList(growable: false);
+    }
+    if (value is Map) {
+      return value.map<String, Object?>(
+        (key, mapValue) => MapEntry(
+          key.toString(),
+          _removeChildReferences(mapValue, removedIds),
+        ),
+      );
+    }
+    return value;
   }
 }
 
@@ -182,7 +272,9 @@ class _JarvisActionDelegate implements ActionDelegate {
   ) {
     if (event is! UserActionEvent) return false;
     final params = Map<String, dynamic>.from(event.context);
-    if (event.name == 'save_card' || event.name == 'edit_schedule_times') {
+    if (event.name == 'save_card' ||
+        event.name == 'edit_schedule_times' ||
+        event.name == 'add_schedule_to_tasks') {
       params.addAll({
         'rawA2ui': widget.rawA2ui,
         if (widget.source != null) 'source': widget.source,

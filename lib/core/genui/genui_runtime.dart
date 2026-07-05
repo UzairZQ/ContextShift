@@ -524,6 +524,13 @@ User request: $request
           'title': title,
           'domain': domain,
         },
+      if (timeline.isNotEmpty)
+        {
+          'label': 'Add tasks',
+          'event': 'add_schedule_to_tasks',
+          'title': title,
+          'domain': domain,
+        },
       {
         'label': 'Refine',
         'event': 'continue_conversation',
@@ -749,6 +756,13 @@ Improve it by making it more specific, useful, and personalized. Keep what works
             'title': title,
             'domain': domain.label.toLowerCase(),
           },
+          if (domain == _FallbackDomain.schedule)
+            {
+              'label': 'Add tasks',
+              'event': 'add_schedule_to_tasks',
+              'title': title,
+              'domain': domain.label.toLowerCase(),
+            },
           {
             'label': 'Refine',
             'event': 'continue_conversation',

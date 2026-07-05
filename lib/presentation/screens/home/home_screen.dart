@@ -5,7 +5,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/ai_service.dart';
 import '../../../core/ai/action_executor.dart';
+import '../../../core/ai/context_provider.dart';
 import '../../../core/ai/generated_ui_action_mapper.dart';
+import '../../../core/ai/schedule_card_task_converter.dart';
 import '../../../core/app_spacing.dart';
 import '../../../core/app_routes.dart';
 import '../../../core/app_theme.dart';
@@ -168,6 +170,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (mounted) setState(() => _isProcessingCommand = true);
 
       await _ensureJarvisReadyForHome(command);
+      if (!_looksLikeHomeCardRequest(command)) {
+        final response = await _generateHomeChatReply(command);
+        await DatabaseService.instance.saveAiCommand(
+          command: command,
+          response: response,
+          actions: const [],
+        );
+        if (!mounted) return;
+        setState(() {
+          _aiResponse = response;
+          _activeSurfaceRawA2ui = null;
+          _activeSurfaceSource = null;
+          _activeSurfaceFallbackReason = null;
+          _activeSurfaceElapsedMs = null;
+          _currentIndex = 0;
+        });
+        _responseAnimController.forward(from: 0);
+        return;
+      }
+
       final generation = await _homeGenUiRuntimeInstance.generate(
         userMessage: command,
         timeout: const Duration(seconds: 38),
@@ -216,7 +238,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _ensureJarvisReadyForHome(String message) async {
     debugPrint(
-      '[HomeScreen] Loading downloaded model before generation. '
+      '[HomeScreen] Loading downloaded model before JARVIS response. '
       'messageLength=${message.length}',
     );
     try {
@@ -225,6 +247,45 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (error.code == GemmaErrorCode.modelNotInstalled) _openModelDownload();
       rethrow;
     }
+  }
+
+  bool _looksLikeHomeCardRequest(String command) {
+    final lower = command.toLowerCase().trim();
+    if (RegExp(
+      r'\b(card|widget|surface|dashboard|tracker|comparison|compare|form)\b',
+    ).hasMatch(lower)) {
+      return true;
+    }
+    if (RegExp(r'\b(generate|build|make|create|design)\b').hasMatch(lower)) {
+      return RegExp(
+        r'\b(plan|schedule|timeline|workout|study|routine|checklist|task list|todo list|time block)\b',
+      ).hasMatch(lower);
+    }
+    return false;
+  }
+
+  Future<String> _generateHomeChatReply(String command) async {
+    final prompt = [
+      await ContextProvider.instance.buildChat(userMessage: command),
+      'Do not output JSON or UI markup in plain chat.',
+      'Answer naturally and directly.',
+      'Finish the final sentence before stopping.',
+    ].join('\n');
+    final response = await GemmaService.instance.generate(
+      prompt,
+      maxTokens: GemmaService.instance.activeModelDef?.maxTokens ?? 2048,
+      temperature: 1.0,
+      topK: 64,
+      timeout: const Duration(seconds: 45),
+    );
+    final trimmed = response.trim();
+    if (trimmed.isEmpty) {
+      throw const GemmaException(
+        code: GemmaErrorCode.unknown,
+        message: 'JARVIS returned an empty home response.',
+      );
+    }
+    return trimmed;
   }
 
   void _showResponseSnackBar(String message) {
@@ -392,6 +453,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       await _editScheduleTimes(action);
       return;
     }
+    if (action.action == 'add_schedule_to_tasks') {
+      await _addScheduleToTasks(action);
+      return;
+    }
 
     final aiAction = GeneratedUiActionMapper.toAiAction(action);
     if (aiAction == null) {
@@ -470,6 +535,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
     if (!mounted) return;
     _showResponseSnackBar('Schedule updated');
+  }
+
+  Future<void> _addScheduleToTasks(WidgetAction action) async {
+    final rawA2ui = _textParam(action, 'rawA2ui');
+    if (rawA2ui == null) {
+      _showResponseSnackBar('This schedule could not be converted to tasks.');
+      return;
+    }
+    final actions = ScheduleCardTaskConverter.actionsFromA2ui(rawA2ui);
+    if (actions.isEmpty) {
+      _showResponseSnackBar('No schedule blocks were found to add.');
+      return;
+    }
+    await ActionExecutor.instance.executeAll(actions);
+    if (!mounted) return;
+    _showResponseSnackBar(
+      'Added ${actions.length} schedule block${actions.length == 1 ? '' : 's'} to Tasks',
+    );
   }
 
   Future<void> _deleteSavedGeneratedCard(int id) async {

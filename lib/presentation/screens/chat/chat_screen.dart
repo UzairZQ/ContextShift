@@ -12,6 +12,7 @@ import '../../../core/ai/action_executor.dart';
 import '../../../core/ai/context_provider.dart';
 import '../../../core/ai/generated_ui_action_mapper.dart';
 import '../../../core/ai/jarvis_memory_service.dart';
+import '../../../core/ai/schedule_card_task_converter.dart';
 import '../../../core/app_spacing.dart';
 import '../../../core/app_runtime.dart';
 import '../../../core/app_theme.dart';
@@ -139,6 +140,10 @@ class _ChatScreenState extends State<ChatScreen> {
       await _editScheduleTimes(action);
       return;
     }
+    if (action.action == 'add_schedule_to_tasks') {
+      await _addScheduleToTasks(action);
+      return;
+    }
 
     final aiAction = GeneratedUiActionMapper.toAiAction(action);
     if (aiAction == null) {
@@ -205,6 +210,24 @@ class _ChatScreenState extends State<ChatScreen> {
     );
     if (!mounted) return;
     _showMessage('Schedule updated');
+  }
+
+  Future<void> _addScheduleToTasks(WidgetAction action) async {
+    final rawA2ui = _textParam(action, 'rawA2ui');
+    if (rawA2ui == null) {
+      _showMessage('This schedule could not be converted to tasks.');
+      return;
+    }
+    final actions = ScheduleCardTaskConverter.actionsFromA2ui(rawA2ui);
+    if (actions.isEmpty) {
+      _showMessage('No schedule blocks were found to add.');
+      return;
+    }
+    await ActionExecutor.instance.executeAll(actions);
+    if (!mounted) return;
+    _showMessage(
+      'Added ${actions.length} schedule block${actions.length == 1 ? '' : 's'} to Tasks',
+    );
   }
 
   String? _textParam(WidgetAction action, String key) {
@@ -615,15 +638,19 @@ class _ChatScreenState extends State<ChatScreen> {
         userMessage: message,
         conversationId: _activeConversationId,
       ),
-      'Do not output JSON, UI markup, Markdown, bullets, headings, or asterisks.',
+      'Do not output JSON or UI markup in plain chat.',
+      'Use natural length for the question. A short list is okay when it makes the answer clearer.',
       'Finish the final sentence before stopping.',
     ].join('\n');
     final suppressGreeting = await _conversationAlreadyHasAssistant();
+    final chatOutputBudget =
+        GemmaService.instance.activeModelDef?.maxTokens ?? 2048;
     final response = await GemmaService.instance.generate(
       prompt,
-      maxTokens: 220,
-      temperature: 0.3,
-      timeout: const Duration(seconds: 18),
+      maxTokens: chatOutputBudget,
+      temperature: 1.0,
+      topK: 64,
+      timeout: const Duration(seconds: 45),
     );
     final trimmed = _cleanPlainJarvisReply(
       response,

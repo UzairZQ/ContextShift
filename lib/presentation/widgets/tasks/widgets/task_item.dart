@@ -20,6 +20,13 @@ class TaskItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDone = task['done'] as bool? ?? false;
     final pColor = _priorityColor;
+    final due = (task['due'] as String? ?? '').trim();
+    final subtasks = task['subtasks'] is List
+        ? task['subtasks'] as List<dynamic>
+        : const <dynamic>[];
+    final firstSubtask = subtasks.whereType<Map>().isEmpty
+        ? ''
+        : (subtasks.whereType<Map>().first['title']?.toString() ?? '').trim();
 
     return Container(
       decoration: BoxDecoration(
@@ -53,16 +60,38 @@ class TaskItem extends StatelessWidget {
                 : null,
           ),
         ),
-        title: Text(
-          task['title'],
-          style: TextStyle(
-            color: isDone
-                ? AppTheme.onSurfaceVariant.withValues(alpha: 0.5)
-                : AppTheme.onSurface,
-            decoration: isDone ? TextDecoration.lineThrough : null,
-            fontWeight: FontWeight.w500,
-            fontSize: 14,
-          ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              task['title'],
+              style: TextStyle(
+                color: isDone
+                    ? AppTheme.onSurfaceVariant.withValues(alpha: 0.5)
+                    : AppTheme.onSurface,
+                decoration: isDone ? TextDecoration.lineThrough : null,
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+              ),
+            ),
+            if (due.isNotEmpty && due != 'Today' || firstSubtask.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: Text(
+                  [
+                    if (due.isNotEmpty && due != 'Today') due,
+                    if (firstSubtask.isNotEmpty) firstSubtask,
+                  ].join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppTheme.onSurfaceVariant.withValues(alpha: 0.62),
+                    fontSize: 11,
+                    height: 1.2,
+                  ),
+                ),
+              ),
+          ],
         ),
         trailing: Container(
           width: 4,

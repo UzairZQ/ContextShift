@@ -73,9 +73,6 @@ class AiService {
     }
 
     final lower = command.toLowerCase().trim();
-    final fallbackResponse = isTimeout
-        ? "JARVIS is thinking deeply about this. I've saved it as a task for now so we don't lose it!"
-        : "I'm having trouble connecting to JARVIS. I've added this to your tasks locally.";
 
     // ── Task patterns ──
     if (_matchesAny(lower, ['add task', 'todo', 'remind me', 'create task'])) {
@@ -199,6 +196,17 @@ class AiService {
     }
 
     // ── GemmaService fallback (on-device AI) ──
+    if (!GemmaService.instance.isModelLoaded) {
+      try {
+        await GemmaService.instance.loadBestAvailableModel(
+          timeout: const Duration(seconds: 45),
+        );
+      } catch (error, stack) {
+        debugPrint('[AiService] GemmaService load failed: $error');
+        debugPrint('[AiService]   Stack: $stack');
+      }
+    }
+
     if (GemmaService.instance.isModelLoaded) {
       try {
         debugPrint('[AiService] Trying GemmaService for: "$command"');
@@ -234,23 +242,11 @@ class AiService {
       }
     }
 
-    // ── Default: treat as a task if it was a real command ──
-    if (lower.length > 5) {
-      return build(
-        actions: [
-          AiAction(
-            type: 'add_task',
-            params: {'title': command.trim(), 'priority': 'normal'},
-          ),
-        ],
-        response: fallbackResponse,
-      );
-    }
-
     return build(
       actions: [],
-      response:
-          'Try: "add task buy groceries", "focus 25 min", "add habit morning run", or "note call mom"',
+      response: isTimeout
+          ? 'JARVIS is still initializing. Try again in a moment.'
+          : 'JARVIS needs the local model ready before it can answer that.',
     );
   }
 

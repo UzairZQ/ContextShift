@@ -25,6 +25,8 @@ class ActionExecutor {
               await DatabaseService.instance.addTask(
                 title: title,
                 priority: _priority(action.params['priority']),
+                due: _requiredText(action.params['due']) ?? 'Today',
+                subtasks: _subtasks(action.params['subtasks']),
               );
             }
           case 'add_habit':
@@ -70,5 +72,19 @@ class ActionExecutor {
       'low' => 'low',
       _ => 'normal',
     };
+  }
+
+  List<Map<String, dynamic>> _subtasks(dynamic value) {
+    if (value is! List) return const [];
+    return value
+        .whereType<Map>()
+        .map((item) {
+          final title = _requiredText(item['title']);
+          if (title == null) return null;
+          return {'title': title, 'completed': item['completed'] == true};
+        })
+        .whereType<Map<String, dynamic>>()
+        .take(8)
+        .toList(growable: false);
   }
 }

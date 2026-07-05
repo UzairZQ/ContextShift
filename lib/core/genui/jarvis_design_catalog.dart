@@ -531,6 +531,7 @@ final _actionSchema = ObjectSchema(
         'start_focus',
         'save_card',
         'edit_schedule_times',
+        'add_schedule_to_tasks',
         'continue_conversation',
       ],
     ),
