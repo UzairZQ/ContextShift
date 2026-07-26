@@ -13,6 +13,7 @@ import 'ai_command_bar.dart';
 import 'ai_insight_card.dart';
 import 'ai_response_card.dart';
 import 'home_header.dart';
+import 'jarvis_status_card.dart';
 import 'thinking_card.dart';
 
 class HomeTab extends StatelessWidget {
@@ -46,6 +47,10 @@ class HomeTab extends StatelessWidget {
   final ValueChanged<String> onSelectMood;
   final VoidCallback onDismissResponse;
   final VoidCallback? onDeleteActiveSurface;
+  final JarvisModelState modelState;
+  final VoidCallback onDownloadModel;
+  final VoidCallback onWarmUpJarvis;
+  final VoidCallback onOpenVoiceMode;
 
   const HomeTab({
     super.key,
@@ -79,6 +84,10 @@ class HomeTab extends StatelessWidget {
     required this.onSelectMood,
     required this.onDismissResponse,
     required this.onDeleteActiveSurface,
+    required this.modelState,
+    required this.onDownloadModel,
+    required this.onWarmUpJarvis,
+    required this.onOpenVoiceMode,
   });
 
   @override
@@ -96,17 +105,28 @@ class HomeTab extends StatelessWidget {
             onOpenProfile: onOpenProfile,
           ),
           const SizedBox(height: 14),
+          if (modelState != JarvisModelState.ready)
+            WonderousReveal(
+              begin: const Offset(0, 0.04),
+              child: JarvisStatusCard(
+                state: modelState,
+                onDownload: onDownloadModel,
+                onWarmUp: onWarmUpJarvis,
+              ),
+            ),
           WonderousReveal(
             begin: const Offset(0, 0.04),
             child: _HeroCommandPanel(
               greeting: greeting,
               commandController: commandController,
               isJarvisOnline: isJarvisOnline,
+              isJarvisWarming: modelState == JarvisModelState.warming,
               hasCheckedJarvisStatus: hasCheckedJarvisStatus,
               isProcessingCommand: isProcessingCommand,
               offlineHint: offlineHint,
               onSubmitCommand: onSubmitCommand,
               onOpenChat: onOpenChat,
+              onOpenVoiceMode: onOpenVoiceMode,
             ),
           ),
           const SizedBox(height: 14),
@@ -162,21 +182,25 @@ class _HeroCommandPanel extends StatelessWidget {
   final String greeting;
   final TextEditingController commandController;
   final bool isJarvisOnline;
+  final bool isJarvisWarming;
   final bool hasCheckedJarvisStatus;
   final bool isProcessingCommand;
   final String offlineHint;
   final ValueChanged<String> onSubmitCommand;
   final VoidCallback onOpenChat;
+  final VoidCallback onOpenVoiceMode;
 
   const _HeroCommandPanel({
     required this.greeting,
     required this.commandController,
     required this.isJarvisOnline,
+    required this.isJarvisWarming,
     required this.hasCheckedJarvisStatus,
     required this.isProcessingCommand,
     required this.offlineHint,
     required this.onSubmitCommand,
     required this.onOpenChat,
+    required this.onOpenVoiceMode,
   });
 
   @override
@@ -223,7 +247,7 @@ class _HeroCommandPanel extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              _StatusPill(isOnline: isJarvisOnline),
+              _StatusPill(isOnline: isJarvisOnline, isWarming: isJarvisWarming),
             ],
           ),
           const SizedBox(height: 14),
@@ -235,6 +259,7 @@ class _HeroCommandPanel extends StatelessWidget {
             offlineHint: offlineHint,
             onSubmit: onSubmitCommand,
             onTap: onOpenChat,
+            onMicTap: onOpenVoiceMode,
           ),
         ],
       ),
@@ -319,38 +344,35 @@ class _ActiveSurfaceFrame extends StatelessWidget {
 
 class _StatusPill extends StatelessWidget {
   final bool isOnline;
+  final bool isWarming;
 
-  const _StatusPill({required this.isOnline});
+  const _StatusPill({required this.isOnline, required this.isWarming});
 
   @override
   Widget build(BuildContext context) {
+    final (color, icon, label) = isOnline
+        ? (AppTheme.success, LucideIcons.zap, 'On device')
+        : isWarming
+        ? (AppTheme.primary, LucideIcons.loaderCircle, 'Waking')
+        : (AppTheme.warning, LucideIcons.cpu, 'Standby');
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: (isOnline ? AppTheme.success : AppTheme.warning).withValues(
-          alpha: 0.12,
-        ),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: (isOnline ? AppTheme.success : AppTheme.warning).withValues(
-            alpha: 0.24,
-          ),
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            isOnline ? LucideIcons.zap : LucideIcons.wifiOff,
-            size: 12,
-            color: isOnline ? AppTheme.success : AppTheme.warning,
-          ),
+          Icon(icon, size: 12, color: color),
           const SizedBox(width: 6),
           Text(
-            isOnline ? 'On device' : 'Setup',
+            label,
             style: TextStyle(
-              color: isOnline ? AppTheme.success : AppTheme.warning,
+              color: color,
               fontSize: 10.5,
               fontWeight: FontWeight.w800,
             ),
@@ -558,13 +580,13 @@ class _TodaySnapshot {
   }
 
   IconData get nextMoveIcon {
-    if (priorityTasks > 0 || pendingTasks > 0) return LucideIcons.checkSquare;
+    if (priorityTasks > 0 || pendingTasks > 0) return LucideIcons.squareCheckBig;
     if (totalHabits > 0 && behaviorWins < totalHabits) {
       return LucideIcons.activity;
     }
     if (focusMinutesToday < 25) return LucideIcons.timer;
-    if (todayMood == null || noteCount == 0) return LucideIcons.bookOpen;
-    return LucideIcons.radio;
+    if (todayMood == null || noteCount == 0) return LucideIcons.notebookPen;
+    return LucideIcons.audioLines;
   }
 }
 
@@ -725,7 +747,7 @@ class _GlanceGrid extends StatelessWidget {
           label: 'Tasks',
           value: '${snapshot.pendingTasks}',
           detail: snapshot.pendingTasks == 1 ? 'pending task' : 'pending tasks',
-          icon: LucideIcons.checkSquare,
+          icon: LucideIcons.squareCheckBig,
           color: AppTheme.tertiary,
           progress: snapshot.taskProgress,
           onTap: onOpenTasks,
@@ -754,7 +776,7 @@ class _GlanceGrid extends StatelessWidget {
           detail: snapshot.todayMood == null
               ? '${snapshot.noteCount} ${snapshot.noteCount == 1 ? 'note' : 'notes'}'
               : 'mood today',
-          icon: LucideIcons.bookOpen,
+          icon: LucideIcons.notebookPen,
           color: AppTheme.warning,
           progress: snapshot.todayMood == null ? 0 : 1,
           onTap: onOpenJournal,

@@ -182,7 +182,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     WonderousReveal(
                       delay: const Duration(milliseconds: 320),
                       child: _SettingsTile(
-                        icon: LucideIcons.downloadCloud,
+                        icon: LucideIcons.hardDriveDownload,
                         title: 'Manage AI model',
                         subtitle: _modelStatusSubtitle(),
                         onTap: () async {

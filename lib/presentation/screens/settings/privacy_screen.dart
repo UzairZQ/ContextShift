@@ -31,7 +31,7 @@ class PrivacyScreen extends StatelessWidget {
               'When you download the Gemma model, JARVIS can answer and generate cards on-device. The app builds a compact local context snapshot from your own data and sends it to the model running on your phone.',
         ),
         InfoCard(
-          icon: LucideIcons.downloadCloud,
+          icon: LucideIcons.hardDriveDownload,
           title: 'Model downloads',
           body:
               'The model download needs internet access because the model file is fetched from the configured download source. After that, normal JARVIS inference is designed to run locally.',

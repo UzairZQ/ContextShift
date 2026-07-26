@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'ai/context_provider.dart';
 import 'local_llm/gemma_service.dart';
+import 'services/feature_manager.dart';
 
 /// Result model for an AI command
 class AiCommandResult {
@@ -30,7 +31,12 @@ class AiAction {
   }
 }
 
-/// Singleton AI service — fully offline (keyword parser + on-device Gemma)
+/// Singleton AI service — fully offline, Gemma-first.
+///
+/// Explicit commands ("add task buy milk") are parsed deterministically for
+/// instant feedback. Everything else goes straight to the on-device model
+/// with retrieval-ranked context; there are no canned reply paths while a
+/// model is available.
 class AiService {
   AiService._();
   static final AiService instance = AiService._();
@@ -45,212 +51,222 @@ class AiService {
     required String userName,
     int? conversationId,
   }) async {
-    debugPrint('AI Command — processing locally: "$command"');
-    return _processLocally(
-      command,
-      userName,
-      false,
-      conversationId: conversationId,
-    );
-  }
+    final trimmed = command.trim();
+    debugPrint('AI Command — processing locally: "$trimmed"');
 
-  Future<AiCommandResult> _processLocally(
-    String command,
-    String userName,
-    bool isTimeout, {
-    int? conversationId,
-  }) async {
-    AiCommandResult build({
-      required List<AiAction> actions,
-      required String response,
-      String? greetingUpdate,
-    }) {
+    // Deterministic fast path for unambiguous, explicitly phrased commands.
+    final direct = _parseExplicitCommand(trimmed, userName);
+    if (direct != null) return direct;
+
+    // Everything else: on-device model with full context.
+    if (!FeatureManager.instance.isE2bAvailable) {
       return AiCommandResult(
-        actions: actions,
-        response: response,
-        greetingUpdate: greetingUpdate,
+        actions: const [],
+        response:
+            'The on-device model is not installed yet. Download JARVIS in '
+            'Settings to unlock full understanding.',
       );
     }
 
-    final lower = command.toLowerCase().trim();
+    if (!GemmaService.instance.isModelLoaded) {
+      await GemmaService.instance.loadBestAvailableModel(
+        timeout: const Duration(seconds: 60),
+      );
+    }
 
-    // ── Task patterns ──
-    if (_matchesAny(lower, ['add task', 'todo', 'remind me', 'create task'])) {
-      final title = _extractAfter(command, [
-        'add task',
-        'todo',
-        'remind me to',
-        'remind me',
-        'create task',
-      ]);
-      if (title.isNotEmpty) {
-        return build(
-          actions: [
-            AiAction(
-              type: 'add_task',
-              params: {'title': title, 'priority': _detectPriority(lower)},
-            ),
-          ],
-          response: 'Added "$title" to your tasks.',
+    final prompt = await ContextProvider.instance.build(
+      userMessage: trimmed,
+      conversationId: conversationId,
+    );
+    var raw = await GemmaService.instance.generate(
+      prompt,
+      maxTokens: 512,
+      temperature: 0.35,
+      topK: 32,
+      timeout: const Duration(seconds: 40),
+    );
+    var parsed = _extractResultJson(raw);
+    if (parsed == null) {
+      debugPrint('[AiService] First pass returned invalid JSON, repairing');
+      raw = await GemmaService.instance.generate(
+        _repairPrompt(trimmed, raw),
+        maxTokens: 400,
+        temperature: 0.1,
+        timeout: const Duration(seconds: 30),
+      );
+      parsed = _extractResultJson(raw);
+    }
+
+    if (parsed != null) {
+      final actions =
+          (parsed['actions'] as List<dynamic>?)
+              ?.whereType<Map<String, dynamic>>()
+              .map(AiAction.fromJson)
+              .where((a) => a.type.isNotEmpty)
+              .toList() ??
+          const <AiAction>[];
+      final response = (parsed['response'] as String?)?.trim() ?? '';
+      if (response.isNotEmpty || actions.isNotEmpty) {
+        return AiCommandResult(
+          actions: actions,
+          response: response.isEmpty ? 'Done.' : response,
         );
-      } else {
-        return build(actions: [], response: 'What task would you like to add?');
       }
     }
 
-    // ── Focus patterns ──
-    if (_matchesAny(lower, [
-      'focus',
-      'study',
-      'deep work',
-      'pomodoro',
-      'concentrate',
-      'work session',
-    ])) {
-      int minutes = 25;
-      final numMatch = RegExp(r'(\d+)\s*min').firstMatch(lower);
-      if (numMatch != null) minutes = int.parse(numMatch.group(1)!);
-      return build(
+    // Model answered but not in the JSON envelope — treat the raw text as a
+    // plain conversational reply rather than inventing a scripted one.
+    final fallbackText = raw.trim();
+    if (fallbackText.isNotEmpty) {
+      return AiCommandResult(actions: const [], response: fallbackText);
+    }
+    throw const GemmaException(
+      code: GemmaErrorCode.unknown,
+      message: 'JARVIS returned an empty command response.',
+    );
+  }
+
+  // ── Deterministic explicit-command parsing ─────────────────
+
+  AiCommandResult? _parseExplicitCommand(String command, String userName) {
+    final lower = command.toLowerCase();
+
+    final taskMatch = RegExp(
+      r'^(?:add (?:a )?task|create (?:a )?task|new task|todo|remind me(?: to)?)\s+(.+)$',
+      caseSensitive: false,
+    ).firstMatch(command);
+    if (taskMatch != null) {
+      final title = _cleanPayload(taskMatch.group(1)!);
+      if (title.isEmpty) return null;
+      return AiCommandResult(
+        actions: [
+          AiAction(
+            type: 'add_task',
+            params: {'title': title, 'priority': _detectPriority(lower)},
+          ),
+        ],
+        response: 'Added "$title" to your tasks.',
+      );
+    }
+
+    final focusMatch = RegExp(
+      r'^(?:start )?(?:focus|deep work|pomodoro)(?:\s+for)?(?:\s+(\d+)\s*(?:min|minutes?)?)?$',
+      caseSensitive: false,
+    ).firstMatch(command);
+    if (focusMatch != null) {
+      final minutes = int.tryParse(focusMatch.group(1) ?? '') ?? 25;
+      return AiCommandResult(
         actions: [
           AiAction(type: 'start_focus', params: {'duration_minutes': minutes}),
         ],
-        response: 'Focus mode activated. $minutes-minute session ready.',
+        response: 'Focus mode armed. $minutes-minute session ready.',
         greetingUpdate: 'Deep focus mode, $userName.',
       );
     }
 
-    // ── Habit patterns ──
-    if (_matchesAny(lower, ['add habit', 'track', 'new habit'])) {
-      final name = _extractAfter(command, ['add habit', 'track', 'new habit']);
-      if (name.isNotEmpty) {
-        return build(
-          actions: [
-            AiAction(type: 'add_habit', params: {'name': name, 'icon': ''}),
-          ],
-          response: 'Now tracking "$name" as a daily habit.',
-        );
-      } else {
-        return build(
-          actions: [],
-          response: 'What habit would you like to build?',
-        );
-      }
-    }
-
-    // ── Note patterns ──
-    if (_matchesAny(lower, ['note', 'remember', 'write down', 'jot down'])) {
-      final content = _extractAfter(command, [
-        'note',
-        'remember',
-        'write down',
-        'jot down',
-      ]);
-      if (content.isNotEmpty) {
-        return build(
-          actions: [
-            AiAction(type: 'add_note', params: {'content': content}),
-          ],
-          response: 'Saved to your notes.',
-        );
-      } else {
-        return build(actions: [], response: 'What do you want to note down?');
-      }
-    }
-
-    // ── Prioritize Module Display patterns ──
-    if (_matchesAny(lower, [
-      'show task',
-      'my task',
-      'open task',
-      'go to task',
-    ])) {
-      return build(actions: [], response: 'Here are your tasks.');
-    }
-    if (_matchesAny(lower, ['show habit', 'my habit', 'open habit'])) {
-      return build(actions: [], response: 'Here are your habits.');
-    }
-    if (_matchesAny(lower, ['show note', 'my note', 'open note'])) {
-      return build(actions: [], response: 'Here are your notes.');
-    }
-
-    // ── Motivation / Support patterns ──
-    if (_matchesAny(lower, [
-      'motivat',
-      'inspir',
-      'pep talk',
-      'encourage',
-      'overwhelmed',
-      'stressed',
-      'help',
-      'stuck',
-    ])) {
-      final messages = [
-        'You\'re already ahead by showing up, $userName. Keep pushing.',
-        'Small steps still move you forward, $userName. Let\'s go.',
-        'The compound effect of consistency is unstoppable, $userName.',
-      ];
-      return build(
-        actions: [],
-        response: messages[DateTime.now().second % messages.length],
+    final habitMatch = RegExp(
+      r'^(?:add (?:a )?habit|new habit|track)\s+(.+)$',
+      caseSensitive: false,
+    ).firstMatch(command);
+    if (habitMatch != null) {
+      final name = _cleanPayload(habitMatch.group(1)!);
+      if (name.isEmpty) return null;
+      return AiCommandResult(
+        actions: [
+          AiAction(type: 'add_habit', params: {'name': name, 'icon': ''}),
+        ],
+        response: 'Now tracking "$name" as a daily habit.',
       );
     }
 
-    // ── GemmaService fallback (on-device AI) ──
-    if (!GemmaService.instance.isModelLoaded) {
-      try {
-        await GemmaService.instance.loadBestAvailableModel(
-          timeout: const Duration(seconds: 45),
-        );
-      } catch (error, stack) {
-        debugPrint('[AiService] GemmaService load failed: $error');
-        debugPrint('[AiService]   Stack: $stack');
-      }
+    final noteMatch = RegExp(
+      r'^(?:add (?:a )?note|note|remember|write down|jot down)\s+(.+)$',
+      caseSensitive: false,
+    ).firstMatch(command);
+    if (noteMatch != null) {
+      final content = _cleanPayload(noteMatch.group(1)!);
+      if (content.isEmpty) return null;
+      return AiCommandResult(
+        actions: [
+          AiAction(type: 'add_note', params: {'content': content}),
+        ],
+        response: 'Saved to your notes.',
+      );
     }
 
-    if (GemmaService.instance.isModelLoaded) {
-      try {
-        debugPrint('[AiService] Trying GemmaService for: "$command"');
-        final prompt = await ContextProvider.instance.build(
-          userMessage: command,
-          conversationId: conversationId,
-        );
-        final gemmaResponse = await GemmaService.instance.generate(
-          prompt,
-          maxTokens: 256,
-          timeout: const Duration(seconds: 10),
-        );
-
-        // Try to parse as JSON
-        final start = gemmaResponse.indexOf('{');
-        final end = gemmaResponse.lastIndexOf('}');
-        if (start != -1 && end != -1 && end > start) {
-          final jsonStr = gemmaResponse.substring(start, end + 1);
-          final parsed = jsonDecode(jsonStr) as Map<String, dynamic>;
-          debugPrint('[AiService] GemmaService returned: $parsed');
-          return build(
-            actions:
-                (parsed['actions'] as List<dynamic>?)
-                    ?.map((a) => AiAction.fromJson(a as Map<String, dynamic>))
-                    .toList() ??
-                [],
-            response: parsed['response'] as String? ?? 'Done!',
-          );
-        }
-      } catch (e, stack) {
-        debugPrint('[AiService] GemmaService fallback failed: $e');
-        debugPrint('[AiService]   Stack: $stack');
-      }
-    }
-
-    return build(
-      actions: [],
-      response: isTimeout
-          ? 'JARVIS is still initializing. Try again in a moment.'
-          : 'JARVIS needs the local model ready before it can answer that.',
-    );
+    return null;
   }
 
-  // ── AI Insight (fully offline) ─────────────────────────────
+  String _cleanPayload(String value) {
+    return value
+        .replaceFirst(RegExp(r'^(to|that|the)\s+', caseSensitive: false), '')
+        .trim();
+  }
+
+  String _detectPriority(String input) {
+    if (input.contains('urgent') ||
+        input.contains('important') ||
+        input.contains('asap')) {
+      return 'high';
+    }
+    if (input.contains('medium') || input.contains('soon')) return 'medium';
+    return 'normal';
+  }
+
+  // ── Model output parsing ───────────────────────────────────
+
+  Map<String, dynamic>? _extractResultJson(String text) {
+    final candidate = _firstJsonObject(text);
+    if (candidate == null) return null;
+    try {
+      final decoded = jsonDecode(candidate);
+      if (decoded is Map<String, dynamic>) return decoded;
+    } catch (_) {}
+    return null;
+  }
+
+  String? _firstJsonObject(String text) {
+    final start = text.indexOf('{');
+    if (start == -1) return null;
+    var depth = 0;
+    var inString = false;
+    var escaped = false;
+    for (var i = start; i < text.length; i++) {
+      final char = text[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char == r'\') {
+        escaped = true;
+        continue;
+      }
+      if (char == '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (char == '{') depth++;
+      if (char == '}') {
+        depth--;
+        if (depth == 0) return text.substring(start, i + 1);
+      }
+    }
+    return null;
+  }
+
+  String _repairPrompt(String command, String invalidOutput) {
+    final clipped = invalidOutput.length > 700
+        ? invalidOutput.substring(0, 700)
+        : invalidOutput;
+    return 'Your previous answer was not a valid JSON object.\n'
+        'Return exactly one JSON object, no Markdown:\n'
+        '{"response":"human answer","actions":[{"type":"add_task|add_habit|add_note|start_focus","params":{}}]}\n'
+        'Use an empty actions array for pure conversation.\n\n'
+        'User request: $command\n\nInvalid output:\n$clipped';
+  }
+
+  // ── AI Insight ─────────────────────────────────────────────
 
   Future<String> fetchInsight({
     required String userName,
@@ -261,12 +277,47 @@ class AiService {
       'user': userName,
       'timeWindow': now.hour ~/ 4,
       'stats': stats ?? const <String, dynamic>{},
+      'model': GemmaService.instance.isModelLoaded,
     });
-    if (_cachedInsight == null || _cachedInsightKey != insightKey) {
-      _cachedInsight = _localInsight(userName, stats ?? const {});
-      _cachedInsightKey = insightKey;
+    if (_cachedInsight != null && _cachedInsightKey == insightKey) {
+      return _cachedInsight!;
     }
-    return _cachedInsight!;
+
+    var insight = _localInsight(userName, stats ?? const {});
+    if (GemmaService.instance.isModelLoaded) {
+      try {
+        insight = await _gemmaInsight(userName, stats ?? const {}, insight);
+      } catch (error) {
+        debugPrint('[AiService] Gemma insight failed, using template: $error');
+      }
+    }
+    _cachedInsight = insight;
+    _cachedInsightKey = insightKey;
+    return insight;
+  }
+
+  Future<String> _gemmaInsight(
+    String userName,
+    Map<String, dynamic> stats,
+    String fallback,
+  ) async {
+    final prompt =
+        'You are JARVIS, the on-device productivity guide in ContextShift.\n'
+        'Write one or two short sentences of practical insight for $userName '
+        'based on these daily stats. Be specific to the numbers, warm, and '
+        'action-oriented. No lists, no Markdown, no greeting.\n'
+        'Stats: ${jsonEncode(stats)}\n'
+        'Local time: ${DateTime.now().hour}:00\nInsight:';
+    final raw = await GemmaService.instance.generate(
+      prompt,
+      maxTokens: 96,
+      temperature: 0.7,
+      topK: 40,
+      timeout: const Duration(seconds: 12),
+    );
+    final cleaned = raw.replaceAll(RegExp(r'[*#`>]'), '').trim();
+    if (cleaned.length < 12) return fallback;
+    return cleaned.length > 220 ? '${cleaned.substring(0, 217)}...' : cleaned;
   }
 
   bool get lastInsightFetchSucceeded => true;
@@ -301,39 +352,5 @@ class AiService {
     } else {
       return 'Wind down with a light habit check and plan tomorrow\'s top 3 priorities.';
     }
-  }
-
-  // ── Helpers ────────────────────────────────────────────────
-
-  bool _matchesAny(String input, List<String> patterns) {
-    return patterns.any((p) => input.contains(p));
-  }
-
-  String _extractAfter(String input, List<String> prefixes) {
-    String result = input;
-    for (final prefix in prefixes) {
-      final regex = RegExp(prefix, caseSensitive: false);
-      final match = regex.firstMatch(result);
-      if (match != null) {
-        result = result.substring(match.end).trim();
-        break;
-      }
-    }
-    // Clean up common filler words
-    result = result.replaceFirst(
-      RegExp(r'^(to|that|the)\s+', caseSensitive: false),
-      '',
-    );
-    return result.trim();
-  }
-
-  String _detectPriority(String input) {
-    if (input.contains('urgent') ||
-        input.contains('important') ||
-        input.contains('asap')) {
-      return 'high';
-    }
-    if (input.contains('medium') || input.contains('soon')) return 'medium';
-    return 'normal';
   }
 }

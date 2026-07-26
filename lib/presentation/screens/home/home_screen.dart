@@ -28,8 +28,10 @@ import '../ai_dashboard/ai_dashboard_screen.dart';
 import '../chat/chat_screen.dart';
 import '../journal/journal_screen.dart';
 import '../settings/settings_screen.dart';
+import '../../widgets/voice/voice_input_overlay.dart';
 import 'widgets/floating_nav_bar.dart';
 import 'widgets/home_tab.dart';
+import 'widgets/jarvis_status_card.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool hideWordmark;
@@ -85,6 +87,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _refreshJarvisStatus() {
     if (mounted) setState(() {});
+  }
+
+  JarvisModelState get _modelState {
+    if (GemmaService.instance.isModelLoaded) return JarvisModelState.ready;
+    if (GemmaService.instance.isModelLoading) return JarvisModelState.warming;
+    if (FeatureManager.instance.isE2bAvailable) return JarvisModelState.standby;
+    return JarvisModelState.notDownloaded;
+  }
+
+  Future<void> _warmUpJarvis() async {
+    try {
+      await GemmaService.instance.loadBestAvailableModel();
+    } on GemmaException catch (error) {
+      if (!mounted) return;
+      if (error.code == GemmaErrorCode.modelNotInstalled) {
+        _openModelDownload();
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('JARVIS could not start: ${error.message}'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openVoiceMode() async {
+    final transcript = await VoiceInputOverlay.show(context);
+    if (transcript == null || transcript.trim().isEmpty || !mounted) return;
+    await _pushChat(initialMessage: transcript.trim());
   }
 
   JarvisGenUiRuntime get _homeGenUiRuntimeInstance {
@@ -294,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         content: Row(
           children: [
             const Icon(
-              LucideIcons.radio,
+              LucideIcons.audioLines,
               color: AppTheme.intelligence,
               size: 18,
             ),
@@ -354,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       SnackBar(
         content: Row(
           children: [
-            const Icon(LucideIcons.heart, color: Colors.pinkAccent, size: 18),
+            const Icon(LucideIcons.heart, color: AppTheme.accent, size: 18),
             const SizedBox(width: 12),
             Text(
               'Mood logged: $mood',
@@ -371,7 +404,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: BorderSide(
-            color: Colors.pinkAccent.withValues(alpha: 0.3),
+            color: AppTheme.accent.withValues(alpha: 0.3),
             width: 1,
           ),
         ),
@@ -594,11 +627,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           isJarvisOnline: GemmaService.instance.isModelLoaded,
           hasCheckedJarvisStatus: true,
           isProcessingCommand: _isProcessingCommand,
-          offlineHint: FeatureManager.instance.hasVerifiedModel
-              ? 'Ready. Send to initialize JARVIS'
-              : FeatureManager.instance.isE2bAvailable
-              ? 'Initialize JARVIS in Manage AI'
-              : 'Download JARVIS to chat',
+          offlineHint: FeatureManager.instance.isE2bAvailable
+              ? 'Send a message to wake JARVIS'
+              : 'Download the model to unlock JARVIS',
           aiResponse: _aiResponse,
           responseAnimation: _responseAnimController,
           isLoadingInsight: _isLoadingInsight,
@@ -636,6 +667,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           onDismissResponse: () {
             if (mounted) setState(() => _aiResponse = null);
           },
+          modelState: _modelState,
+          onDownloadModel: () => unawaited(_openModelDownload()),
+          onWarmUpJarvis: () => unawaited(_warmUpJarvis()),
+          onOpenVoiceMode: () => unawaited(_openVoiceMode()),
         ),
       ),
       1 => const TasksModule(),
@@ -652,54 +687,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       resizeToAvoidBottomInset: false,
       body: SafeArea(
         bottom: false,
-        child: Column(
-          children: [
-            if (!FeatureManager.instance.isE2bAvailable)
-              GestureDetector(
-                onTap: _openModelDownload,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: Spacing.lg,
-                    vertical: Spacing.sm,
-                  ),
-                  color: AppTheme.warning.withValues(alpha: 0.15),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        LucideIcons.downloadCloud,
-                        size: 16,
-                        color: AppTheme.warning,
-                      ),
-                      const SizedBox(width: Spacing.sm),
-                      const Expanded(
-                        child: Text(
-                          'Download local model for JARVIS',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppTheme.warning,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      const Icon(
-                        LucideIcons.chevronRight,
-                        size: 16,
-                        color: AppTheme.warning,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: Responsive.horizontalPadding(context),
-                ),
-                child: ResponsiveWrapper(maxWidth: 1000, child: _buildBody()),
-              ),
-            ),
-          ],
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: Responsive.horizontalPadding(context),
+          ),
+          child: ResponsiveWrapper(maxWidth: 1000, child: _buildBody()),
         ),
       ),
       extendBody: true,
@@ -769,31 +761,10 @@ class _JarvisChatFab extends StatelessWidget {
                 ),
               ],
             ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Icon(
-                  LucideIcons.messageCircle,
-                  size: 25,
-                  color: AppTheme.primary,
-                ),
-                Positioned(
-                  right: 14,
-                  top: 14,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppTheme.accent,
-                      border: Border.all(
-                        color: AppTheme.surfaceHighest,
-                        width: 1.5,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            child: const Icon(
+              LucideIcons.botMessageSquare,
+              size: 24,
+              color: AppTheme.primary,
             ),
           ),
         ),

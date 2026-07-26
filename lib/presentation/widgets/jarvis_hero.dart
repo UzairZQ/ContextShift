@@ -64,7 +64,7 @@ class JarvisHero {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
-                      LucideIcons.radio,
+                      LucideIcons.audioLines,
                       color: AppTheme.intelligence,
                       size: 19,
                     ),
@@ -83,7 +83,7 @@ class JarvisHero {
                     ),
                     const SizedBox(width: Spacing.md),
                     const Icon(
-                      LucideIcons.send,
+                      LucideIcons.arrowUp,
                       color: AppTheme.intelligence,
                       size: 17,
                     ),

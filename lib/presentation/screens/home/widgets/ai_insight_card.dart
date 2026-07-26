@@ -44,13 +44,13 @@ class AiInsightCard extends StatelessWidget {
               Row(
                 children: [
                   const Icon(
-                    LucideIcons.radio,
+                    LucideIcons.brainCircuit,
                     color: AppTheme.intelligence,
                     size: 18,
                   ),
                   SizedBox(width: Spacing.sm),
                   Text(
-                    'AI analysis',
+                    'JARVIS insight',
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: AppTheme.intelligence,
                       fontWeight: FontWeight.bold,

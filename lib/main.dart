@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -100,7 +101,7 @@ enum _SetupStep { loading, onboarding, profile, homeReveal, home }
 
 class _LaunchGateState extends State<_LaunchGate> {
   static const _onboardingKey = 'has_seen_onboarding';
-  static const _minimumSplash = Duration(milliseconds: 320);
+  static const _minimumSplash = Duration(milliseconds: 850);
   _SetupStep _step = _SetupStep.loading;
   bool _navigatedHome = false;
 
@@ -376,113 +377,247 @@ class _LaunchIdentity extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const _LaunchMark(),
-          const SizedBox(height: 18),
+          const _ReactorMark(size: 96),
+          const SizedBox(height: 22),
           const ContextShiftWordmark(textAlign: TextAlign.center),
           const SizedBox(height: 10),
           Text(
-            'Private AI workspace',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: AppTheme.onSurfaceVariant.withValues(alpha: 0.78),
+            'YOUR PRIVATE AI WORKSPACE',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppTheme.primary.withValues(alpha: 0.75),
               fontWeight: FontWeight.w800,
-              letterSpacing: 0,
+              letterSpacing: 3.2,
+              fontSize: 10.5,
             ),
           ),
-          const SizedBox(height: 20),
-          _LaunchProgress(value: progress.clamp(0, 1).toDouble()),
+          const SizedBox(height: 26),
+          const _LaunchShimmer(),
         ],
       ),
     );
   }
 }
 
-class _LaunchMark extends StatelessWidget {
-  const _LaunchMark();
+/// Animated arc-reactor style launch mark: rotating cyan arcs around a
+/// breathing core, drawn with a single repaint-bounded CustomPaint.
+class _ReactorMark extends StatefulWidget {
+  final double size;
+
+  const _ReactorMark({required this.size});
+
+  @override
+  State<_ReactorMark> createState() => _ReactorMarkState();
+}
+
+class _ReactorMarkState extends State<_ReactorMark>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3200),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final reduceMotion =
+          MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+      if (!reduceMotion) _controller.repeat();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 58,
-      height: 58,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppTheme.surfaceHighest, AppTheme.surfaceContainer],
+    return RepaintBoundary(
+      child: SizedBox(
+        width: widget.size,
+        height: widget.size,
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            return CustomPaint(
+              painter: _ReactorPainter(t: _controller.value),
+            );
+          },
         ),
-        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.28)),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primary.withValues(alpha: 0.18),
-            blurRadius: 26,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              color: AppTheme.primary.withValues(alpha: 0.94),
-            ),
-          ),
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppTheme.onSurface.withValues(alpha: 0.16),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 13,
-            right: 13,
-            child: Container(
-              width: 7,
-              height: 7,
-              decoration: const BoxDecoration(
-                color: AppTheme.success,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
 }
 
-class _LaunchProgress extends StatelessWidget {
-  final double value;
+class _ReactorPainter extends CustomPainter {
+  final double t;
 
-  const _LaunchProgress({required this.value});
+  const _ReactorPainter({required this.t});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide / 2;
+    final angle = t * 2 * math.pi;
+
+    // Ambient glow
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            AppTheme.primary.withValues(alpha: 0.22),
+            AppTheme.primary.withValues(alpha: 0.0),
+          ],
+        ).createShader(Rect.fromCircle(center: center, radius: radius)),
+    );
+
+    // Tick ring
+    final tickPaint = Paint()
+      ..color = AppTheme.primary.withValues(alpha: 0.16)
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round;
+    const tickCount = 48;
+    for (var i = 0; i < tickCount; i++) {
+      final a = (i / tickCount) * 2 * math.pi;
+      final outer = center + Offset(math.cos(a), math.sin(a)) * (radius - 2);
+      final inner = center + Offset(math.cos(a), math.sin(a)) * (radius - 6);
+      canvas.drawLine(inner, outer, tickPaint);
+    }
+
+    // Outer rotating arc
+    final arcRect = Rect.fromCircle(center: center, radius: radius - 11);
+    canvas.drawArc(
+      arcRect,
+      angle,
+      math.pi * 0.62,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.6
+        ..strokeCap = StrokeCap.round
+        ..shader = SweepGradient(
+          startAngle: angle,
+          endAngle: angle + math.pi * 0.62,
+          colors: [
+            AppTheme.primary.withValues(alpha: 0.0),
+            AppTheme.primary,
+          ],
+          transform: GradientRotation(angle),
+        ).createShader(arcRect),
+    );
+
+    // Inner counter-rotating arc
+    final innerRect = Rect.fromCircle(center: center, radius: radius - 20);
+    final innerAngle = -angle * 1.4 + math.pi;
+    canvas.drawArc(
+      innerRect,
+      innerAngle,
+      math.pi * 0.4,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round
+        ..color = AppTheme.tertiary.withValues(alpha: 0.55),
+    );
+
+    // Breathing core
+    final breath = 0.5 + 0.5 * math.sin(angle * 2);
+    final coreRadius = (radius * 0.24) + (radius * 0.03 * breath);
+    canvas.drawCircle(
+      center,
+      coreRadius + 6,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            AppTheme.primary.withValues(alpha: 0.5 + 0.2 * breath),
+            AppTheme.primary.withValues(alpha: 0.0),
+          ],
+        ).createShader(
+          Rect.fromCircle(center: center, radius: coreRadius + 6),
+        ),
+    );
+    canvas.drawCircle(
+      center,
+      coreRadius,
+      Paint()
+        ..shader = const RadialGradient(
+          colors: [Color(0xFFEAFBFF), AppTheme.primary],
+        ).createShader(Rect.fromCircle(center: center, radius: coreRadius)),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReactorPainter oldDelegate) =>
+      oldDelegate.t != t;
+}
+
+/// Indeterminate shimmer line under the wordmark.
+class _LaunchShimmer extends StatefulWidget {
+  const _LaunchShimmer();
+
+  @override
+  State<_LaunchShimmer> createState() => _LaunchShimmerState();
+}
+
+class _LaunchShimmerState extends State<_LaunchShimmer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1300),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final reduceMotion =
+          MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+      if (!reduceMotion) _controller.repeat();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 124,
+      width: 132,
       height: 3,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(999),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            ColoredBox(color: Colors.white.withValues(alpha: 0.08)),
-            FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: value,
-              child: const DecoratedBox(
-                decoration: BoxDecoration(gradient: AppTheme.primaryGradient),
-              ),
-            ),
-          ],
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            final x = (_controller.value * 2.4) - 1.2;
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                ColoredBox(color: Colors.white.withValues(alpha: 0.08)),
+                FractionallySizedBox(
+                  alignment: Alignment(x.clamp(-1.0, 1.0), 0),
+                  widthFactor: 0.42,
+                  child: const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: AppTheme.primaryGradient,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

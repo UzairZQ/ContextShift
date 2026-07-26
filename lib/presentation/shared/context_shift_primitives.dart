@@ -80,7 +80,7 @@ class ContextSignalBadge extends StatelessWidget {
   const ContextSignalBadge({
     super.key,
     required this.label,
-    this.icon = LucideIcons.radio,
+    this.icon = LucideIcons.audioLines,
     this.color = AppTheme.intelligence,
   });
 

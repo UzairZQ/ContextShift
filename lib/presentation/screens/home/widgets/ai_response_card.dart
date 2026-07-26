@@ -40,7 +40,7 @@ class AiResponseCard extends StatelessWidget {
             child: Row(
               children: [
                 const Icon(
-                  LucideIcons.radio,
+                  LucideIcons.audioLines,
                   color: AppTheme.intelligence,
                   size: 18,
                 ),

@@ -38,6 +38,7 @@ class GemmaService {
 
   bool _initialized = false;
   bool _modelLoaded = false;
+  bool _isLoadingModel = false;
   ModelTier? _activeModelTier;
   ModelDefinition? _activeModelDef;
   InferenceModel? _model;
@@ -46,8 +47,19 @@ class GemmaService {
   final ValueNotifier<int> statusRevision = ValueNotifier<int>(0);
 
   bool get isModelLoaded => _modelLoaded;
+  bool get isModelLoading => _isLoadingModel;
   ModelTier? get activeModelTier => _activeModelTier;
   ModelDefinition? get activeModelDef => _activeModelDef;
+
+  /// Clamp the requested output budget so prompt + response always fit the
+  /// model's total context window (prompt length is a chars→tokens estimate).
+  int _clampOutputTokens(String prompt, int requested) {
+    final contextWindow = _activeModelDef?.maxTokens ?? 2048;
+    final promptTokens = (prompt.length / 3.5).ceil();
+    final available = contextWindow - promptTokens - 64;
+    if (available <= 96) return 96;
+    return requested < available ? requested : available;
+  }
 
   Future<void> init() async {
     if (_initialized) {
@@ -91,6 +103,8 @@ class GemmaService {
       await disposeModel();
     }
 
+    _isLoadingModel = true;
+    _notifyStatusChanged();
     try {
       final isInstalled = await FlutterGemma.isModelInstalled(model.modelId);
       if (!isInstalled) {
@@ -126,6 +140,7 @@ class GemmaService {
       _activeModelTier = model.tier;
       _activeModelDef = model;
       _modelLoaded = true;
+      _isLoadingModel = false;
       _notifyStatusChanged();
 
       debugPrint(
@@ -135,6 +150,7 @@ class GemmaService {
       debugPrint('[GemmaService] Failed to load model: $e');
       debugPrint('[GemmaService]   Stack: $stack');
       _modelLoaded = false;
+      _isLoadingModel = false;
       _notifyStatusChanged();
 
       if (e is GemmaException) rethrow;
@@ -216,10 +232,14 @@ class GemmaService {
     InferenceModelSession? session;
     try {
       debugPrint('[GemmaService][$requestId] Opening one-shot session...');
+      final outputBudget = _clampOutputTokens(prompt, maxTokens);
+      debugPrint(
+        '[GemmaService][$requestId] Output budget: $outputBudget tokens',
+      );
       session = await _model!.openSession(
         temperature: temperature,
         topK: topK,
-        maxOutputTokens: maxTokens,
+        maxOutputTokens: outputBudget,
       );
       debugPrint(
         '[GemmaService][$requestId] Session opened; sending prompt...',
@@ -316,7 +336,7 @@ class GemmaService {
       session = await _model!.openSession(
         temperature: temperature,
         topK: 1,
-        maxOutputTokens: maxTokens,
+        maxOutputTokens: _clampOutputTokens(prompt, maxTokens),
       );
       await session.addQueryChunk(Message(text: prompt, isUser: true));
 

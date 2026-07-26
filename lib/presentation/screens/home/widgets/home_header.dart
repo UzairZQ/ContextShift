@@ -55,7 +55,7 @@ class HomeHeader extends StatelessWidget {
           Row(
             children: [
               _CircleIconButton(
-                icon: LucideIcons.barChart2,
+                icon: LucideIcons.chartNoAxesColumn,
                 onTap: onOpenDashboard,
                 tooltip: 'Dashboard',
               ),

@@ -2,39 +2,39 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  // ContextShift palette: private sanctuary with warm human action.
-  static const Color background = Color(0xFF0D0D1A);
-  static const Color primary = Color(0xFFFF8C96); // Soft Red-Pink
-  static const Color primaryDim = Color(0xFFFF6E80);
-  static const Color primaryContainer = Color(0xFFFF7484);
-  static const Color accent = Color(0xFFE94560); // Vibrant Crimson
-  static const Color secondary = Color(0xFF0F3460); // Deep Indigo
-  static const Color tertiary = Color(0xFFBB9AFF); // Purple accent
-  static const Color tertiaryDim = Color(0xFFAE8AF7);
+  // ContextShift palette: deep-space navy with a single ice-cyan
+  // intelligence accent (matches the launcher mark), one warm live accent,
+  // and calm semantic colors. No competing hue families.
+  static const Color background = Color(0xFF060B16);
+  static const Color primary = Color(0xFF63E7FF); // Ice cyan — JARVIS
+  static const Color primaryDim = Color(0xFF3BC5E8);
+  static const Color primaryContainer = Color(0xFF10405A);
+  static const Color accent = Color(0xFFFF7D8A); // Live / recording coral
+  static const Color secondary = Color(0xFF16325E); // Deep indigo support
+  static const Color tertiary = Color(0xFF9DAAFF); // Periwinkle secondary data
+  static const Color tertiaryDim = Color(0xFF8090F2);
   static const Color intelligence = primary;
   static const Color intelligenceDim = primaryDim;
 
-  // Surface hierarchy (layered depth)
-  static const Color surface = Color(0xFF0D0D1A); // Base Layer
-  static const Color surfaceLow = Color(0xFF121220); // Sectional Layer
-  static const Color surfaceContainer = Color(0xFF181828); // Card Layer
-  static const Color surfaceHigh = Color(0xFF1E1E2F); // Container High
-  static const Color surfaceHighest = Color(0xFF242437); // Container Highest
-  static const Color surfaceBright = Color(0xFF2A2A3F); // Highlight Layer
+  // Surface hierarchy (blue-tinted layered depth)
+  static const Color surface = Color(0xFF060B16); // Base layer
+  static const Color surfaceLow = Color(0xFF0A1120); // Sectional layer
+  static const Color surfaceContainer = Color(0xFF0F182C); // Card layer
+  static const Color surfaceHigh = Color(0xFF15203A); // Container high
+  static const Color surfaceHighest = Color(0xFF1B2946); // Container highest
+  static const Color surfaceBright = Color(0xFF233457); // Highlight layer
 
   // Text/Icon colors
-  static const Color onSurface = Color(0xFFE9E6F9);
-  static const Color onSurfaceVariant = Color(0xFFABA9BB);
-  static const Color outlineVariant = Color(
-    0x26474656,
-  ); // 15% opacity ghost border
+  static const Color onSurface = Color(0xFFE9F1FD);
+  static const Color onSurfaceVariant = Color(0xFF9DAEC9);
+  static const Color outlineVariant = Color(0x264A5B7A); // ghost border
 
   // Semantic colors
-  static const Color success = Color(0xFF4CAF50);
-  static const Color warning = Color(0xFFFFB74D);
-  static const Color error = Color(0xFFFF7351);
+  static const Color success = Color(0xFF54E2A7); // Mint, same family
+  static const Color warning = Color(0xFFFFC466);
+  static const Color error = Color(0xFFFF7B7B);
 
-  // Gradients
+  // Gradients — one system: cyan light sweep, used sparingly.
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [primaryDim, primary],
     begin: Alignment.topLeft,

@@ -223,6 +223,7 @@ Rules:
 - No timeline, no exercises, no extra keys.
 - Short values. Finish the JSON object.
 
+Ground titles and content in the Context JSON (profile, tasks, habits, memory) when it helps.
 Context JSON:
 ${jsonEncode(localContext)}
 
@@ -243,6 +244,7 @@ Rules:
 - Short values. Finish the JSON object.
 - Use safe beginner/intermediate defaults if details are missing.
 
+Ground titles and content in the Context JSON (profile, tasks, habits, memory) when it helps.
 Context JSON:
 ${jsonEncode(localContext)}
 
@@ -269,6 +271,7 @@ Rules:
 - Include breaks and one low-energy fallback block.
 - Short values. Finish the JSON object.
 
+Ground titles and content in the Context JSON (profile, tasks, habits, memory) when it helps.
 Context JSON:
 ${jsonEncode(localContext)}
 
@@ -290,6 +293,7 @@ Rules:
 - Use sensible defaults if details are missing.
 - Maximum 4 exercises, 5 items, 3 tips.
 
+Ground titles and content in the Context JSON (profile, tasks, habits, memory) when it helps.
 Context JSON:
 ${jsonEncode(localContext)}
 

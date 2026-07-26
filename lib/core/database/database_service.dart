@@ -218,11 +218,13 @@ class DatabaseService {
         _db.profileTable,
       )..where((t) => t.userId.equals(_deviceId))).getSingleOrNull();
 
-      final tasks = await (_db.select(
-        _db.taskTable,
-      )..where((t) => t.userId.equals(_deviceId))).get();
-      final openTasks = tasks.where((task) => !task.done).toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final tasks =
+          await (_db.select(_db.taskTable)
+                ..where((t) => t.userId.equals(_deviceId))
+                ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+                ..limit(120))
+              .get();
+      final openTasks = tasks.where((task) => !task.done).toList();
 
       final allHabits = await (_db.select(
         _db.habitTable,
@@ -236,32 +238,29 @@ class DatabaseService {
         }
       }
 
-      final notes =
+      final sortedNotes =
           await (_db.select(_db.noteTable)
                 ..where((t) => t.userId.equals(_deviceId))
-                ..limit(5))
+                ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
+                ..limit(12))
               .get();
-      final sortedNotes = [...notes]
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       final recentNote = sortedNotes.isNotEmpty
           ? sortedNotes.first.content
           : null;
 
-      final commands =
+      final sortedCommands =
           await (_db.select(_db.aiCommandTable)
                 ..where((t) => t.userId.equals(_deviceId))
+                ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
                 ..limit(5))
               .get();
-      final sortedCommands = [...commands]
-        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-      final events =
+      final sortedEvents =
           await (_db.select(_db.behaviorEventTable)
                 ..where((t) => t.userId.equals(_deviceId))
+                ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
                 ..limit(10))
               .get();
-      final sortedEvents = [...events]
-        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
       final todayMood = await _getTodayMoodRaw();
       final focusMinutes = await getTodayFocusMinutes();
@@ -350,6 +349,16 @@ class DatabaseService {
   }
 
   // ── Tasks ────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getRecentTasks({int limit = 120}) async {
+    final rows =
+        await (_db.select(_db.taskTable)
+              ..where((t) => t.userId.equals(_deviceId))
+              ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+              ..limit(limit))
+            .get();
+    return rows.map(_taskToMap).toList();
+  }
 
   Stream<List<Map<String, dynamic>>> watchTasks() {
     return (_db.select(_db.taskTable)
@@ -441,6 +450,13 @@ class DatabaseService {
   }
 
   // ── Habits ───────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getHabitsList() async {
+    final rows = await (_db.select(
+      _db.habitTable,
+    )..where((t) => t.userId.equals(_deviceId))).get();
+    return rows.map(_habitToMap).toList();
+  }
 
   Stream<List<Map<String, dynamic>>> watchHabits() {
     return (_db.select(_db.habitTable)
@@ -596,21 +612,22 @@ class DatabaseService {
 
   Future<int> getTodayFocusMinutes() async {
     try {
-      final todayStr = _todayString();
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
       final sessions =
           await (_db.select(_db.focusSessionTable)..where(
-                (t) => t.userId.equals(_deviceId) & t.completed.equals(true),
+                (t) =>
+                    t.userId.equals(_deviceId) &
+                    t.completed.equals(true) &
+                    t.completedAt.isBiggerOrEqualValue(startOfDay),
               ))
               .get();
 
       int total = 0;
       for (final s in sessions) {
-        if (s.completedAt != null) {
-          final d = s.completedAt!;
-          final dateStr = dateKey(d);
-          if (dateStr == todayStr) {
-            total += _actualFocusMinutes(s.startedAt, d, s.durationMinutes);
-          }
+        final d = s.completedAt;
+        if (d != null) {
+          total += _actualFocusMinutes(s.startedAt, d, s.durationMinutes);
         }
       }
       return total;
@@ -632,6 +649,16 @@ class DatabaseService {
   }
 
   // ── Notes ────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getRecentNotes({int limit = 40}) async {
+    final rows =
+        await (_db.select(_db.noteTable)
+              ..where((t) => t.userId.equals(_deviceId))
+              ..orderBy([(t) => OrderingTerm.desc(t.updatedAt)])
+              ..limit(limit))
+            .get();
+    return rows.map(_noteToMap).toList();
+  }
 
   Stream<List<Map<String, dynamic>>> watchNotes() {
     return (_db.select(_db.noteTable)

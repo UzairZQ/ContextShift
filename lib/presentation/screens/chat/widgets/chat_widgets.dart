@@ -273,7 +273,7 @@ class _ThinkingBubble extends StatelessWidget {
       _JarvisBusyStage.thinking || _JarvisBusyStage.idle => (
         title: 'Thinking locally',
         body: 'Using your on-device context to answer.',
-        icon: LucideIcons.radio,
+        icon: LucideIcons.audioLines,
       ),
     };
 

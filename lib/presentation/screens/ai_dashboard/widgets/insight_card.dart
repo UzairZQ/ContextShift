@@ -40,7 +40,7 @@ class InsightCard extends StatelessWidget {
                   Row(
                     children: [
                       const Icon(
-                        LucideIcons.radio,
+                        LucideIcons.audioLines,
                         color: AppTheme.intelligence,
                         size: 20,
                       ),

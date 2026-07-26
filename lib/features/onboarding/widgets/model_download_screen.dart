@@ -351,7 +351,7 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
         icon = LucideIcons.pauseCircle;
         color = AppTheme.warning;
       case DownloadState.downloading:
-        icon = LucideIcons.downloadCloud;
+        icon = LucideIcons.hardDriveDownload;
         color = AppTheme.primary;
       case DownloadState.checkingStorage:
         icon = LucideIcons.hardDrive;

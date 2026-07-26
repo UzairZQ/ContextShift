@@ -58,7 +58,7 @@ class ProfileFormPanel extends StatelessWidget {
           _FormInput(
             controller: supportNeedController,
             hint: 'Overwhelm, planning, remembering, consistency...',
-            icon: LucideIcons.radio,
+            icon: LucideIcons.audioLines,
             maxLines: 3,
           ),
           const SizedBox(height: 24),

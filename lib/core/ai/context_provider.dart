@@ -4,8 +4,15 @@ import 'package:flutter/foundation.dart';
 
 import '../database/database_service.dart';
 import '../database/schema.dart';
+import 'context_retriever.dart';
 import 'jarvis_memory_service.dart';
 
+/// Builds prompts for the on-device model.
+///
+/// All variants share the same pipeline: retrieval-ranked local context
+/// (tasks/habits/notes/memories), conversation memory, and recent turns,
+/// assembled under a hard character budget by trimming the least valuable
+/// sections first — never by cutting the prompt mid-JSON.
 class ContextProvider {
   ContextProvider._();
   static final ContextProvider instance = ContextProvider._();
@@ -16,15 +23,16 @@ class ContextProvider {
     int? conversationId,
     required String userMessage,
   }) async {
-    final fullSnapshot = _jsonSafeMap(
-      await DatabaseService.instance.buildContextSnapshot(),
+    final retrieved = await ContextRetriever.instance.retrieve(
+      query: userMessage,
+      maxTasks: 5,
+      maxHabits: 4,
+      maxNotes: 3,
+      maxMemories: 5,
     );
-    final memory = _jsonSafeMap(
-      await JarvisMemoryService.instance.buildMemoryContext(
-        conversationId: conversationId,
-      ),
+    final memory = await JarvisMemoryService.instance.buildMemoryContext(
+      conversationId: conversationId,
     );
-    final compactMemory = _compactForPrompt(memory) as Map<String, Object?>;
     final history = conversationId == null
         ? const <MessageTableData>[]
         : await DatabaseService.instance.getMessages(conversationId);
@@ -38,32 +46,21 @@ class ContextProvider {
         .map(
           (message) => <String, Object?>{
             'role': message.role,
-            'content': _clipForPrompt(message.content, 180),
+            'content': _clip(message.content, 180),
           },
         )
         .toList(growable: false);
 
-    final selectedSnapshot =
-        _compactForPrompt(
-              _selectSnapshotForMessage(
-                fullSnapshot,
-                userMessage,
-                compactMemory,
-                mode: 'generate',
-              ),
-            )
-            as Map<String, Object?>;
-    _debugPromptContext(
-      mode: 'generate',
-      snapshot: selectedSnapshot,
-      recentCount: recent.length,
-      memory: compactMemory,
-    );
+    _logContext('generate', retrieved, recent.length);
 
     return <String, Object?>{
       'app': 'ContextShift',
-      'localSnapshot': selectedSnapshot,
-      'jarvisMemory': compactMemory,
+      'profile': _profileJson(),
+      'localSnapshot': retrieved.toPromptJson(),
+      'conversationSummary': _clip(
+        memory['conversationSummary']?.toString() ?? '',
+        400,
+      ),
       'recentConversation': recent,
       'allowedActionContext': {
         'create_task': ['title', 'priority'],
@@ -75,94 +72,84 @@ class ContextProvider {
     };
   }
 
+  /// Action-mode prompt: the model must answer with one JSON object that
+  /// contains a human response plus zero or more app actions.
   Future<String> build({
     required String userMessage,
     int? conversationId,
   }) async {
-    final fullSnapshot = _jsonSafeMap(
-      await DatabaseService.instance.buildContextSnapshot(),
+    final parts = await _sharedParts(
+      userMessage: userMessage,
+      conversationId: conversationId,
+      historyTurns: 6,
     );
-    final memory = _jsonSafeMap(
-      await JarvisMemoryService.instance.buildMemoryContext(
-        conversationId: conversationId,
-      ),
+
+    final rules = <String>[
+      'You are JARVIS, the private on-device guide in ContextShift.',
+      'Be concise, grounded, warm, and action-oriented.',
+      'Ground every claim in the provided context. If context is missing, ask one useful question instead of guessing.',
+      'Never claim an action succeeded unless you return that action.',
+      'Return one JSON object only, no Markdown, with this exact shape:',
+      '{"response":"human answer","actions":[{"type":"add_task|add_habit|add_note|start_focus","params":{}}]}',
+      'params: add_task {"title","priority"(normal|medium|high)}, add_habit {"name"}, add_note {"content"}, start_focus {"duration_minutes"}.',
+      'Use an empty actions array for pure conversation.',
+    ];
+
+    return _assemble(
+      rules: rules,
+      parts: parts,
+      userMessage: userMessage,
+      trailing: null,
     );
-    final history = conversationId == null
-        ? const <MessageTableData>[]
-        : await DatabaseService.instance.getMessages(conversationId);
-
-    final recentHistory = history
-        .where((message) => message.content.trim().isNotEmpty)
-        .toList()
-        .reversed
-        .take(8)
-        .toList()
-        .reversed;
-
-    final buffer = StringBuffer()
-      ..writeln('You are JARVIS, the private on-device guide in ContextShift.')
-      ..writeln('Be concise, grounded, warm, and action-oriented.')
-      ..writeln(
-        'Use the user profile, memories, tasks, habits, notes, mood, focus data, and conversation summary as context.',
-      )
-      ..writeln(
-        'Do not pretend to remember facts that are not in the provided context. If context is missing, ask one useful question.',
-      )
-      ..writeln(
-        'Never claim an action succeeded unless you return that action.',
-      )
-      ..writeln('Return one JSON object only with this shape:')
-      ..writeln(
-        '{"response":"human answer","actions":[{"type":"add_task|add_habit|add_note|start_focus","params":{}}]}',
-      )
-      ..writeln('Current local context:')
-      ..writeln(
-        jsonEncode(
-          _selectSnapshotForMessage(
-            fullSnapshot,
-            userMessage,
-            memory,
-            mode: 'action',
-          ),
-        ),
-      )
-      ..writeln('Jarvis memory:')
-      ..writeln(jsonEncode(memory));
-
-    if (recentHistory.isNotEmpty) {
-      buffer.writeln('Recent conversation:');
-      for (final message in recentHistory) {
-        buffer.writeln('${message.role}: ${message.content}');
-      }
-    }
-
-    buffer.writeln('User: $userMessage');
-    final prompt = buffer.toString();
-    _debugPromptContext(
-      mode: 'action',
-      snapshot: _selectSnapshotForMessage(
-        fullSnapshot,
-        userMessage,
-        memory,
-        mode: 'action',
-      ),
-      recentCount: recentHistory.length,
-      memory: memory,
-    );
-    return _fitPrompt(prompt);
   }
 
+  /// Plain conversational prompt.
   Future<String> buildChat({
     required String userMessage,
     int? conversationId,
   }) async {
-    final fullSnapshot = _jsonSafeMap(
-      await DatabaseService.instance.buildContextSnapshot(),
+    final parts = await _sharedParts(
+      userMessage: userMessage,
+      conversationId: conversationId,
+      historyTurns: 6,
     );
-    final memory = _jsonSafeMap(
-      await JarvisMemoryService.instance.buildMemoryContext(
-        conversationId: conversationId,
-      ),
+
+    final alreadyGreeted = parts.alreadyGreeted;
+    final rules = <String>[
+      'You are JARVIS, the private on-device guide in ContextShift.',
+      'Reply like a sharp, warm product companion, not a command parser or status bot.',
+      'Answer the latest user message directly. Do not repeat a previous assistant answer unless asked.',
+      'Use natural length: one sentence for simple questions, a few short paragraphs or a compact list for analysis.',
+      'Write complete sentences. Avoid heavy Markdown, asterisks, and headings in plain chat.',
+      'Never introduce yourself as a generic language model. Speak as JARVIS inside ContextShift.',
+      alreadyGreeted
+          ? 'The conversation is already underway. Do not greet or reintroduce yourself.'
+          : 'This may be the first reply; a brief natural greeting is allowed.',
+      'If asked what you can do: you chat with local context, execute app actions, and generate structured cards (plans, schedules, workouts, dashboards, trackers, comparisons, checklists, forms).',
+      'When the user asks about their tasks, habits, focus, mood, or notes, cite concrete names, counts, or status from Local context.',
+      'Do not claim to remember anything outside the provided context, and never invent progress you cannot see.',
+    ];
+
+    return _assemble(
+      rules: rules,
+      parts: parts,
+      userMessage: userMessage,
+      trailing: 'JARVIS:',
+    );
+  }
+
+  // ── Shared assembly ─────────────────────────────────────────
+
+  Future<_PromptParts> _sharedParts({
+    required String userMessage,
+    required int? conversationId,
+    required int historyTurns,
+  }) async {
+    final retrieved = await ContextRetriever.instance.retrieve(
+      query: userMessage,
+    );
+    final memory = await JarvisMemoryService.instance.buildMemoryContext(
+      conversationId: conversationId,
     );
     final history = conversationId == null
         ? const <MessageTableData>[]
@@ -172,201 +159,152 @@ class ContextProvider {
         .where((message) => message.content.trim().isNotEmpty)
         .toList()
         .reversed
-        .take(6)
+        .take(historyTurns)
         .toList()
-        .reversed;
-    final selectedSnapshot = _selectSnapshotForMessage(
-      fullSnapshot,
-      userMessage,
-      memory,
-      mode: 'chat',
-    );
+        .reversed
+        .map((m) => (role: m.role, content: _clip(m.content, 300)))
+        .toList(growable: false);
+
     final state = memory['conversationState'];
     final alreadyGreeted =
-        state is Map && state['alreadyGreeted'] == true ||
+        (state is Map && state['alreadyGreeted'] == true) ||
         history.any((message) => message.role == 'assistant');
 
-    final buffer = StringBuffer()
-      ..writeln('You are JARVIS, the private on-device guide in ContextShift.')
-      ..writeln(
-        'Reply like a helpful product companion, not a command parser or status bot.',
-      )
-      ..writeln(
-        'Answer the latest user message directly. Do not repeat a previous assistant answer unless the user explicitly asks for it.',
-      )
-      ..writeln(
-        'Use natural length for the request: one sentence for simple questions, or a few short paragraphs or a compact list for analysis.',
-      )
-      ..writeln(
-        'Write complete sentences. Avoid heavy Markdown, asterisks, headings, and unfinished lists in plain chat.',
-      )
-      ..writeln(
-        'Never introduce yourself as a generic large language model. Speak as JARVIS inside ContextShift.',
-      )
-      ..writeln(
-        alreadyGreeted
-            ? 'This conversation is already underway. Do not greet, reintroduce yourself, or restart the conversation.'
-            : 'This may be the first assistant reply in the conversation; a brief natural greeting is allowed.',
-      )
-      ..writeln(
-        'If the user asks what you can do, build, generate, or whether you can make cards, explain that JARVIS can chat, use local context, create app actions, and generate structured cards/surfaces such as plans, schedules, workout cards, study blocks, habit dashboards, task checklists, trackers, comparisons, routines, forms, and decision views.',
-      )
-      ..writeln(
-        'Use provided profile, memories, tasks, habits, notes, mood, focus data, and conversation summary when relevant.',
-      )
-      ..writeln(
-        'Do not claim to remember anything outside the provided context.',
-      )
-      ..writeln(
-        'If the user asks about habits, tasks, focus, mood, or notes, mention concrete names, counts, or status from Current local context when available.',
-      )
-      ..writeln(
-        'If the user asks what you changed or optimized, only claim changes that actually happened in this turn or the recent conversation. Otherwise explain that you have not changed anything yet and offer a useful next step.',
-      )
-      ..writeln(
-        'Do not answer with vague progress phrases like "I am analyzing" unless you immediately include the concrete result.',
-      )
-      ..writeln('Current local context:')
-      ..writeln(jsonEncode(selectedSnapshot))
-      ..writeln('Jarvis memory:')
-      ..writeln(jsonEncode(memory));
+    _logContext('prompt', retrieved, recentHistory.length);
 
-    if (recentHistory.isNotEmpty) {
-      buffer.writeln('Recent conversation:');
-      for (final message in recentHistory) {
-        buffer.writeln('${message.role}: ${message.content}');
-      }
-    }
-
-    buffer
-      ..writeln('User: $userMessage')
-      ..writeln('JARVIS:');
-    final prompt = buffer.toString();
-    _debugPromptContext(
-      mode: 'chat',
-      snapshot: selectedSnapshot,
-      recentCount: recentHistory.length,
-      memory: memory,
+    return _PromptParts(
+      retrieved: retrieved,
+      summary: memory['conversationSummary']?.toString().trim() ?? '',
+      state: state is Map ? Map<String, Object?>.from(state) : const {},
+      history: recentHistory,
+      alreadyGreeted: alreadyGreeted,
     );
-    return _fitPrompt(prompt);
   }
 
-  Map<String, Object?> _selectSnapshotForMessage(
-    Map<String, Object?> snapshot,
-    String userMessage,
-    Map<String, Object?> memory, {
-    required String mode,
+  String _assemble({
+    required List<String> rules,
+    required _PromptParts parts,
+    required String userMessage,
+    required String? trailing,
   }) {
-    final lower = userMessage.toLowerCase();
-    final state = memory['conversationState'];
-    final topic = state is Map ? state['currentTopic']?.toString() ?? '' : '';
-    final selected = <String, Object?>{'profile': snapshot['profile']};
+    // Reduction stages, applied in order until the prompt fits.
+    var historyTurns = parts.history.length;
+    var summaryLimit = 700;
+    var context = parts.retrieved.toPromptJson();
+    var stage = 0;
 
-    bool mentions(RegExp pattern) =>
-        pattern.hasMatch(lower) || pattern.hasMatch(topic);
-    final wantsOverview =
-        mode == 'generate' &&
-        mentions(
-          RegExp(
-            r'\b(dashboard|overview|summary|stats|metrics|report|everything|all)\b',
-          ),
-        );
-    final includeEverything = lower.trim().isEmpty || wantsOverview;
-    final wantsTasks =
-        includeEverything ||
-        mentions(RegExp(r'\b(task|todo|priority|deadline)\b'));
-    final wantsHabits =
-        includeEverything || mentions(RegExp(r'\b(habit|routine|streak)\b'));
-    final wantsNotes =
-        includeEverything ||
-        mentions(RegExp(r'\b(note|journal|mood|feel|reflect)\b'));
-    final wantsFocus =
-        includeEverything ||
-        mentions(
-          RegExp(
-            r'\b(focus|deep work|pomodoro|session|study|workout|exercise|training)\b',
-          ),
-        );
+    String render() {
+      final buffer = StringBuffer();
+      for (final rule in rules) {
+        buffer.writeln(rule);
+      }
+      buffer
+        ..writeln('User profile:')
+        ..writeln(jsonEncode(_profileJson()))
+        ..writeln('Local context:')
+        ..writeln(jsonEncode(context));
+      final summary = _clip(parts.summary, summaryLimit);
+      if (summary.isNotEmpty) {
+        buffer
+          ..writeln('Conversation so far (summary):')
+          ..writeln(summary);
+      }
+      final pending = parts.state['pendingQuestion']?.toString() ?? '';
+      if (pending.isNotEmpty) {
+        buffer.writeln('Open question you asked earlier: $pending');
+      }
+      final history = parts.history
+          .skip(parts.history.length - historyTurns)
+          .toList();
+      if (history.isNotEmpty) {
+        buffer.writeln('Recent conversation:');
+        for (final message in history) {
+          buffer.writeln('${message.role}: ${message.content}');
+        }
+      }
+      buffer.writeln('User: $userMessage');
+      if (trailing != null) buffer.writeln(trailing);
+      return buffer.toString();
+    }
 
-    if (wantsTasks) selected['tasks'] = snapshot['tasks'];
-    if (wantsHabits) selected['habits'] = snapshot['habits'];
-    if (wantsNotes) {
-      selected['recent_note'] = snapshot['recent_note'];
-      selected['recent_notes'] = snapshot['recent_notes'];
-      selected['today_mood'] = snapshot['today_mood'];
+    var prompt = render();
+    while (prompt.length > _maxContextCharacters && stage < 5) {
+      stage += 1;
+      switch (stage) {
+        case 1:
+          summaryLimit = 320;
+        case 2:
+          historyTurns = historyTurns > 3 ? 3 : historyTurns;
+        case 3:
+          context = RetrievedContext(
+            tasks: parts.retrieved.tasks.take(4).toList(),
+            habits: parts.retrieved.habits.take(3).toList(),
+            notes: parts.retrieved.notes.take(2).toList(),
+            memories: parts.retrieved.memories.take(4).toList(),
+            presence: parts.retrieved.presence,
+            queryTerms: parts.retrieved.queryTerms,
+          ).toPromptJson();
+        case 4:
+          historyTurns = historyTurns > 2 ? 2 : historyTurns;
+          summaryLimit = 160;
+        case 5:
+          context = <String, Object?>{'today': parts.retrieved.presence};
+      }
+      prompt = render();
     }
-    if (wantsFocus) {
-      selected['focus_minutes_today'] = snapshot['focus_minutes_today'];
+
+    if (prompt.length > _maxContextCharacters) {
+      // Last resort: keep instructions head + latest turns tail.
+      const marker = '\n--- Older context truncated ---\n';
+      const headChars = 1400;
+      final tailChars = _maxContextCharacters - headChars - marker.length;
+      prompt =
+          prompt.substring(0, headChars) +
+          marker +
+          prompt.substring(prompt.length - tailChars);
     }
-    if (includeEverything) {
-      selected['recent_commands'] = snapshot['recent_commands'];
-      selected['recent_events'] = snapshot['recent_events'];
-    }
-    return selected;
+    return prompt;
   }
 
-  void _debugPromptContext({
-    required String mode,
-    required Map<String, Object?> snapshot,
-    required int recentCount,
-    required Map<String, Object?> memory,
-  }) {
-    final state = memory['conversationState'];
+  Map<String, Object?> _profileJson() {
+    final db = DatabaseService.instance;
+    final interests = db.profileInterests;
+    return <String, Object?>{
+      'name': db.firstName,
+      if (db.focusRole?.isNotEmpty ?? false) 'focusRole': db.focusRole,
+      if (interests.isNotEmpty) 'interests': interests.take(4).toList(),
+      if (db.windDownTime?.isNotEmpty ?? false) 'windDown': db.windDownTime,
+    };
+  }
+
+  void _logContext(String mode, RetrievedContext retrieved, int recentCount) {
     debugPrint(
       '[ContextProvider] mode=$mode recent=$recentCount '
-      'snapshotKeys=${snapshot.keys.join(',')} '
-      'hasSummary=${(memory['conversationSummary']?.toString().trim().isNotEmpty ?? false)} '
-      'state=$state',
+      'tasks=${retrieved.tasks.length} habits=${retrieved.habits.length} '
+      'notes=${retrieved.notes.length} memories=${retrieved.memories.length} '
+      'terms=${retrieved.queryTerms.take(8).join('|')}',
     );
   }
 
-  String _fitPrompt(String prompt) {
-    if (prompt.length <= _maxContextCharacters) return prompt;
-    const marker = '\n--- Older context truncated ---\n';
-    const headChars = 1400;
-    final tailChars = _maxContextCharacters - headChars - marker.length;
-    return prompt.substring(0, headChars) +
-        marker +
-        prompt.substring(prompt.length - tailChars);
-  }
-
-  Map<String, Object?> _jsonSafeMap(Map<String, Object?> value) {
-    return _jsonSafe(value) as Map<String, Object?>;
-  }
-
-  Object? _compactForPrompt(Object? value) {
-    if (value is String) return _clipForPrompt(value, 220);
-    if (value is Map) {
-      return value.map<String, Object?>(
-        (key, mapValue) =>
-            MapEntry(key.toString(), _compactForPrompt(mapValue)),
-      );
-    }
-    if (value is Iterable) {
-      return value.take(4).map(_compactForPrompt).toList(growable: false);
-    }
-    return value;
-  }
-
-  String _clipForPrompt(String value, int maxLength) {
+  String _clip(String value, int maxLength) {
     final cleaned = value.replaceAll(RegExp(r'\s+'), ' ').trim();
     if (cleaned.length <= maxLength) return cleaned;
     return '${cleaned.substring(0, maxLength - 3).trim()}...';
   }
+}
 
-  Object? _jsonSafe(Object? value) {
-    if (value == null || value is num || value is bool || value is String) {
-      return value;
-    }
-    if (value is DateTime) return value.toIso8601String();
-    if (value is Map) {
-      return value.map<String, Object?>(
-        (key, mapValue) => MapEntry(key.toString(), _jsonSafe(mapValue)),
-      );
-    }
-    if (value is Iterable) {
-      return value.map(_jsonSafe).toList(growable: false);
-    }
-    return value.toString();
-  }
+class _PromptParts {
+  final RetrievedContext retrieved;
+  final String summary;
+  final Map<String, Object?> state;
+  final List<({String role, String content})> history;
+  final bool alreadyGreeted;
+
+  const _PromptParts({
+    required this.retrieved,
+    required this.summary,
+    required this.state,
+    required this.history,
+    required this.alreadyGreeted,
+  });
 }

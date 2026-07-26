@@ -98,7 +98,7 @@ class _JournalHeader extends StatelessWidget {
               ],
             ),
             child: const Icon(
-              LucideIcons.bookOpen,
+              LucideIcons.notebookPen,
               color: AppTheme.warning,
               size: 25,
             ),

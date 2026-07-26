@@ -543,17 +543,11 @@ class _ChatScreenState extends State<ChatScreen> {
             : jsonEncode(generation.toPersistenceJson());
         generatedCardType = _detectGeneratedCardType(message);
       } else {
-        final localReply = _localJarvisCapabilityReply(message);
-        if (localReply != null) {
-          response = localReply;
-          widgetJson = null;
-        } else {
-          await _ensureJarvisReadyForChat(message);
-          if (mounted) setState(() => _busyStage = _JarvisBusyStage.thinking);
-          response = await _generatePlainJarvisReply(message);
-          debugPrint('[ChatScreen] Plain JARVIS response: $response');
-          widgetJson = null;
-        }
+        await _ensureJarvisReadyForChat(message);
+        if (mounted) setState(() => _busyStage = _JarvisBusyStage.thinking);
+        response = await _generatePlainJarvisReply(message);
+        debugPrint('[ChatScreen] Plain JARVIS response: $response');
+        widgetJson = null;
       }
 
       await DatabaseService.instance.addMessage(
@@ -571,11 +565,16 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       if (!mounted) return;
 
-      if (_conversations.any((c) => c.id == _activeConversationId)) {
+      final activeConv = _conversations
+          .where((c) => c.id == _activeConversationId)
+          .firstOrNull;
+      if (activeConv != null &&
+          (activeConv.title.trim().isEmpty || activeConv.title == 'New Chat')) {
         await DatabaseService.instance.renameConversation(
           _activeConversationId!,
           message.length > 40 ? '${message.substring(0, 40)}...' : message,
         );
+        unawaited(_loadConversations());
       }
     } catch (error, stackTrace) {
       final diagnosticId = _diagnosticId();
@@ -642,7 +641,9 @@ class _ChatScreenState extends State<ChatScreen> {
       'Use natural length for the question. A short list is okay when it makes the answer clearer.',
       'Finish the final sentence before stopping.',
     ].join('\n');
-    final suppressGreeting = await _conversationAlreadyHasAssistant();
+    final suppressGreeting = _messages.any(
+      (message) => message.role == 'assistant',
+    );
     final chatOutputBudget =
         GemmaService.instance.activeModelDef?.maxTokens ?? 2048;
     final response = await GemmaService.instance.generate(
@@ -663,13 +664,6 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
     return trimmed;
-  }
-
-  Future<bool> _conversationAlreadyHasAssistant() async {
-    final conversationId = _activeConversationId;
-    if (conversationId == null) return false;
-    final messages = await DatabaseService.instance.getMessages(conversationId);
-    return messages.any((message) => message.role == 'assistant');
   }
 
   String _cleanPlainJarvisReply(
@@ -729,18 +723,6 @@ class _ChatScreenState extends State<ChatScreen> {
       r'^(add task|todo|remind me|create task|start focus|focus \d+|add habit|new habit|track|note|remember|write down|jot down)\b',
       caseSensitive: false,
     ).hasMatch(message.trim());
-  }
-
-  String? _localJarvisCapabilityReply(String message) {
-    final lower = message.toLowerCase().trim();
-    final asksCapability = RegExp(
-      r"\b(what can you|what do you|capabilities|can you (also )?(build|make|generate|create) (cards|widgets|screens|views|ui|surfaces))\b",
-    ).hasMatch(lower);
-    if (!asksCapability) return null;
-
-    return 'Yes. I can chat, update your ContextShift data, and build generated cards when a visual structure helps.\n\n'
-        'I can generate plans, schedules, workout cards, study blocks, habit dashboards, task checklists, trackers, comparisons, routines, forms, and decision views. I can also use your local tasks, habits, notes, mood, focus history, and recent conversation as context.\n\n'
-        'Try: "build a 3-day workout plan", "make a dashboard for my habits", "create a study plan for tomorrow", or "compare these options as a card".';
   }
 
   String _diagnosticId() {
@@ -1053,7 +1035,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 shape: BoxShape.circle,
               ),
               child: const Icon(
-                LucideIcons.radio,
+                LucideIcons.audioLines,
                 color: AppTheme.intelligence,
                 size: 20,
               ),
@@ -1204,7 +1186,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
-                      LucideIcons.radio,
+                      LucideIcons.audioLines,
                       color: AppTheme.intelligence,
                       size: 18,
                     ),
@@ -1304,7 +1286,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        isGenerate ? LucideIcons.sparkles : LucideIcons.radio,
+                        isGenerate ? LucideIcons.sparkles : LucideIcons.audioLines,
                         size: 48,
                         color: AppTheme.intelligence.withValues(alpha: 0.48),
                       ),
@@ -1497,7 +1479,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         icon: Icon(
                           _mode == _JarvisChatMode.generate
                               ? LucideIcons.sparkles
-                              : LucideIcons.send,
+                              : LucideIcons.arrowUp,
                           color: AppTheme.primary,
                           size: 18,
                         ),

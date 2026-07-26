@@ -93,7 +93,7 @@ class _ThinkingPulseState extends State<ThinkingPulse>
             ),
           ),
           child: Icon(
-            LucideIcons.radio,
+            LucideIcons.audioLines,
             size: 16 + (4 * _controller.value),
             color: AppTheme.intelligence.withValues(
               alpha: 0.6 + (0.4 * _controller.value),

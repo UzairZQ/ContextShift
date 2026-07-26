@@ -69,7 +69,7 @@ class _TasksModuleState extends State<TasksModule> {
                       Row(
                         children: [
                           const Icon(
-                            LucideIcons.checkSquare,
+                            LucideIcons.squareCheckBig,
                             color: AppTheme.primary,
                             size: 20,
                           ),

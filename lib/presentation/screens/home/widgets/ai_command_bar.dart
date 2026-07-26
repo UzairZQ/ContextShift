@@ -12,6 +12,7 @@ class AiCommandBar extends StatefulWidget {
   final String offlineHint;
   final ValueChanged<String> onSubmit;
   final VoidCallback? onTap;
+  final VoidCallback? onMicTap;
 
   const AiCommandBar({
     super.key,
@@ -22,6 +23,7 @@ class AiCommandBar extends StatefulWidget {
     required this.offlineHint,
     required this.onSubmit,
     this.onTap,
+    this.onMicTap,
   });
 
   @override
@@ -36,8 +38,8 @@ class _AiCommandBarState extends State<AiCommandBar> {
   }
 
   IconData get _leadingIcon {
-    if (!widget.hasCheckedStatus) return LucideIcons.loader2;
-    return widget.isOnline ? LucideIcons.sparkles : LucideIcons.cloudOff;
+    if (!widget.hasCheckedStatus) return LucideIcons.loaderCircle;
+    return widget.isOnline ? LucideIcons.audioLines : LucideIcons.cpu;
   }
 
   Color get _leadingColor {
@@ -49,33 +51,14 @@ class _AiCommandBarState extends State<AiCommandBar> {
           ? AppTheme.intelligence
           : AppTheme.intelligence.withValues(alpha: 0.68);
     }
-    return AppTheme.warning.withValues(alpha: 0.85);
+    return AppTheme.onSurfaceVariant.withValues(alpha: 0.7);
   }
 
   String get _hintText {
     if (!widget.hasCheckedStatus) return 'Checking JARVIS status...';
     return widget.isOnline
-        ? 'Generate a card, plan, tracker...'
+        ? 'Ask JARVIS, or build a card...'
         : widget.offlineHint;
-  }
-
-  TextStyle get _hintStyle {
-    final base = TextStyle(
-      color: widget.isOnline
-          ? AppTheme.onSurfaceVariant.withValues(alpha: 0.4)
-          : (widget.hasCheckedStatus
-                ? AppTheme.warning.withValues(alpha: 0.75)
-                : AppTheme.onSurfaceVariant.withValues(alpha: 0.55)),
-      fontStyle: (widget.isOnline || !widget.hasCheckedStatus)
-          ? FontStyle.normal
-          : FontStyle.italic,
-      fontSize: widget.isOnline ? 13 : 12,
-      height: 1.15,
-    );
-    if (!widget.hasCheckedStatus) {
-      return base.copyWith(fontStyle: FontStyle.italic);
-    }
-    return base;
   }
 
   @override
@@ -87,27 +70,60 @@ class _AiCommandBarState extends State<AiCommandBar> {
           color: AppTheme.surfaceHighest.withValues(alpha: 0.72),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: (widget.isOnline ? AppTheme.intelligence : AppTheme.warning)
-                .withValues(alpha: widget.isOnline ? 0.18 : 0.22),
+            color: AppTheme.intelligence.withValues(
+              alpha: widget.isOnline ? 0.2 : 0.1,
+            ),
           ),
         ),
-        child: TextField(
-          controller: widget.controller,
-          enabled: true,
-          maxLines: 1,
-          textAlignVertical: TextAlignVertical.center,
-          textInputAction: TextInputAction.send,
-          style: const TextStyle(color: AppTheme.onSurface, fontSize: 14),
-          decoration: InputDecoration(
-            icon: Icon(_leadingIcon, color: _leadingColor, size: 20),
-            hintText: _hintText,
-            hintStyle: _hintStyle,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(vertical: 12),
-            border: InputBorder.none,
-            suffixIcon: widget.isProcessing
+        child: Row(
+          children: [
+            Icon(_leadingIcon, color: _leadingColor, size: 19),
+            const SizedBox(width: Spacing.md),
+            Expanded(
+              child: TextField(
+                controller: widget.controller,
+                enabled: true,
+                maxLines: 1,
+                textAlignVertical: TextAlignVertical.center,
+                textInputAction: TextInputAction.send,
+                style: const TextStyle(color: AppTheme.onSurface, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: _hintText,
+                  hintStyle: TextStyle(
+                    color: AppTheme.onSurfaceVariant.withValues(
+                      alpha: widget.isOnline ? 0.45 : 0.6,
+                    ),
+                    fontSize: 13,
+                    height: 1.15,
+                  ),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 13),
+                  border: InputBorder.none,
+                ),
+                onSubmitted: (_) => _handleSend(),
+              ),
+            ),
+            if (widget.onMicTap != null && !widget.isProcessing)
+              Semantics(
+                label: 'Voice mode',
+                button: true,
+                child: IconButton(
+                  onPressed: widget.onMicTap,
+                  icon: const Icon(
+                    LucideIcons.mic,
+                    color: AppTheme.onSurfaceVariant,
+                    size: 18,
+                  ),
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(38, 38),
+                  ),
+                  tooltip: 'Talk to JARVIS',
+                ),
+              ),
+            const SizedBox(width: 2),
+            widget.isProcessing
                 ? const Padding(
-                    padding: EdgeInsets.all(Spacing.md),
+                    padding: EdgeInsets.all(10),
                     child: SizedBox(
                       width: 18,
                       height: 18,
@@ -118,22 +134,34 @@ class _AiCommandBarState extends State<AiCommandBar> {
                     ),
                   )
                 : Semantics(
-                    label: 'Send command',
-                    child: IconButton(
-                      onPressed: _handleSend,
-                      icon: Icon(
-                        widget.isOnline
-                            ? LucideIcons.sparkles
-                            : LucideIcons.wifiOff,
-                        color: widget.isOnline
-                            ? AppTheme.intelligence
-                            : AppTheme.warning.withValues(alpha: 0.9),
-                        size: 18,
+                    label: 'Send to JARVIS',
+                    button: true,
+                    child: GestureDetector(
+                      onTap: _handleSend,
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: widget.isOnline
+                              ? AppTheme.primaryGradient
+                              : null,
+                          color: widget.isOnline
+                              ? null
+                              : AppTheme.surfaceBright,
+                        ),
+                        child: Icon(
+                          LucideIcons.arrowUp,
+                          color: widget.isOnline
+                              ? AppTheme.background
+                              : AppTheme.onSurfaceVariant,
+                          size: 18,
+                        ),
                       ),
                     ),
                   ),
-          ),
-          onSubmitted: (_) => _handleSend(),
+          ],
         ),
       ),
     );

@@ -6,11 +6,11 @@ import '../../../../core/app_theme.dart';
 
 class FloatingNavBar extends StatelessWidget {
   static const List<_NavItem> _items = [
-    _NavItem(LucideIcons.layoutDashboard, 'Home'),
-    _NavItem(LucideIcons.checkSquare, 'Tasks'),
+    _NavItem(LucideIcons.house, 'Home'),
+    _NavItem(LucideIcons.squareCheckBig, 'Tasks'),
     _NavItem(LucideIcons.activity, 'Habits'),
     _NavItem(LucideIcons.timer, 'Focus'),
-    _NavItem(LucideIcons.bookOpen, 'Journal'),
+    _NavItem(LucideIcons.notebookPen, 'Journal'),
   ];
 
   final int currentIndex;
