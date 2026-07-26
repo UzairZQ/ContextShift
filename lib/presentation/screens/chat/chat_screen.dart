@@ -812,6 +812,9 @@ class _ChatScreenState extends State<ChatScreen> {
   void _handleSpeechResult(SpeechRecognitionResult result) {
     if (!_isListening || _isProcessing) return;
     final words = result.recognizedWords.trim();
+    // A restarting recognizer session briefly reports empty words — ignore
+    // those so dictated text never vanishes from the composer.
+    if (words.isEmpty) return;
     final combined = [
       if (_dictationBaseText.isNotEmpty) _dictationBaseText,
       if (words.isNotEmpty) words,
@@ -1404,7 +1407,9 @@ class _ChatScreenState extends State<ChatScreen> {
             children: [
               Expanded(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 132),
+                  // Grows with the text (dictation can get long) up to about
+                  // ten lines, then scrolls.
+                  constraints: const BoxConstraints(maxHeight: 236),
                   child: Scrollbar(
                     child: TextField(
                       controller: _messageController,
@@ -1412,7 +1417,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       keyboardType: TextInputType.multiline,
                       textInputAction: TextInputAction.send,
                       minLines: 1,
-                      maxLines: 5,
+                      maxLines: null,
                       scrollPadding: const EdgeInsets.only(bottom: 120),
                       style: const TextStyle(
                         color: AppTheme.onSurface,

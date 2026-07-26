@@ -65,9 +65,30 @@ class _VoiceInputSheetState extends State<_VoiceInputSheet>
   final List<double> _levels = List.filled(_barCount, 0);
 
   _VoicePhase _phase = _VoicePhase.starting;
-  String _transcript = '';
+
+  /// Text from finished recognizer sessions. The plugin resets
+  /// [SpeechRecognitionResult.recognizedWords] whenever a session restarts
+  /// (pause timeout, resume, transient error), so committed text must be
+  /// kept separately or it vanishes mid-dictation.
+  String _committed = '';
+
+  /// Live partial words of the current recognizer session.
+  String _sessionWords = '';
   double _liveLevel = 0;
   bool _closing = false;
+
+  String get _fullTranscript => _joinSegments(_committed, _sessionWords);
+
+  static String _joinSegments(String a, String b) {
+    if (a.isEmpty) return b;
+    if (b.isEmpty) return a;
+    return '$a $b';
+  }
+
+  void _commitSession() {
+    _committed = _joinSegments(_committed, _sessionWords.trim());
+    _sessionWords = '';
+  }
 
   @override
   void initState() {
@@ -143,7 +164,14 @@ class _VoiceInputSheetState extends State<_VoiceInputSheet>
 
   void _handleResult(SpeechRecognitionResult result) {
     if (!mounted) return;
-    setState(() => _transcript = result.recognizedWords.trim());
+    final words = result.recognizedWords.trim();
+    // A fresh session briefly reports empty words; never let that blank
+    // out text the user can already see.
+    if (words.isEmpty && !result.finalResult) return;
+    setState(() {
+      _sessionWords = words;
+      if (result.finalResult) _commitSession();
+    });
   }
 
   void _handleSoundLevel(double level) {
@@ -155,11 +183,12 @@ class _VoiceInputSheetState extends State<_VoiceInputSheet>
   void _handleError(SpeechRecognitionError error) {
     debugPrint('[VoiceInput] error: $error');
     if (!mounted) return;
-    if (error.permanent || error.errorMsg == 'error_permission') {
-      setState(() => _phase = _VoicePhase.unavailable);
-    } else {
-      setState(() => _phase = _VoicePhase.paused);
-    }
+    setState(() {
+      _commitSession();
+      _phase = error.permanent || error.errorMsg == 'error_permission'
+          ? _VoicePhase.unavailable
+          : _VoicePhase.paused;
+    });
   }
 
   void _handleStatus(String status) {
@@ -167,13 +196,19 @@ class _VoiceInputSheetState extends State<_VoiceInputSheet>
     if (status == stt.SpeechToText.notListeningStatus ||
         status == stt.SpeechToText.doneStatus) {
       if (_phase == _VoicePhase.listening) {
-        setState(() => _phase = _VoicePhase.paused);
+        setState(() {
+          _commitSession();
+          _phase = _VoicePhase.paused;
+        });
       }
     }
   }
 
   Future<void> _resume() async {
-    setState(() => _phase = _VoicePhase.starting);
+    setState(() {
+      _commitSession();
+      _phase = _VoicePhase.starting;
+    });
     await _listen();
   }
 
@@ -181,8 +216,10 @@ class _VoiceInputSheetState extends State<_VoiceInputSheet>
     if (_closing) return;
     _closing = true;
     await _speech.stop();
+    _commitSession();
     if (!mounted) return;
-    Navigator.of(context).pop(_transcript.trim().isEmpty ? null : _transcript);
+    final transcript = _fullTranscript.trim();
+    Navigator.of(context).pop(transcript.isEmpty ? null : transcript);
   }
 
   Future<void> _cancel() async {
@@ -202,9 +239,19 @@ class _VoiceInputSheetState extends State<_VoiceInputSheet>
     };
   }
 
+  /// Big and airy while short, stepping down so long dictations stay
+  /// readable on screen.
+  double _transcriptFontSize(int length) {
+    if (length <= 90) return 26;
+    if (length <= 180) return 22;
+    if (length <= 320) return 19;
+    return 16.5;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final hasTranscript = _transcript.trim().isNotEmpty;
+    final transcript = _fullTranscript.trim();
+    final hasTranscript = transcript.isNotEmpty;
 
     return Material(
       color: Colors.transparent,
@@ -253,23 +300,36 @@ class _VoiceInputSheetState extends State<_VoiceInputSheet>
                   ),
                   const Spacer(),
                   Expanded(
-                    flex: 3,
+                    flex: 5,
                     child: Center(
                       child: SingleChildScrollView(
                         reverse: true,
-                        child: Text(
-                          hasTranscript ? _transcript : 'Say anything...',
+                        padding: const EdgeInsets.symmetric(
+                          vertical: Spacing.md,
+                        ),
+                        child: AnimatedDefaultTextStyle(
+                          duration: Motion.fast,
+                          curve: Curves.easeOutCubic,
                           textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(
-                                color: hasTranscript
-                                    ? AppTheme.onSurface
-                                    : AppTheme.onSurfaceVariant.withValues(
-                                        alpha: 0.4,
-                                      ),
-                                fontWeight: FontWeight.w700,
-                                height: 1.3,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(
+                                    color: hasTranscript
+                                        ? AppTheme.onSurface
+                                        : AppTheme.onSurfaceVariant.withValues(
+                                            alpha: 0.4,
+                                          ),
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.32,
+                                    fontSize: _transcriptFontSize(
+                                      transcript.length,
+                                    ),
+                                  ) ??
+                              const TextStyle(),
+                          child: Text(
+                            hasTranscript ? transcript : 'Say anything...',
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                       ),
                     ),
