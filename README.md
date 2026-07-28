@@ -33,7 +33,7 @@ The app is fully offline-first with no account requirement:
 ### Onboarding and access flow
 
 - Multi-screen animated onboarding for first launch
-- Optional Gemma model download screen (E2B free tier or E4B paid tier)
+- Optional Gemma E2B model download screen
 - Guest-only flow using UUID-based device identity
 - Guest profile capture for name, focus area, and support needs
 
@@ -57,41 +57,15 @@ The app is fully offline-first with no account requirement:
 
 ## Screenshots
 
-The current screenshots are available in `screenshots/` and show the app in the order a user naturally experiences it: onboarding, home, core modules, JARVIS, settings, model download, and insights.
-
-### Onboarding
+The current screenshots are available in [`assets/screenshots/`](assets/screenshots/) and cover the workspace, productivity modules, notes, focus, and AI insights.
 
 <p>
-  <img src="screenshots/01-onboarding-overload.png" alt="Onboarding: Too much in your head" width="220" />
-  <img src="screenshots/02-onboarding-next-move.png" alt="Onboarding: Find the next move" width="220" />
-  <img src="screenshots/03-onboarding-offline.png" alt="Onboarding: Built to work offline" width="220" />
-  <img src="screenshots/04-onboarding-privacy.png" alt="Onboarding: Privacy-first local AI" width="220" />
-</p>
-
-### Daily Workspace
-
-<p>
-  <img src="screenshots/05-home-dashboard.png" alt="Home dashboard" width="220" />
-  <img src="screenshots/06-home-modules.png" alt="Home modules and mood check-in" width="220" />
-  <img src="screenshots/15-ai-dashboard.png" alt="AI dashboard with activity heatmap" width="220" />
-</p>
-
-### Productivity Modules
-
-<p>
-  <img src="screenshots/07-tasks.png" alt="Tasks module" width="220" />
-  <img src="screenshots/08-habits.png" alt="Habits module" width="220" />
-  <img src="screenshots/09-focus.png" alt="Focus timer" width="220" />
-  <img src="screenshots/10-journal-notes.png" alt="Journal and quick notes" width="220" />
-</p>
-
-### JARVIS
-
-<p>
-  <img src="screenshots/11-jarvis-chat.png" alt="JARVIS chat screen" width="220" />
-  <img src="screenshots/12-chat-history.png" alt="JARVIS chat history drawer" width="220" />
-  <img src="screenshots/13-settings.png" alt="Settings screen" width="220" />
-  <img src="screenshots/14-model-download.png" alt="JARVIS model download screen" width="220" />
+  <img src="assets/screenshots/home.png" alt="ContextShift home workspace" width="220" />
+  <img src="assets/screenshots/home2.png" alt="ContextShift home modules" width="220" />
+  <img src="assets/screenshots/tasks.png" alt="ContextShift tasks module" width="220" />
+  <img src="assets/screenshots/focus.png" alt="ContextShift focus timer" width="220" />
+  <img src="assets/screenshots/quicknotes.png" alt="ContextShift journal notes" width="220" />
+  <img src="assets/screenshots/ai_insights.png" alt="ContextShift AI insights" width="220" />
 </p>
 
 ### Personalization and behavior context
@@ -133,7 +107,7 @@ All data is stored locally using [Drift](https://drift.simonbinder.eu/) SQLite O
 | `NoteTable` | Notes with content, tags, summaries |
 | `MoodEntryTable` | Mood check-ins |
 | `AiCommandTable` | AI command history |
-| `BehaviorEventTable` | Analytics events |
+| `BehaviorEventTable` | Local behavior events used to shape context |
 | `ConversationTable` | Chat conversations |
 | `ConversationMemoryTable` | Rolling summaries and open questions for JARVIS conversations |
 | `JarvisMemoryTable` | Local learned facts, preferences, goals, routines, and constraints |
@@ -143,18 +117,22 @@ The main data access layer lives in [lib/core/database/database_service.dart](li
 
 ### On-device AI models
 
-AI runs locally using [FlutterGemma](https://pub.dev/packages/flutter_gemma) with two model tiers:
+AI currently runs locally using [FlutterGemma](https://pub.dev/packages/flutter_gemma) with one supported model tier:
 
-- **E2B** (free, 2.4 GB): Up to 2048 tokens, requires 4 GB RAM
-- **E4B** (paid, 4.3 GB): Up to 4096 tokens, requires 8 GB RAM, unlocks advanced features
+- **E2B** (free, about 2.6 GB): 4096-token LiteRT-LM context window, requires 4 GB RAM
 
-Model files are downloaded from HuggingFace with progress tracking, pause/resume, and storage checks. Feature gates controlled by [FeatureManager](lib/core/services/feature_manager.dart).
+The 4096-token figure is the complete context window (prompt plus generated
+output). JARVIS uses separate output budgets for natural chat and structured
+cards so the model has useful room without allowing runaway generation on a
+mobile device.
+
+Model files are downloaded from HuggingFace with progress tracking, cancel/retry controls, and storage checks. Feature gates are controlled by [FeatureManager](lib/core/services/feature_manager.dart).
 
 ### AI command processing (two-stage)
 
 1. **Keyword pattern matching** — instant parsing for common commands (add task, start focus, take note, etc.). No model needed.
 2. **Gemma NLU fallback** — if the keyword parser doesn't match and the on-device model is loaded, the command is sent to Gemma for structured JSON action extraction.
-3. **Default fallback** — unrecognized input with >5 characters creates a task with the full text.
+3. **Model-unavailable state** — if the local model is not ready, JARVIS says so explicitly; it does not silently create a task from an unrecognized message.
 
 Insights are generated locally based on time of day and recent activity patterns. GenUI surfaces are generated through an allow-listed catalog of safe Flutter/A2UI components so the model can compose useful interfaces without arbitrary runtime code execution.
 
@@ -165,7 +143,6 @@ Insights are generated locally based on time of day and recent activity patterns
 - Flutter
 - Dart
 - Material 3
-- `google_fonts`
 - `lucide_icons`
 
 ### Local data
@@ -187,7 +164,6 @@ Insights are generated locally based on time of day and recent activity patterns
 
 ### Utilities
 
-- `http`
 - `path`
 
 ## Important Files
@@ -199,8 +175,8 @@ Insights are generated locally based on time of day and recent activity patterns
 - [lib/core/ai/jarvis_memory_service.dart](lib/core/ai/jarvis_memory_service.dart) — Local JARVIS memory and conversation summaries
 - [lib/core/genui/genui_runtime.dart](lib/core/genui/genui_runtime.dart) — Gemma-backed GenUI runtime with planning, safe rendering, and labeled local fallback
 - [lib/core/local_llm/gemma_service.dart](lib/core/local_llm/gemma_service.dart) — FlutterGemma wrapper (init, load, generate, streaming)
-- [lib/core/local_llm/model_downloader.dart](lib/core/local_llm/model_downloader.dart) — HuggingFace model download with progress and resume
-- [lib/core/local_llm/model_tier.dart](lib/core/local_llm/model_tier.dart) — Model tier definitions (E2B, E4B)
+- [lib/core/local_llm/model_downloader.dart](lib/core/local_llm/model_downloader.dart) — HuggingFace model download with progress and cancel/retry behavior
+- [lib/core/local_llm/model_tier.dart](lib/core/local_llm/model_tier.dart) — Supported Gemma E2B model definition
 - [lib/core/services/feature_manager.dart](lib/core/services/feature_manager.dart) — Feature gating based on model tier
 - [lib/core/services/device_storage_service.dart](lib/core/services/device_storage_service.dart) — Platform channel for available/total storage
 - [lib/presentation/screens/home/home_screen.dart](lib/presentation/screens/home/home_screen.dart) — Main workspace, bottom navigation, JARVIS launcher, insight card
@@ -214,12 +190,13 @@ Insights are generated locally based on time of day and recent activity patterns
 3. `AiService` processes it locally:
    - First tries keyword/pattern matching (instant, no model)
    - If no match and Gemma is loaded, sends to on-device Gemma for NLU parsing
-   - Falls back to creating a task with the full text
+   - Shows a clear local-model-not-ready state when Gemma cannot answer an unrecognized request
 4. GenUI requests go through a planning prompt and catalog-constrained surface generation, with a labeled local fallback if Gemma times out or does not produce a visible surface
 5. The AI response adapts the UI (adds tasks, starts focus, shows insights, generates cards, or renders an A2UI surface)
 6. Conversation summaries and explicitly learned user facts are saved locally so future interactions become more contextual
 
-No network requests, no backend server, no API keys needed for day-to-day use.
+No backend server or API keys are needed for day-to-day use. Network access is
+only needed when the optional E2B model is downloaded.
 
 ## Running the Project
 
@@ -232,14 +209,9 @@ The app works immediately with no backend, no Firebase configuration, and no API
 
 ## Model Setup
 
-During onboarding, you'll be prompted to download the E2B model (free, 2.4 GB). This enables on-device NLU for richer command parsing. The E4B model (paid, 4.3 GB) unlocks advanced features:
+During onboarding, you'll be prompted to download the E2B model (free, about 2.6 GB). This enables on-device chat and generated surfaces.
 
-- Unlimited chat history
-- Custom personality
-- Weekly reviews
-- Advanced insights
-
-Both models require an arm64 device (Android) or iOS 16+ / macOS. Desktop platforms won't load Gemma and fall back to pattern-only parsing.
+The model requires an arm64 device (Android) or a supported iOS/macOS runtime. Desktop platforms may not load Gemma and can fall back to local parsing.
 
 ## Product Direction
 
@@ -268,6 +240,6 @@ ContextShift today is a fully offline-first adaptive productivity app with:
 - a polished onboarding flow
 - guest-only local identity (no accounts)
 - local SQLite database with reactive streams
-- on-device AI with free and paid model tiers
+- on-device AI with the supported E2B model tier
 - modular adaptive UI foundations
 - zero server or cloud dependencies

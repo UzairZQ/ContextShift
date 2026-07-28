@@ -9,6 +9,7 @@ import '../../../../core/responsive.dart';
 import '../../../shared/context_shift_primitives.dart';
 import '../../../widgets/genui/a2ui_surface_card.dart';
 import '../../../widgets/motion/wonderous_motion.dart';
+import '../jarvis_home_status.dart';
 import 'ai_command_bar.dart';
 import 'ai_insight_card.dart';
 import 'ai_response_card.dart';
@@ -20,9 +21,8 @@ class HomeTab extends StatelessWidget {
   final bool hideWordmark;
   final TextEditingController commandController;
   final bool isJarvisOnline;
-  final bool hasCheckedJarvisStatus;
+  final JarvisHomeStatus jarvisStatus;
   final bool isProcessingCommand;
-  final String offlineHint;
   final String? aiResponse;
   final Animation<double> responseAnimation;
   final bool isLoadingInsight;
@@ -34,9 +34,10 @@ class HomeTab extends StatelessWidget {
   final String? activeSurfaceSource;
   final String? activeSurfaceFallbackReason;
   final int? activeSurfaceElapsedMs;
+  final Set<String> hiddenActionNames;
   final VoidCallback onOpenDashboard;
   final VoidCallback onOpenProfile;
-  final VoidCallback onOpenChat;
+  final VoidCallback onOpenVoiceInput;
   final VoidCallback onOpenTasks;
   final VoidCallback onOpenHabits;
   final VoidCallback onOpenFocus;
@@ -53,9 +54,8 @@ class HomeTab extends StatelessWidget {
     required this.hideWordmark,
     required this.commandController,
     required this.isJarvisOnline,
-    required this.hasCheckedJarvisStatus,
+    required this.jarvisStatus,
     required this.isProcessingCommand,
-    required this.offlineHint,
     required this.aiResponse,
     required this.responseAnimation,
     required this.isLoadingInsight,
@@ -67,9 +67,10 @@ class HomeTab extends StatelessWidget {
     required this.activeSurfaceSource,
     required this.activeSurfaceFallbackReason,
     required this.activeSurfaceElapsedMs,
+    this.hiddenActionNames = const {},
     required this.onOpenDashboard,
     required this.onOpenProfile,
-    required this.onOpenChat,
+    required this.onOpenVoiceInput,
     required this.onOpenTasks,
     required this.onOpenHabits,
     required this.onOpenFocus,
@@ -101,12 +102,10 @@ class HomeTab extends StatelessWidget {
             child: _HeroCommandPanel(
               greeting: greeting,
               commandController: commandController,
-              isJarvisOnline: isJarvisOnline,
-              hasCheckedJarvisStatus: hasCheckedJarvisStatus,
+              jarvisStatus: jarvisStatus,
               isProcessingCommand: isProcessingCommand,
-              offlineHint: offlineHint,
               onSubmitCommand: onSubmitCommand,
-              onOpenChat: onOpenChat,
+              onOpenVoiceInput: onOpenVoiceInput,
             ),
           ),
           const SizedBox(height: 14),
@@ -127,6 +126,7 @@ class HomeTab extends StatelessWidget {
                 source: activeSurfaceSource,
                 fallbackReason: activeSurfaceFallbackReason,
                 elapsedMs: activeSurfaceElapsedMs,
+                hiddenActionNames: hiddenActionNames,
                 onAction: onSurfaceAction,
                 onDelete: onDeleteActiveSurface,
               ),
@@ -151,7 +151,7 @@ class HomeTab extends StatelessWidget {
               onTap: onOpenDashboard,
             ),
           ),
-          SizedBox(height: MediaQuery.of(context).padding.bottom + 92),
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 128),
         ],
       ),
     );
@@ -161,22 +161,18 @@ class HomeTab extends StatelessWidget {
 class _HeroCommandPanel extends StatelessWidget {
   final String greeting;
   final TextEditingController commandController;
-  final bool isJarvisOnline;
-  final bool hasCheckedJarvisStatus;
+  final JarvisHomeStatus jarvisStatus;
   final bool isProcessingCommand;
-  final String offlineHint;
   final ValueChanged<String> onSubmitCommand;
-  final VoidCallback onOpenChat;
+  final VoidCallback onOpenVoiceInput;
 
   const _HeroCommandPanel({
     required this.greeting,
     required this.commandController,
-    required this.isJarvisOnline,
-    required this.hasCheckedJarvisStatus,
+    required this.jarvisStatus,
     required this.isProcessingCommand,
-    required this.offlineHint,
     required this.onSubmitCommand,
-    required this.onOpenChat,
+    required this.onOpenVoiceInput,
   });
 
   @override
@@ -223,18 +219,16 @@ class _HeroCommandPanel extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              _StatusPill(isOnline: isJarvisOnline),
+              _StatusPill(status: jarvisStatus),
             ],
           ),
           const SizedBox(height: 14),
           AiCommandBar(
             controller: commandController,
-            isOnline: isJarvisOnline,
+            status: jarvisStatus,
             isProcessing: isProcessingCommand,
-            hasCheckedStatus: hasCheckedJarvisStatus,
-            offlineHint: offlineHint,
             onSubmit: onSubmitCommand,
-            onTap: onOpenChat,
+            onVoiceInput: onOpenVoiceInput,
           ),
         ],
       ),
@@ -248,6 +242,7 @@ class _ActiveSurfaceFrame extends StatelessWidget {
   final String? source;
   final String? fallbackReason;
   final int? elapsedMs;
+  final Set<String> hiddenActionNames;
   final ValueChanged<WidgetAction> onAction;
   final VoidCallback? onDelete;
 
@@ -258,6 +253,7 @@ class _ActiveSurfaceFrame extends StatelessWidget {
     this.source,
     this.fallbackReason,
     this.elapsedMs,
+    this.hiddenActionNames = const {},
     this.onDelete,
   });
 
@@ -308,7 +304,11 @@ class _ActiveSurfaceFrame extends StatelessWidget {
             source: source,
             fallbackReason: fallbackReason,
             elapsedMs: elapsedMs,
-            hiddenActionNames: const {'save_card', 'continue_conversation'},
+            hiddenActionNames: {
+              'save_card',
+              'continue_conversation',
+              ...hiddenActionNames,
+            },
             onAction: onAction,
           ),
         ],
@@ -318,39 +318,56 @@ class _ActiveSurfaceFrame extends StatelessWidget {
 }
 
 class _StatusPill extends StatelessWidget {
-  final bool isOnline;
+  final JarvisHomeStatus status;
 
-  const _StatusPill({required this.isOnline});
+  const _StatusPill({required this.status});
 
   @override
   Widget build(BuildContext context) {
+    final (label, icon, color) = switch (status) {
+      JarvisHomeStatus.checking => (
+        'Checking',
+        LucideIcons.loaderCircle,
+        AppTheme.onSurfaceVariant,
+      ),
+      JarvisHomeStatus.downloadRequired => (
+        'Download',
+        LucideIcons.downloadCloud,
+        AppTheme.warning,
+      ),
+      JarvisHomeStatus.standby => (
+        'Standby',
+        LucideIcons.cpu,
+        AppTheme.intelligence,
+      ),
+      JarvisHomeStatus.waking => (
+        'Waking',
+        LucideIcons.loaderCircle,
+        AppTheme.intelligence,
+      ),
+      JarvisHomeStatus.ready => (
+        'On device',
+        LucideIcons.zap,
+        AppTheme.success,
+      ),
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: (isOnline ? AppTheme.success : AppTheme.warning).withValues(
-          alpha: 0.12,
-        ),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: (isOnline ? AppTheme.success : AppTheme.warning).withValues(
-            alpha: 0.24,
-          ),
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            isOnline ? LucideIcons.zap : LucideIcons.wifiOff,
-            size: 12,
-            color: isOnline ? AppTheme.success : AppTheme.warning,
-          ),
+          Icon(icon, size: 12, color: color),
           const SizedBox(width: 6),
           Text(
-            isOnline ? 'On device' : 'Setup',
+            label,
             style: TextStyle(
-              color: isOnline ? AppTheme.success : AppTheme.warning,
+              color: color,
               fontSize: 10.5,
               fontWeight: FontWeight.w800,
             ),
@@ -391,6 +408,17 @@ class _HomeSnapshotBuilder extends StatelessWidget {
             return StreamBuilder<List<Map<String, dynamic>>>(
               stream: DatabaseService.instance.watchNotes(),
               builder: (context, noteSnap) {
+                if (taskSnap.hasError ||
+                    habitSnap.hasError ||
+                    noteSnap.hasError) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'Your local snapshot is temporarily unavailable. Pull to try again.',
+                      style: TextStyle(color: AppTheme.onSurfaceVariant),
+                    ),
+                  );
+                }
                 final snapshot = _TodaySnapshot.from(
                   tasks: taskSnap.data ?? const <Map<String, dynamic>>[],
                   habits: habitSnap.data ?? const <Map<String, dynamic>>[],
@@ -412,6 +440,11 @@ class _HomeSnapshotBuilder extends StatelessWidget {
                         onOpenFocus: onOpenFocus,
                         onOpenJournal: onOpenJournal,
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    WonderousReveal(
+                      delay: const Duration(milliseconds: 90),
+                      child: _WorkingMemoryCard(snapshot: snapshot),
                     ),
                     const SizedBox(height: 8),
                     WonderousReveal(
@@ -692,6 +725,186 @@ class _NextMoveCard extends StatelessWidget {
     }
     if (snapshot.focusMinutesToday < 25) return ('Start focus', onOpenFocus);
     return ('Open journal', onOpenJournal);
+  }
+}
+
+class _WorkingMemoryCard extends StatelessWidget {
+  final _TodaySnapshot snapshot;
+
+  const _WorkingMemoryCard({required this.snapshot});
+
+  @override
+  Widget build(BuildContext context) {
+    final signals = [
+      _MemorySignal(
+        label: 'Open loops',
+        value: snapshot.priorityTasks > 0
+            ? '${snapshot.priorityTasks} sharp'
+            : '${snapshot.pendingTasks}',
+      ),
+      _MemorySignal(
+        label: 'Behavior signals',
+        value: snapshot.totalHabits == 0
+            ? 'none'
+            : '${snapshot.behaviorWins}/${snapshot.totalHabits}',
+      ),
+      _MemorySignal(
+        label: 'Focus trace',
+        value: '${snapshot.focusMinutesToday}m',
+      ),
+      _MemorySignal(
+        label: 'Reflection',
+        value: snapshot.todayMood ?? '${snapshot.noteCount} notes',
+      ),
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(Spacing.lg),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceHigh.withValues(alpha: 0.52),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.primary.withValues(alpha: 0.12),
+                  border: Border.all(
+                    color: AppTheme.primary.withValues(alpha: 0.18),
+                  ),
+                ),
+                child: const Icon(
+                  LucideIcons.database,
+                  size: 17,
+                  color: AppTheme.primary,
+                ),
+              ),
+              const SizedBox(width: Spacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Working memory',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppTheme.onSurface,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'The local snapshot JARVIS can use before it answers.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppTheme.onSurfaceVariant.withValues(
+                          alpha: 0.72,
+                        ),
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: Spacing.md),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final availableWidth = constraints.maxWidth.isFinite
+                  ? constraints.maxWidth
+                  : 0.0;
+              // The launch reveal can receive a transient near-zero width
+              // before Android sends the first real viewport metrics.
+              if (availableWidth < Spacing.sm * 2) {
+                return const SizedBox.shrink();
+              }
+
+              final compact = availableWidth < 360;
+              final columns = compact ? 2 : 4;
+              final tileWidth =
+                  ((availableWidth - (Spacing.sm * (columns - 1))) / columns)
+                      .clamp(0.0, availableWidth)
+                      .toDouble();
+              return Wrap(
+                spacing: Spacing.sm,
+                runSpacing: Spacing.sm,
+                children: signals
+                    .map(
+                      (signal) => SizedBox(
+                        width: tileWidth,
+                        child: _MemorySignalTile(signal: signal),
+                      ),
+                    )
+                    .toList(growable: false),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemorySignal {
+  final String label;
+  final String value;
+
+  const _MemorySignal({required this.label, required this.value});
+}
+
+class _MemorySignalTile extends StatelessWidget {
+  final _MemorySignal signal;
+
+  const _MemorySignalTile({required this.signal});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 58),
+      padding: const EdgeInsets.symmetric(
+        horizontal: Spacing.md,
+        vertical: Spacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceContainer.withValues(alpha: 0.58),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            signal.value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: AppTheme.onSurface,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            signal.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppTheme.onSurfaceVariant.withValues(alpha: 0.62),
+              fontSize: 10.5,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

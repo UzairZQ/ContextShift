@@ -49,6 +49,7 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
   late final TextEditingController _subtaskController;
   late String _priority;
   late List<String> _subtasks;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -83,14 +84,32 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
 
   Future<void> _submit() async {
     final title = _titleController.text.trim();
-    if (title.isEmpty) return;
+    if (title.isEmpty || _isSubmitting) return;
 
-    await DatabaseService.instance.addTask(
-      title: title,
-      priority: _priority,
-      subtasks: _subtasks.map((s) => {'title': s, 'completed': false}).toList(),
-    );
-    if (mounted) Navigator.pop(context);
+    setState(() => _isSubmitting = true);
+    try {
+      await DatabaseService.instance.addTask(
+        title: title,
+        priority: _priority,
+        subtasks: _subtasks
+            .map((s) => {'title': s, 'completed': false})
+            .toList(),
+      );
+      if (mounted) Navigator.pop(context);
+    } catch (error, stackTrace) {
+      debugPrint('[AddTaskSheet] Save failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not add task. Try again.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
@@ -220,7 +239,7 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _submit,
+                  onPressed: _isSubmitting ? null : _submit,
                   style: FilledButton.styleFrom(
                     backgroundColor: AppTheme.primary,
                     foregroundColor: Colors.white,
@@ -229,10 +248,16 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Add Task',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text(
+                          'Add Task',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                 ),
               ),
             ],

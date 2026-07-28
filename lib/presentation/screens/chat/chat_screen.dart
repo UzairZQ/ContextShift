@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
@@ -26,6 +27,7 @@ import '../../../core/responsive.dart';
 import '../../widgets/genui/a2ui_surface_card.dart';
 import '../../widgets/genui/schedule_card_editor.dart';
 import '../../widgets/motion/wonderous_motion.dart';
+import 'dictation_text.dart';
 
 part 'widgets/chat_widgets.dart';
 
@@ -64,12 +66,13 @@ class _ChatScreenState extends State<ChatScreen> {
   _JarvisBusyStage _busyStage = _JarvisBusyStage.idle;
   bool _speechReady = false;
   bool _isListening = false;
-  String _dictationBaseText = '';
+  final DictationTranscript _dictation = DictationTranscript();
   String _conversationQuery = '';
   _JarvisChatMode _mode = _JarvisChatMode.chat;
   late final bool _forceComposer;
   bool _loggedFirstBuild = false;
   bool _forceNextMessageAutoScroll = false;
+  final Set<int> _tasksAddedMessageIds = <int>{};
 
   int? _activeConversationId;
   List<ConversationTableData> _conversations = [];
@@ -132,39 +135,51 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _handleGenUiAction(WidgetAction action) async {
-    if (action.action == 'save_card') {
-      await _saveGeneratedCard(action);
-      return;
-    }
-    if (action.action == 'edit_schedule_times') {
-      await _editScheduleTimes(action);
-      return;
-    }
-    if (action.action == 'add_schedule_to_tasks') {
-      await _addScheduleToTasks(action);
-      return;
-    }
-
-    final aiAction = GeneratedUiActionMapper.toAiAction(action);
-    if (aiAction == null) {
-      final message =
-          GeneratedUiActionMapper.continuationMessage(action) ??
-          'The generated UI action was "${action.action}" with '
-              'context ${jsonEncode(action.params)}.';
-      if (action.action == 'continue_conversation' && mounted) {
-        setState(() => _mode = _JarvisChatMode.generate);
-        final editedMessage = await _showRefineSheet(message);
-        if (editedMessage == null || editedMessage.trim().isEmpty) return;
-        _setComposerText(editedMessage);
-        _showMessage('Refine prompt is ready to edit');
+    try {
+      if (action.action == 'save_card') {
+        await _saveGeneratedCard(action);
         return;
       }
-      await _sendMessage(message);
-      return;
+      if (action.action == 'edit_schedule_times') {
+        await _editScheduleTimes(action);
+        return;
+      }
+      if (action.action == 'add_schedule_to_tasks') {
+        await _addScheduleToTasks(action);
+        return;
+      }
+
+      final aiAction = GeneratedUiActionMapper.toAiAction(action);
+      if (aiAction == null) {
+        final message =
+            GeneratedUiActionMapper.continuationMessage(action) ??
+            'The generated UI action was "${action.action}" with '
+                'context ${jsonEncode(action.params)}.';
+        if (action.action == 'continue_conversation' && mounted) {
+          setState(() => _mode = _JarvisChatMode.generate);
+          final editedMessage = await _showRefineSheet(message);
+          if (editedMessage == null || editedMessage.trim().isEmpty) return;
+          _setComposerText(editedMessage);
+          _showMessage('Refine prompt is ready to edit');
+          return;
+        }
+        await _sendMessage(message);
+        return;
+      }
+      final result = await ActionExecutor.instance.executeAll([aiAction]);
+      if (!mounted) return;
+      _showMessage(
+        result.allSucceeded
+            ? 'Done'
+            : 'I could not complete that action. Please check the request and try again.',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('[ChatScreen] GenUI action failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        _showMessage('I could not complete that card action. Try again.');
+      }
     }
-    await ActionExecutor.instance.executeAll([aiAction]);
-    if (!mounted) return;
-    _showMessage('Done');
   }
 
   Future<void> _saveGeneratedCard(WidgetAction action) async {
@@ -212,7 +227,10 @@ class _ChatScreenState extends State<ChatScreen> {
     _showMessage('Schedule updated');
   }
 
-  Future<void> _addScheduleToTasks(WidgetAction action) async {
+  Future<void> _addScheduleToTasks(
+    WidgetAction action, {
+    int? messageId,
+  }) async {
     final rawA2ui = _textParam(action, 'rawA2ui');
     if (rawA2ui == null) {
       _showMessage('This schedule could not be converted to tasks.');
@@ -223,11 +241,28 @@ class _ChatScreenState extends State<ChatScreen> {
       _showMessage('No schedule blocks were found to add.');
       return;
     }
-    await ActionExecutor.instance.executeAll(actions);
+    final result = await ActionExecutor.instance.executeAll(actions);
     if (!mounted) return;
-    _showMessage(
-      'Added ${actions.length} schedule block${actions.length == 1 ? '' : 's'} to Tasks',
-    );
+    if (result.failedCount == 0 && messageId != null) {
+      setState(() => _tasksAddedMessageIds.add(messageId));
+    }
+    _showMessage(_taskActionMessage(result, actions.length));
+  }
+
+  String _taskActionMessage(ActionExecutionResult result, int requested) {
+    if (result.failedCount == 0 && result.executedCount == 0) {
+      return 'Those schedule blocks are already in Tasks';
+    }
+    if (result.failedCount == 0 && result.ignoredCount > 0) {
+      return 'Added ${result.executedCount}; the rest were already in Tasks';
+    }
+    if (result.allSucceeded) {
+      return 'Added $requested schedule block${requested == 1 ? '' : 's'} to Tasks';
+    }
+    if (result.executedCount > 0) {
+      return 'Added ${result.executedCount} of $requested schedule blocks to Tasks';
+    }
+    return 'I could not add those schedule blocks to Tasks.';
   }
 
   String? _textParam(WidgetAction action, String key) {
@@ -251,7 +286,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<String?> _showRefineSheet(String basePrompt) {
-    final extraController = TextEditingController();
+    var extraText = '';
     return showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -290,10 +325,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 const SizedBox(height: Spacing.md),
                 TextField(
-                  controller: extraController,
                   autofocus: true,
                   minLines: 3,
                   maxLines: 6,
+                  onChanged: (value) => extraText = value,
                   style: const TextStyle(color: AppTheme.onSurface),
                   decoration: InputDecoration(
                     hintText:
@@ -338,7 +373,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
-                          final extra = extraController.text.trim();
+                          final extra = extraText.trim();
                           final prompt = extra.isEmpty
                               ? basePrompt
                               : '$basePrompt\n\nExtra refinement context from the user:\n$extra';
@@ -354,7 +389,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         );
       },
-    ).whenComplete(extraController.dispose);
+    );
   }
 
   Future<void> _loadConversations() async {
@@ -472,11 +507,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _sendMessage(String? text) async {
     final message = text ?? _messageController.text.trim();
-    if (message.isEmpty) return;
+    if (message.isEmpty || _isProcessing) return;
     if (_isListening) {
       await _stopDictation();
     }
-    _dictationBaseText = '';
+    _dictation.reset('');
     _messageController.clear();
 
     if (_activeConversationId == null) {
@@ -496,8 +531,11 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       debugPrint(
         '[ChatScreen] Send pressed. build=$appRuntimeBuild '
-        'conversation=$_activeConversationId, message="$message"',
+        'conversation=$_activeConversationId, messageLength=${message.length}',
       );
+      if (kDebugMode) {
+        debugPrint('[ChatScreen] User message preview: $message');
+      }
       await DatabaseService.instance.addMessage(
         conversationId: _activeConversationId!,
         role: 'user',
@@ -516,9 +554,19 @@ class _ChatScreenState extends State<ChatScreen> {
           userName: DatabaseService.instance.firstName,
           conversationId: _activeConversationId,
         );
-        await ActionExecutor.instance.executeAll(result.actions);
-        response = result.response;
-        debugPrint('[ChatScreen] Direct command response: $response');
+        final actionResult = await ActionExecutor.instance.executeAll(
+          result.actions,
+        );
+        response = actionResult.failedCount > 0
+            ? 'I could not complete that action. Please check the details and try again.'
+            : actionResult.ignoredCount > 0
+            ? 'That item is already in your workspace.'
+            : result.response;
+        debugPrint(
+          '[ChatScreen] Direct command response '
+          '(length=${response.length})',
+        );
+        if (kDebugMode) debugPrint('[ChatScreen] Response preview: $response');
         widgetJson = null;
       } else if (_mode == _JarvisChatMode.generate) {
         await _ensureJarvisReadyForChat(message);
@@ -534,26 +582,28 @@ class _ChatScreenState extends State<ChatScreen> {
             ? 'I shaped that into an interactive view.'
             : generation.text;
         debugPrint(
-          '[ChatScreen] GenUI JARVIS response: $response '
+          '[ChatScreen] GenUI JARVIS response '
+          '(length=${response.length}) '
           'surfaces=${generation.surfaceIds}',
         );
+        if (kDebugMode) debugPrint('[ChatScreen] Response preview: $response');
         widgetJson =
             generation.surfaceIds.isEmpty || generation.rawA2ui.trim().isEmpty
             ? null
             : jsonEncode(generation.toPersistenceJson());
         generatedCardType = _detectGeneratedCardType(message);
       } else {
-        final localReply = _localJarvisCapabilityReply(message);
-        if (localReply != null) {
-          response = localReply;
-          widgetJson = null;
-        } else {
-          await _ensureJarvisReadyForChat(message);
-          if (mounted) setState(() => _busyStage = _JarvisBusyStage.thinking);
-          response = await _generatePlainJarvisReply(message);
-          debugPrint('[ChatScreen] Plain JARVIS response: $response');
-          widgetJson = null;
+        await _ensureJarvisReadyForChat(message);
+        if (mounted) setState(() => _busyStage = _JarvisBusyStage.thinking);
+        response = await _generatePlainJarvisReply(message);
+        debugPrint(
+          '[ChatScreen] Plain JARVIS response '
+          '(length=${response.length})',
+        );
+        if (kDebugMode) {
+          debugPrint('[ChatScreen] Response preview: $response');
         }
+        widgetJson = null;
       }
 
       await DatabaseService.instance.addMessage(
@@ -643,13 +693,12 @@ class _ChatScreenState extends State<ChatScreen> {
       'Finish the final sentence before stopping.',
     ].join('\n');
     final suppressGreeting = await _conversationAlreadyHasAssistant();
-    final chatOutputBudget =
-        GemmaService.instance.activeModelDef?.maxTokens ?? 2048;
     final response = await GemmaService.instance.generate(
       prompt,
-      maxTokens: chatOutputBudget,
-      temperature: 1.0,
-      topK: 64,
+      maxTokens: GemmaService.naturalChatOutputTokens,
+      temperature: GemmaService.naturalTemperature,
+      topK: GemmaService.naturalTopK,
+      topP: GemmaService.naturalTopP,
       timeout: const Duration(seconds: 45),
     );
     final trimmed = _cleanPlainJarvisReply(
@@ -668,7 +717,10 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<bool> _conversationAlreadyHasAssistant() async {
     final conversationId = _activeConversationId;
     if (conversationId == null) return false;
-    final messages = await DatabaseService.instance.getMessages(conversationId);
+    final messages = await DatabaseService.instance.getRecentMessages(
+      conversationId,
+      limit: 12,
+    );
     return messages.any((message) => message.role == 'assistant');
   }
 
@@ -726,21 +778,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool _looksLikeDirectAction(String message) {
     return RegExp(
-      r'^(add task|todo|remind me|create task|start focus|focus \d+|add habit|new habit|track|note|remember|write down|jot down)\b',
+      r'^(add task|todo|remind me|create task|start focus|focus \d+|add habit|new habit|track habit|note|remember|write down|jot down)\b',
       caseSensitive: false,
     ).hasMatch(message.trim());
-  }
-
-  String? _localJarvisCapabilityReply(String message) {
-    final lower = message.toLowerCase().trim();
-    final asksCapability = RegExp(
-      r"\b(what can you|what do you|capabilities|can you (also )?(build|make|generate|create) (cards|widgets|screens|views|ui|surfaces))\b",
-    ).hasMatch(lower);
-    if (!asksCapability) return null;
-
-    return 'Yes. I can chat, update your ContextShift data, and build generated cards when a visual structure helps.\n\n'
-        'I can generate plans, schedules, workout cards, study blocks, habit dashboards, task checklists, trackers, comparisons, routines, forms, and decision views. I can also use your local tasks, habits, notes, mood, focus history, and recent conversation as context.\n\n'
-        'Try: "build a 3-day workout plan", "make a dashboard for my habits", "create a study plan for tomorrow", or "compare these options as a card".';
   }
 
   String _diagnosticId() {
@@ -748,14 +788,16 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   String _diagnosticMessage(Object error, String diagnosticId) {
-    final errorText = error.toString();
-    final shortError = errorText.length > 240
-        ? '${errorText.substring(0, 240)}...'
-        : errorText;
+    debugPrint('[ChatScreen] Full diagnostic error $diagnosticId: $error');
+    if (error is GemmaException &&
+        error.code == GemmaErrorCode.modelNotInstalled) {
+      return 'JARVIS is not downloaded on this device yet.\n'
+          'Go back to Home and choose "Download local model for JARVIS", '
+          'then try this message again.';
+    }
     return 'JARVIS hit an error before it could answer.\n'
         'Diagnostic ID: $diagnosticId\n'
-        '$shortError\n\n'
-        'Please send this screen if it happens again.';
+        'Please share this ID if it happens again.';
   }
 
   void _showMessage(String message) {
@@ -799,7 +841,7 @@ class _ChatScreenState extends State<ChatScreen> {
         return;
       }
 
-      _dictationBaseText = _messageController.text.trim();
+      _dictation.reset(_messageController.text);
       await _speech.listen(
         onResult: _handleSpeechResult,
         listenOptions: stt.SpeechListenOptions(
@@ -822,27 +864,31 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _stopDictation() async {
+    _dictation.commitSession();
+    _setComposerText(_dictation.text);
     if (_speechReady) await _speech.stop();
     if (!mounted) return;
     setState(() => _isListening = false);
   }
 
   void _handleSpeechResult(SpeechRecognitionResult result) {
-    if (!_isListening || _isProcessing) return;
-    final words = result.recognizedWords.trim();
-    final combined = [
-      if (_dictationBaseText.isNotEmpty) _dictationBaseText,
-      if (words.isNotEmpty) words,
-    ].join(' ');
-    _messageController.value = TextEditingValue(
-      text: combined,
-      selection: TextSelection.collapsed(offset: combined.length),
-    );
+    if (_isProcessing) return;
+    _dictation.update(result.recognizedWords, isFinal: result.finalResult);
+    final combined = _dictation.text;
+    _setComposerText(combined);
+    if (result.finalResult) {
+      debugPrint(
+        '[ChatScreen] Dictation segment committed. '
+        'textLength=${combined.length}',
+      );
+    }
   }
 
   void _handleSpeechError(SpeechRecognitionError error) {
     debugPrint('[ChatScreen] Dictation error: $error');
     if (!mounted) return;
+    _dictation.commitSession();
+    _setComposerText(_dictation.text);
     setState(() => _isListening = false);
     if (error.permanent || error.errorMsg == 'error_permission') {
       _showMessage('Microphone permission is needed for dictation.');
@@ -855,6 +901,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if ((status == stt.SpeechToText.notListeningStatus ||
             status == stt.SpeechToText.doneStatus) &&
         _isListening) {
+      _dictation.commitSession();
+      _setComposerText(_dictation.text);
       setState(() => _isListening = false);
     }
   }
@@ -1388,16 +1436,45 @@ class _ChatScreenState extends State<ChatScreen> {
         }
         final msg = _messages[index];
         final isUser = msg.role == 'user';
+        final retryMessage = !isUser && _isRetryableErrorMessage(msg.content)
+            ? _previousUserMessage(index)
+            : null;
         return _MessageBubble(
           key: ValueKey(msg.id),
           message: msg.content,
           isUser: isUser,
           timestamp: msg.createdAt,
           widgetJson: msg.widgetJson,
-          onWidgetAction: (label) => _sendMessage(label),
+          hiddenActionNames: _tasksAddedMessageIds.contains(msg.id)
+              ? const {'add_schedule_to_tasks'}
+              : const {},
+          onWidgetAction: (action) {
+            if (action.action == 'add_schedule_to_tasks') {
+              unawaited(_addScheduleToTasks(action, messageId: msg.id));
+            } else {
+              GenUiActionBus.instance.emit(action);
+            }
+          },
+          onRetry: retryMessage == null
+              ? null
+              : () => _sendMessage(retryMessage),
         );
       },
     );
+  }
+
+  bool _isRetryableErrorMessage(String message) {
+    return message.startsWith('JARVIS hit an error before it could answer.');
+  }
+
+  String? _previousUserMessage(int index) {
+    for (var previous = index - 1; previous >= 0; previous--) {
+      final message = _messages[previous];
+      if (message.role == 'user' && message.content.trim().isNotEmpty) {
+        return message.content;
+      }
+    }
+    return null;
   }
 
   Widget _buildInputBar(BuildContext context) {
@@ -1422,7 +1499,7 @@ class _ChatScreenState extends State<ChatScreen> {
             children: [
               Expanded(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 132),
+                  constraints: const BoxConstraints(maxHeight: 220),
                   child: Scrollbar(
                     child: TextField(
                       controller: _messageController,
@@ -1430,7 +1507,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       keyboardType: TextInputType.multiline,
                       textInputAction: TextInputAction.send,
                       minLines: 1,
-                      maxLines: 5,
+                      maxLines: null,
                       scrollPadding: const EdgeInsets.only(bottom: 120),
                       style: const TextStyle(
                         color: AppTheme.onSurface,

@@ -33,9 +33,9 @@ class A2uiSurfaceCard extends StatefulWidget {
 
 class _A2uiSurfaceCardState extends State<A2uiSurfaceCard> {
   late final Catalog _catalog;
-  late final SurfaceController _controller;
-  late final A2uiTransportAdapter _transport;
-  late final Conversation _conversation;
+  late SurfaceController _controller;
+  late A2uiTransportAdapter _transport;
+  late Conversation _conversation;
   StreamSubscription<ConversationEvent>? _eventsSubscription;
   List<String> _surfaceIds = const [];
   Object? _error;
@@ -44,6 +44,10 @@ class _A2uiSurfaceCardState extends State<A2uiSurfaceCard> {
   void initState() {
     super.initState();
     _catalog = JarvisDesignCatalog.extend(BasicCatalogItems.asNoAssetCatalog());
+    _startSurface();
+  }
+
+  void _startSurface() {
     _controller = SurfaceController(catalogs: [_catalog]);
     _transport = A2uiTransportAdapter(onSend: (_) async {});
     _conversation = Conversation(
@@ -65,6 +69,7 @@ class _A2uiSurfaceCardState extends State<A2uiSurfaceCard> {
       }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       try {
         _transport.addChunk(_displayRawA2ui());
         _transport.addChunk('\n');
@@ -72,6 +77,25 @@ class _A2uiSurfaceCardState extends State<A2uiSurfaceCard> {
         if (mounted) setState(() => _error = error);
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant A2uiSurfaceCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.rawA2ui == widget.rawA2ui &&
+        oldWidget.hiddenActionNames.length == widget.hiddenActionNames.length &&
+        oldWidget.hiddenActionNames.containsAll(widget.hiddenActionNames)) {
+      return;
+    }
+
+    _eventsSubscription?.cancel();
+    _conversation.dispose();
+    _transport.dispose();
+    _controller.dispose();
+    _surfaceIds = const [];
+    _error = null;
+    _startSurface();
+    if (mounted) setState(() {});
   }
 
   @override

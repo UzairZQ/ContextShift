@@ -50,7 +50,8 @@ class $ProfileTableTable extends ProfileTable
     aliasedName,
     false,
     type: DriftSqlType.string,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
   );
   static const VerificationMeta _lastNameMeta = const VerificationMeta(
     'lastName',
@@ -207,8 +208,6 @@ class $ProfileTableTable extends ProfileTable
         _firstNameMeta,
         firstName.isAcceptableOrUnknown(data['first_name']!, _firstNameMeta),
       );
-    } else if (isInserting) {
-      context.missing(_firstNameMeta);
     }
     if (data.containsKey('last_name')) {
       context.handle(
@@ -617,7 +616,7 @@ class ProfileTableCompanion extends UpdateCompanion<ProfileTableData> {
     this.id = const Value.absent(),
     required String userId,
     required String name,
-    required String firstName,
+    this.firstName = const Value.absent(),
     this.lastName = const Value.absent(),
     this.focusRole = const Value.absent(),
     this.interests = const Value.absent(),
@@ -629,7 +628,6 @@ class ProfileTableCompanion extends UpdateCompanion<ProfileTableData> {
     required DateTime updatedAt,
   }) : userId = Value(userId),
        name = Value(name),
-       firstName = Value(firstName),
        updatedAt = Value(updatedAt);
   static Insertable<ProfileTableData> custom({
     Expression<int>? id,
@@ -6925,7 +6923,7 @@ typedef $$ProfileTableTableCreateCompanionBuilder =
       Value<int> id,
       required String userId,
       required String name,
-      required String firstName,
+      Value<String> firstName,
       Value<String?> lastName,
       Value<String?> focusRole,
       Value<String?> interests,
@@ -7220,7 +7218,7 @@ class $$ProfileTableTableTableManager
                 Value<int> id = const Value.absent(),
                 required String userId,
                 required String name,
-                required String firstName,
+                Value<String> firstName = const Value.absent(),
                 Value<String?> lastName = const Value.absent(),
                 Value<String?> focusRole = const Value.absent(),
                 Value<String?> interests = const Value.absent(),

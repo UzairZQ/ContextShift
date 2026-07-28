@@ -1,1 +1,1 @@
-const appRuntimeBuild = 'jarvis-anr-diagnostics-2026-06-22';
+const appRuntimeBuild = 'contextshift-1.0.0+2';

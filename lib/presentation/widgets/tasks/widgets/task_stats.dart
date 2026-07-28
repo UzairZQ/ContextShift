@@ -12,6 +12,15 @@ class TaskStats extends StatelessWidget {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: stream,
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Text(
+            'Task totals are temporarily unavailable.',
+            style: TextStyle(
+              color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
+              fontSize: 12,
+            ),
+          );
+        }
         if (!snapshot.hasData) return const SizedBox.shrink();
         final tasks = snapshot.data!;
         final done = tasks.where((t) => t['done'] == true).length;

@@ -22,7 +22,7 @@ class PrivacyScreen extends StatelessWidget {
           icon: LucideIcons.database,
           title: 'What stays local',
           body:
-              'Your profile, tasks, habits, notes, mood entries, focus history, generated cards, and JARVIS conversations are saved locally. They are not uploaded to a ContextShift server.',
+              'Your profile, tasks, habits, notes, mood entries, focus history, generated cards, and JARVIS conversations are saved locally. They are not uploaded to a ContextShift server, and automatic Android backup and device transfer are disabled for this app data.',
         ),
         InfoCard(
           icon: LucideIcons.cpu,
@@ -46,7 +46,7 @@ class PrivacyScreen extends StatelessWidget {
           icon: LucideIcons.bug,
           title: 'Crash diagnostics',
           body:
-              'Crash reports, when enabled for release builds, are used only to understand why the app crashed and where it failed. They are not meant to collect your tasks, notes, chats, habits, mood logs, or generated card content.',
+              'This build does not include a cloud crash-reporting or analytics service. Technical errors are logged locally while the app is running. Your tasks, notes, chats, habits, mood logs, and generated card content are not sent to a diagnostics backend.',
         ),
         InfoCard(
           icon: LucideIcons.cloudOff,

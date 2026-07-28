@@ -15,6 +15,16 @@ enum DownloadErrorCode {
   unknown,
 }
 
+double estimateDownloadSpeed({
+  required int downloadedBytes,
+  required Duration elapsed,
+}) {
+  if (downloadedBytes <= 0 || elapsed.inMilliseconds <= 0) return 0;
+  return downloadedBytes *
+      Duration.millisecondsPerSecond /
+      elapsed.inMilliseconds;
+}
+
 class DownloadException implements Exception {
   final DownloadErrorCode code;
   final String message;
@@ -62,9 +72,12 @@ class ModelDownloader {
     _isDownloading = true;
     _lastProgress = const DownloadProgressInfo();
 
-    _runDownload(model);
+    final stream = _progressController!.stream;
+    // Let the caller attach its listener before the initial progress event is
+    // emitted. Broadcast streams do not replay events sent too early.
+    unawaited(Future<void>.microtask(() => _runDownload(model)));
 
-    return _progressController!.stream;
+    return stream;
   }
 
   Future<void> _runDownload(ModelDefinition model) async {
@@ -92,6 +105,7 @@ class ModelDownloader {
       }
 
       debugPrint('[ModelDownloader] Storage OK, starting download...');
+      final downloadClock = Stopwatch()..start();
 
       await FlutterGemma.installModel(
             modelType: model.modelType,
@@ -103,15 +117,18 @@ class ModelDownloader {
           )
           .withProgress((int progress) {
             debugPrint('[ModelDownloader] Progress: $progress%');
+            final downloadedBytes =
+                (model.downloadSizeMb * 1024 * 1024 * progress / 100).round();
             _emitProgress(
               DownloadProgressInfo(
                 state: DownloadState.downloading,
                 progress: progress / 100.0,
-                downloadedBytes:
-                    (model.downloadSizeMb * 1024 * 1024 * progress / 100)
-                        .round(),
+                downloadedBytes: downloadedBytes,
                 totalBytes: model.downloadSizeMb * 1024 * 1024,
-                speedBytesPerSec: 0,
+                speedBytesPerSec: estimateDownloadSpeed(
+                  downloadedBytes: downloadedBytes,
+                  elapsed: downloadClock.elapsed,
+                ),
               ),
             );
           })
@@ -195,7 +212,7 @@ class ModelDownloader {
       return hasSpace;
     } catch (e, stack) {
       debugPrint(
-        '[ModelDownloader] Storage check ujarvisilable; '
+        '[ModelDownloader] Storage check unavailable; '
         'the native installer will enforce capacity: $e',
       );
       debugPrint('[ModelDownloader]   Stack: $stack');

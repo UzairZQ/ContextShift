@@ -3,25 +3,22 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_spacing.dart';
 import '../../../../core/app_theme.dart';
+import '../jarvis_home_status.dart';
 
 class AiCommandBar extends StatefulWidget {
   final TextEditingController controller;
-  final bool isOnline;
+  final JarvisHomeStatus status;
   final bool isProcessing;
-  final bool hasCheckedStatus;
-  final String offlineHint;
   final ValueChanged<String> onSubmit;
-  final VoidCallback? onTap;
+  final VoidCallback onVoiceInput;
 
   const AiCommandBar({
     super.key,
     required this.controller,
-    required this.isOnline,
+    required this.status,
     required this.isProcessing,
-    required this.hasCheckedStatus,
-    required this.offlineHint,
     required this.onSubmit,
-    this.onTap,
+    required this.onVoiceInput,
   });
 
   @override
@@ -36,45 +33,47 @@ class _AiCommandBarState extends State<AiCommandBar> {
   }
 
   IconData get _leadingIcon {
-    if (!widget.hasCheckedStatus) return LucideIcons.loader2;
-    return widget.isOnline ? LucideIcons.sparkles : LucideIcons.cloudOff;
+    return switch (widget.status) {
+      JarvisHomeStatus.checking ||
+      JarvisHomeStatus.waking => LucideIcons.loaderCircle,
+      JarvisHomeStatus.downloadRequired => LucideIcons.downloadCloud,
+      JarvisHomeStatus.standby => LucideIcons.cpu,
+      JarvisHomeStatus.ready => LucideIcons.sparkles,
+    };
   }
 
   Color get _leadingColor {
-    if (!widget.hasCheckedStatus) {
-      return AppTheme.intelligence.withValues(alpha: 0.8);
+    if (widget.status == JarvisHomeStatus.downloadRequired) {
+      return AppTheme.warning.withValues(alpha: 0.85);
     }
-    if (widget.isOnline) {
+    if (widget.status == JarvisHomeStatus.ready) {
       return widget.isProcessing
           ? AppTheme.intelligence
           : AppTheme.intelligence.withValues(alpha: 0.68);
     }
-    return AppTheme.warning.withValues(alpha: 0.85);
+    return AppTheme.intelligence.withValues(alpha: 0.8);
   }
 
   String get _hintText {
-    if (!widget.hasCheckedStatus) return 'Checking JARVIS status...';
-    return widget.isOnline
-        ? 'Generate a card, plan, tracker...'
-        : widget.offlineHint;
+    return switch (widget.status) {
+      JarvisHomeStatus.checking => 'Checking JARVIS status...',
+      JarvisHomeStatus.downloadRequired => 'Download JARVIS to chat',
+      JarvisHomeStatus.standby => 'Send a message to wake JARVIS',
+      JarvisHomeStatus.waking => 'Loading JARVIS into memory...',
+      JarvisHomeStatus.ready => 'Generate a card, plan, tracker...',
+    };
   }
 
   TextStyle get _hintStyle {
+    final warning = widget.status == JarvisHomeStatus.downloadRequired;
     final base = TextStyle(
-      color: widget.isOnline
+      color: !warning
           ? AppTheme.onSurfaceVariant.withValues(alpha: 0.4)
-          : (widget.hasCheckedStatus
-                ? AppTheme.warning.withValues(alpha: 0.75)
-                : AppTheme.onSurfaceVariant.withValues(alpha: 0.55)),
-      fontStyle: (widget.isOnline || !widget.hasCheckedStatus)
-          ? FontStyle.normal
-          : FontStyle.italic,
-      fontSize: widget.isOnline ? 13 : 12,
+          : AppTheme.warning.withValues(alpha: 0.75),
+      fontStyle: warning ? FontStyle.italic : FontStyle.normal,
+      fontSize: widget.status == JarvisHomeStatus.ready ? 13 : 12,
       height: 1.15,
     );
-    if (!widget.hasCheckedStatus) {
-      return base.copyWith(fontStyle: FontStyle.italic);
-    }
     return base;
   }
 
@@ -87,8 +86,11 @@ class _AiCommandBarState extends State<AiCommandBar> {
           color: AppTheme.surfaceHighest.withValues(alpha: 0.72),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: (widget.isOnline ? AppTheme.intelligence : AppTheme.warning)
-                .withValues(alpha: widget.isOnline ? 0.18 : 0.22),
+            color:
+                (widget.status == JarvisHomeStatus.downloadRequired
+                        ? AppTheme.warning
+                        : AppTheme.intelligence)
+                    .withValues(alpha: 0.2),
           ),
         ),
         child: TextField(
@@ -105,8 +107,17 @@ class _AiCommandBarState extends State<AiCommandBar> {
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(vertical: 12),
             border: InputBorder.none,
-            suffixIcon: widget.isProcessing
-                ? const Padding(
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  onPressed: widget.isProcessing ? null : widget.onVoiceInput,
+                  tooltip: 'Dictate a message',
+                  icon: const Icon(LucideIcons.mic, size: 18),
+                  color: AppTheme.onSurfaceVariant,
+                ),
+                if (widget.isProcessing)
+                  const Padding(
                     padding: EdgeInsets.all(Spacing.md),
                     child: SizedBox(
                       width: 18,
@@ -117,21 +128,25 @@ class _AiCommandBarState extends State<AiCommandBar> {
                       ),
                     ),
                   )
-                : Semantics(
+                else
+                  Semantics(
                     label: 'Send command',
                     child: IconButton(
                       onPressed: _handleSend,
                       icon: Icon(
-                        widget.isOnline
+                        widget.status != JarvisHomeStatus.downloadRequired
                             ? LucideIcons.sparkles
-                            : LucideIcons.wifiOff,
-                        color: widget.isOnline
+                            : LucideIcons.downloadCloud,
+                        color:
+                            widget.status != JarvisHomeStatus.downloadRequired
                             ? AppTheme.intelligence
                             : AppTheme.warning.withValues(alpha: 0.9),
                         size: 18,
                       ),
                     ),
                   ),
+              ],
+            ),
           ),
           onSubmitted: (_) => _handleSend(),
         ),

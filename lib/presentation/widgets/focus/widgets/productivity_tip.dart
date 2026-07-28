@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
+import '../../shared/module_cards.dart';
 
 class ProductivityTip extends StatelessWidget {
   const ProductivityTip({super.key});
@@ -24,10 +25,10 @@ class ProductivityTip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceHigh,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      decoration: moduleCardDecoration(
+        accent: AppTheme.tertiary,
+        borderRadius: 16,
+        fill: AppTheme.surfaceHigh,
       ),
       child: Row(
         children: [

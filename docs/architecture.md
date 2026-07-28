@@ -11,7 +11,7 @@ flowchart TB
   User["User"] --> Input["Touch, typing, dictation"]
 
   subgraph App["Flutter App"]
-    Main["main.dart\nbootstrap, database init, model init, launch gating"]
+    Main["main.dart\nbootstrap, database init, post-frame model warm-up, launch gating"]
     Shell["HomeScreen\nbottom navigation, splash reveal, shared app shell"]
 
     subgraph Screens["Presentation Layer"]
@@ -44,7 +44,7 @@ flowchart TB
     end
 
     subgraph GenUI["GenUI Layer"]
-      Runtime["JarvisGenUiRuntime\nGemma prompt, A2UI stream, timeout fallback"]
+      Runtime["JarvisGenUiRuntime\nGemma prompt, compact A2UI payload, timeout fallback"]
       Catalog["JarvisDesignCatalog + BasicCatalogItems\nsafe Flutter-style components"]
       Renderer["A2uiSurfaceCard + SafeRenderer\nrenders generated surfaces"]
       ActionBus["GenUiActionBus\nsurface button events"]
@@ -52,8 +52,8 @@ flowchart TB
 
     subgraph LLM["On-device AI"]
       Gemma["GemmaService\nFlutterGemma init, load, generate, stream"]
-      Downloader["ModelDownloader\nHuggingFace download, resume, install"]
-      Tiers["ModelTier\nE2B / E4B"]
+      Downloader["ModelDownloader\nHuggingFace download, cancel/retry, install"]
+      Tiers["ModelTier\nE2B"]
     end
 
     subgraph Data["Local Data Layer"]
@@ -145,9 +145,9 @@ sequenceDiagram
     Gen->>Ctx: buildGenUiContext
     Ctx->>DB: Read local snapshot and recent conversation
     Ctx->>Mem: Read memory and runtime state
-    Gen->>Gem: Stream catalog-aware A2UI prompt
-    Gem-->>Gen: Text + A2UI chunks
-    Gen->>A2UI: Feed chunks into safe runtime
+    Gen->>Gem: Generate compact catalog-aware surface spec
+    Gem-->>Gen: JSON surface spec
+    Gen->>A2UI: Convert spec into a safe A2UI payload
     A2UI-->>Chat: Render surface IDs
     alt Gemma surface succeeds
       Chat->>DB: Save assistant message with widgetJson source=gemma
@@ -310,7 +310,7 @@ erDiagram
 
 | Layer | Responsibility | Key files |
 | --- | --- | --- |
-| App bootstrap | Initialize database, Gemma, launch routing, splash/home reveal | `lib/main.dart` |
+| App bootstrap | Initialize database, restore focus state, warm Gemma after the first frame, launch routing, splash/home reveal | `lib/main.dart` |
 | Presentation | Screens, modules, chat, generated-card rendering, motion | `lib/presentation/**` |
 | Local data | Drift schema, CRUD, streams, context snapshots | `lib/core/database/schema.dart`, `lib/core/database/database_service.dart` |
 | JARVIS context | Select relevant local context, recent messages, memory, runtime state | `lib/core/ai/context_provider.dart`, `lib/core/ai/jarvis_memory_service.dart` |
@@ -331,3 +331,27 @@ erDiagram
   profile, productivity, memory, and conversation state for each mode.
 - Recoverable generation: if Gemma times out or does not produce a visible
   surface, the runtime returns a labeled local fallback rather than crashing.
+
+## GenUI Contract
+
+Generated surfaces are limited to precompiled catalog items. The basic A2UI
+catalog provides layout and input primitives; the app-owned catalog adds these
+product-level components:
+
+| Component | Purpose |
+| --- | --- |
+| `HeroPanel` | Title, subtitle, domain, and visual tone |
+| `InsightCallout` | Contextual explanation or caution |
+| `MetricTile` | A labeled value with supporting caption |
+| `ProgressMeter` | Bounded progress toward a target |
+| `Timeline` | Time-ordered schedule blocks |
+| `Checklist` | Completion-oriented items and tips |
+| `WorkoutBlock` | Exercises with sets, reps, rest, and cues |
+| `ComparisonTable` | Options, benefits, and trade-offs |
+| `ActionDock` | Explicit actions attached to a generated surface |
+
+Action events are mapped through the application action loop rather than
+executing arbitrary model output. Current supported events are `create_task`,
+`create_habit`, `create_note`, `start_focus`, `continue_conversation`,
+`save_card`, `edit_schedule_times`, and `add_schedule_to_tasks`. Unknown or
+malformed actions are rejected and reported as failed actions.

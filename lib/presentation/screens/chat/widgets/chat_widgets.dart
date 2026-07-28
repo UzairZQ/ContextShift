@@ -129,7 +129,9 @@ class _MessageBubble extends StatelessWidget {
   final bool isUser;
   final DateTime timestamp;
   final String? widgetJson;
-  final ValueChanged<String> onWidgetAction;
+  final ValueChanged<WidgetAction> onWidgetAction;
+  final Set<String> hiddenActionNames;
+  final VoidCallback? onRetry;
 
   const _MessageBubble({
     super.key,
@@ -138,6 +140,8 @@ class _MessageBubble extends StatelessWidget {
     required this.timestamp,
     required this.widgetJson,
     required this.onWidgetAction,
+    this.hiddenActionNames = const {},
+    this.onRetry,
   });
 
   @override
@@ -185,6 +189,17 @@ class _MessageBubble extends StatelessWidget {
                     height: 1.5,
                   ),
                 ),
+                if (!isUser && onRetry != null) ...[
+                  const SizedBox(height: Spacing.sm),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: onRetry,
+                      icon: const Icon(LucideIcons.refreshCw, size: 15),
+                      label: const Text('Try again'),
+                    ),
+                  ),
+                ],
                 if (!isUser && widgetJson != null) ...[
                   const SizedBox(height: Spacing.md),
                   _buildGeneratedContent(context),
@@ -221,8 +236,9 @@ class _MessageBubble extends StatelessWidget {
             elapsedMs: card['elapsedMs'] is num
                 ? (card['elapsedMs'] as num).round()
                 : null,
+            hiddenActionNames: hiddenActionNames,
             onAction: (action) {
-              GenUiActionBus.instance.emit(action);
+              onWidgetAction(action);
             },
           );
         }

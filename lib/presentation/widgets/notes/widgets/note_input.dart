@@ -5,11 +5,13 @@ import '../../../../core/app_theme.dart';
 class NoteInput extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSubmit;
+  final bool isSaving;
 
   const NoteInput({
     super.key,
     required this.controller,
     required this.onSubmit,
+    this.isSaving = false,
   });
 
   @override
@@ -37,11 +39,17 @@ class NoteInput extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
-              onPressed: onSubmit,
-              child: const Text(
-                'Save Note',
-                style: TextStyle(color: AppTheme.primary),
-              ),
+              onPressed: isSaving ? null : onSubmit,
+              child: isSaving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text(
+                      'Save Note',
+                      style: TextStyle(color: AppTheme.primary),
+                    ),
             ),
           ),
         ],

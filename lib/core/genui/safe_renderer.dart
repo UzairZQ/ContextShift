@@ -73,7 +73,7 @@ class SafeRenderer {
       debugPrint('[SafeRenderer] build error: $e\n$stack');
       return RenderResult(
         error: RenderError.invalidStructure,
-        errorMessage: 'Failed to build the UI: $e',
+        errorMessage: 'The generated view could not be built safely.',
       );
     }
   }

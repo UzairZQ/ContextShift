@@ -36,25 +36,43 @@ class GemmaService {
   GemmaService._();
   static final GemmaService instance = GemmaService._();
 
+  // Keep generation policy in one place so chat, cards, and actions do not
+  // accidentally use conflicting sampler settings.
+  static const int naturalChatOutputTokens = 1536;
+  static const int actionOutputTokens = 768;
+  static const int structuredOutputTokens = 640;
+  static const double naturalTemperature = 0.85;
+  static const int naturalTopK = 40;
+  static const double naturalTopP = 0.95;
+  static const double structuredTemperature = 0.15;
+  static const int structuredTopK = 8;
+  static const double structuredTopP = 0.9;
+
   bool _initialized = false;
+  Future<void>? _initFuture;
+  Future<void>? _loadFuture;
   bool _modelLoaded = false;
   ModelTier? _activeModelTier;
   ModelDefinition? _activeModelDef;
   InferenceModel? _model;
-  InferenceChat? _chat;
   Future<void> _inferenceGate = Future<void>.value();
   final ValueNotifier<int> statusRevision = ValueNotifier<int>(0);
 
   bool get isModelLoaded => _modelLoaded;
+  bool get isModelLoading => _loadFuture != null;
   ModelTier? get activeModelTier => _activeModelTier;
   ModelDefinition? get activeModelDef => _activeModelDef;
 
-  Future<void> init() async {
+  Future<void> init() {
     if (_initialized) {
       debugPrint('[GemmaService] Already initialized, skipping');
-      return;
+      return Future<void>.value();
     }
 
+    return _initFuture ??= _initialize();
+  }
+
+  Future<void> _initialize() async {
     debugPrint('[GemmaService] Initializing FlutterGemma...');
     try {
       await FlutterGemma.initialize(inferenceEngines: [LiteRtLmEngine()]);
@@ -64,15 +82,32 @@ class GemmaService {
       debugPrint('[GemmaService] FlutterGemma init failed: $e');
       debugPrint('[GemmaService]   Stack: $stack');
       _initialized = false;
+      _initFuture = null;
       rethrow;
     }
   }
 
-  Future<void> loadModel(ModelDefinition model) async {
+  Future<void> loadModel(ModelDefinition model) {
+    final activeLoad = _loadFuture;
+    if (activeLoad != null) return activeLoad;
+
+    late final Future<void> trackedLoad;
+    trackedLoad = _loadModel(model).whenComplete(() {
+      if (identical(_loadFuture, trackedLoad)) {
+        _loadFuture = null;
+        _notifyStatusChanged();
+      }
+    });
+    _loadFuture = trackedLoad;
+    _notifyStatusChanged();
+    return trackedLoad;
+  }
+
+  Future<void> _loadModel(ModelDefinition model) async {
     debugPrint('[GemmaService] Loading model: ${model.displayName}');
     debugPrint('[GemmaService]   Model ID: ${model.modelId}');
     debugPrint('[GemmaService]   Type: ${model.modelType}');
-    debugPrint('[GemmaService]   Max tokens: ${model.maxTokens}');
+    debugPrint('[GemmaService]   Context tokens: ${model.contextTokens}');
 
     if (!_initialized) {
       debugPrint('[GemmaService] Not initialized, initializing first...');
@@ -107,21 +142,14 @@ class GemmaService {
       debugPrint('[GemmaService] Creating inference model...');
       debugPrint(
         '[GemmaService] Native getActiveModel start: '
-        'backend=gpu, model=${model.modelId}, maxTokens=${model.maxTokens}',
+        'backend=gpu, model=${model.modelId}, '
+        'contextTokens=${model.contextTokens}',
       );
       _model = await FlutterGemma.getActiveModel(
-        maxTokens: model.maxTokens,
+        maxTokens: model.contextTokens,
         preferredBackend: PreferredBackend.gpu,
       );
       debugPrint('[GemmaService] Native getActiveModel complete');
-
-      debugPrint('[GemmaService] Creating chat session...');
-      _chat = await _model!.createChat(
-        modelType: model.modelType,
-        tokenBuffer: 500,
-        maxOutputTokens: 256,
-      );
-      debugPrint('[GemmaService] Chat session initialized');
 
       _activeModelTier = model.tier;
       _activeModelDef = model;
@@ -163,6 +191,12 @@ class GemmaService {
   }) async {
     if (isModelLoaded) return;
 
+    // Model availability is restored through FlutterGemma, so make an
+    // immediate user action safe even if it arrives before the post-frame
+    // warm-up has completed.
+    if (!_initialized) await init();
+    await FeatureManager.instance.initialize();
+
     final model = FeatureManager.instance.resolveBestModelDef();
     if (model == null) {
       throw const GemmaException(
@@ -190,13 +224,16 @@ class GemmaService {
     int maxTokens = 512,
     double temperature = 0.1,
     int topK = 1,
+    double? topP,
     Duration timeout = const Duration(seconds: 15),
   }) async {
     final requestId = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
     debugPrint('[GemmaService][$requestId] Generate called');
-    debugPrint(
-      '[GemmaService][$requestId]   Prompt: "${prompt.length > 220 ? '${prompt.substring(0, 220)}...' : prompt}"',
-    );
+    if (kDebugMode) {
+      debugPrint(
+        '[GemmaService][$requestId]   Prompt: "${prompt.length > 220 ? '${prompt.substring(0, 220)}...' : prompt}"',
+      );
+    }
     debugPrint('[GemmaService][$requestId]   Max output tokens: $maxTokens');
     debugPrint('[GemmaService][$requestId]   Temperature: $temperature');
     debugPrint('[GemmaService][$requestId]   TopK: $topK');
@@ -205,7 +242,8 @@ class GemmaService {
       'tier=$_activeModelTier, loaded=$_modelLoaded',
     );
 
-    if (!_modelLoaded || _model == null) {
+    final model = _model;
+    if (!_modelLoaded || model == null) {
       throw GemmaException(
         code: GemmaErrorCode.modelNotLoaded,
         message: 'No model loaded. Call loadModel() first.',
@@ -215,10 +253,12 @@ class GemmaService {
     final releaseSlot = await _acquireInferenceSlot(requestId);
     InferenceModelSession? session;
     try {
+      _throwIfModelChanged(model, requestId);
       debugPrint('[GemmaService][$requestId] Opening one-shot session...');
-      session = await _model!.openSession(
+      session = await model.openSession(
         temperature: temperature,
         topK: topK,
+        topP: topP,
         maxOutputTokens: maxTokens,
       );
       debugPrint(
@@ -231,9 +271,14 @@ class GemmaService {
       );
       final result = await session.getResponse().timeout(timeout);
       debugPrint(
-        '[GemmaService][$requestId] Generated response (${result.length} chars): '
-        '${result.length > 1200 ? '${result.substring(0, 1200)}...' : result}',
+        '[GemmaService][$requestId] Generated response (${result.length} chars)',
       );
+      if (kDebugMode) {
+        debugPrint(
+          '[GemmaService][$requestId] Response preview: '
+          '${result.length > 1200 ? '${result.substring(0, 1200)}...' : result}',
+        );
+      }
       return result;
     } on TimeoutException {
       debugPrint(
@@ -298,12 +343,16 @@ class GemmaService {
     String prompt, {
     int maxTokens = 512,
     double temperature = 0.1,
+    int topK = 1,
+    double? topP,
+    Duration timeout = const Duration(seconds: 45),
   }) async* {
     final requestId = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
     debugPrint('[GemmaService][$requestId] Generate stream called');
     debugPrint('[GemmaService][$requestId]   Max output tokens: $maxTokens');
 
-    if (!_modelLoaded || _model == null) {
+    final model = _model;
+    if (!_modelLoaded || model == null) {
       throw GemmaException(
         code: GemmaErrorCode.modelNotLoaded,
         message: 'No model loaded. Call loadModel() first.',
@@ -313,16 +362,27 @@ class GemmaService {
     final releaseSlot = await _acquireInferenceSlot(requestId);
     InferenceModelSession? session;
     try {
-      session = await _model!.openSession(
+      _throwIfModelChanged(model, requestId);
+      session = await model.openSession(
         temperature: temperature,
-        topK: 1,
+        topK: topK,
+        topP: topP,
         maxOutputTokens: maxTokens,
       );
       await session.addQueryChunk(Message(text: prompt, isUser: true));
 
-      await for (final token in session.getResponseAsync()) {
+      await for (final token in session.getResponseAsync().timeout(timeout)) {
         yield token;
       }
+    } on TimeoutException {
+      debugPrint(
+        '[GemmaService][$requestId] Stream generation timed out after $timeout',
+      );
+      await session?.stopGeneration();
+      throw GemmaException(
+        code: GemmaErrorCode.inferenceTimeout,
+        message: 'Model stream timed out (>${timeout.inSeconds}s)',
+      );
     } catch (e, stack) {
       debugPrint('[GemmaService][$requestId] Stream generation error: $e');
       debugPrint('[GemmaService][$requestId]   Stack: $stack');
@@ -365,16 +425,32 @@ class GemmaService {
     };
   }
 
+  void _throwIfModelChanged(InferenceModel model, String requestId) {
+    if (_modelLoaded && identical(_model, model)) return;
+    debugPrint(
+      '[GemmaService][$requestId] Model changed while waiting for inference; '
+      'aborting stale request',
+    );
+    throw const GemmaException(
+      code: GemmaErrorCode.modelNotLoaded,
+      message: 'The local JARVIS model changed before inference started.',
+    );
+  }
+
   Future<void> disposeModel() async {
     debugPrint('[GemmaService] Disposing model...');
+    final previousModel = _model;
+    _model = null;
+    _modelLoaded = false;
+    _activeModelTier = null;
+    _activeModelDef = null;
+    _notifyStatusChanged();
+
     try {
-      await _chat?.close();
-      _chat = null;
-      _model = null;
-      _modelLoaded = false;
-      _activeModelTier = null;
-      _activeModelDef = null;
-      _notifyStatusChanged();
+      // Wait for current and already-queued sessions before releasing native
+      // model memory. New requests see the unloaded state immediately.
+      await _inferenceGate.catchError((_) {});
+      await previousModel?.close();
       debugPrint('[GemmaService] Model disposed');
     } catch (e, stack) {
       debugPrint('[GemmaService] Error disposing model: $e');
@@ -390,19 +466,13 @@ class GemmaService {
     debugPrint('[GemmaService] Full dispose...');
     await disposeModel();
     _initialized = false;
+    _initFuture = null;
     debugPrint('[GemmaService] Full dispose complete');
   }
 
   Future<void> clearChat() async {
-    if (_chat != null) {
-      debugPrint('[GemmaService] Clearing chat history');
-      try {
-        await _chat!.clearHistory();
-        await _chat!.initSession();
-      } catch (e, stack) {
-        debugPrint('[GemmaService] Error clearing chat: $e');
-        debugPrint('[GemmaService]   Stack: $stack');
-      }
-    }
+    // Generation uses one-shot sessions, so there is no persistent native
+    // history to clear. Keep this API for callers that reset a conversation.
+    debugPrint('[GemmaService] No persistent chat history to clear');
   }
 }

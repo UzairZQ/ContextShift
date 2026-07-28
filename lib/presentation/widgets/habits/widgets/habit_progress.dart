@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/app_theme.dart';
+import '../../shared/module_cards.dart';
 
 class HabitProgress extends StatelessWidget {
   final int doneCount;
@@ -23,9 +24,10 @@ class HabitProgress extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 20, top: 4),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceHigh,
-        borderRadius: BorderRadius.circular(16),
+      decoration: moduleCardDecoration(
+        accent: AppTheme.success,
+        borderRadius: 16,
+        fill: AppTheme.surfaceHigh,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -31,21 +31,32 @@ class _AiDashboardScreenState extends State<AiDashboardScreen> {
   }
 
   Future<void> _loadData() async {
-    final stats = await DatabaseService.instance.buildInsightStats();
-    final results = await Future.wait([
-      AiService.instance.fetchInsight(
-        userName: DatabaseService.instance.firstName,
-        stats: stats,
-      ),
-      DatabaseService.instance.getTodayFocusMinutes(),
-    ]);
+    try {
+      final stats = await DatabaseService.instance.buildInsightStats();
+      final results = await Future.wait([
+        AiService.instance.fetchInsight(
+          userName: DatabaseService.instance.firstName,
+          stats: stats,
+        ),
+        DatabaseService.instance.getTodayFocusMinutes(),
+      ]);
 
-    if (!mounted) return;
-    setState(() {
-      _weeklyInsight = results[0] as String;
-      _focusMinutes = results[1] as int;
-      _isLoadingInsight = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        _weeklyInsight = results[0] as String;
+        _focusMinutes = results[1] as int;
+        _isLoadingInsight = false;
+      });
+    } catch (error, stackTrace) {
+      debugPrint('[AiDashboardScreen] Load failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() {
+        _weeklyInsight =
+            'Your local activity is ready. More analysis will appear after another check-in.';
+        _isLoadingInsight = false;
+      });
+    }
   }
 
   @override

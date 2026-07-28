@@ -48,9 +48,19 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
   final _frictionController = TextEditingController();
   String _selectedIcon = AddHabitSheet.icons.first;
   String _selectedKind = 'build';
+  bool _kindManuallySelected = false;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.nameController.addListener(_syncKindFromName);
+    _syncKindFromName();
+  }
 
   @override
   void dispose() {
+    widget.nameController.removeListener(_syncKindFromName);
     _cueController.dispose();
     _tinyStepController.dispose();
     _rewardController.dispose();
@@ -58,20 +68,51 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
     super.dispose();
   }
 
+  void _syncKindFromName() {
+    if (_kindManuallySelected || !mounted) return;
+    final inferred = DatabaseService.instance.inferHabitKind(
+      widget.nameController.text,
+    );
+    if (inferred == _selectedKind) return;
+    setState(() {
+      _selectedKind = inferred;
+      if (inferred == 'reduce' && _selectedIcon == AddHabitSheet.icons.first) {
+        _selectedIcon = '🛡️';
+      }
+    });
+  }
+
   Future<void> _submit() async {
     final name = widget.nameController.text.trim();
-    if (name.isEmpty) return;
-    widget.nameController.clear();
-    await DatabaseService.instance.addHabitWithKind(
-      name: name,
-      icon: _selectedIcon,
-      kind: _selectedKind,
-      cue: _cueController.text,
-      tinyStep: _tinyStepController.text,
-      reward: _rewardController.text,
-      friction: _frictionController.text,
-    );
-    if (mounted) Navigator.pop(context);
+    if (name.isEmpty || _isSubmitting) return;
+
+    setState(() => _isSubmitting = true);
+    try {
+      await DatabaseService.instance.addHabitWithKind(
+        name: name,
+        icon: _selectedIcon,
+        kind: _selectedKind,
+        cue: _cueController.text,
+        tinyStep: _tinyStepController.text,
+        reward: _rewardController.text,
+        friction: _frictionController.text,
+      );
+      widget.nameController.clear();
+      if (mounted) Navigator.pop(context);
+    } catch (error, stackTrace) {
+      debugPrint('[AddHabitSheet] Save failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not add behavior. Try again.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   @override
@@ -108,6 +149,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
               _KindSelector(
                 selectedKind: _selectedKind,
                 onChanged: (kind) => setState(() {
+                  _kindManuallySelected = true;
                   _selectedKind = kind;
                   if (kind == 'reduce' &&
                       _selectedIcon == AddHabitSheet.icons.first) {
@@ -202,7 +244,7 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _submit,
+                  onPressed: _isSubmitting ? null : _submit,
                   style: FilledButton.styleFrom(
                     backgroundColor: AppTheme.primary,
                     foregroundColor: Colors.white,
@@ -210,11 +252,17 @@ class _AddHabitSheetState extends State<AddHabitSheet> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: Text(
-                    _selectedKind == 'build'
-                        ? 'Add Build Habit'
-                        : 'Add Reduce Habit',
-                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          _selectedKind == 'build'
+                              ? 'Add Build Habit'
+                              : 'Add Reduce Habit',
+                        ),
                 ),
               ),
             ],

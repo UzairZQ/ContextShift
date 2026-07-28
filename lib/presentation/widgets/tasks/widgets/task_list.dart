@@ -16,6 +16,20 @@ class TaskList extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Text(
+                'Tasks are temporarily unavailable. Pull to try again.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
+                ),
+              ),
+            ),
+          );
+        }
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return Center(
             child: Padding(
@@ -31,12 +45,14 @@ class TaskList extends StatelessWidget {
         }
 
         final tasks = snapshot.data!;
-        return ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: tasks.length > 5 ? 5 : tasks.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 12),
-          itemBuilder: (context, index) => TaskItem(task: tasks[index]),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var index = 0; index < tasks.length; index++) ...[
+              if (index > 0) const SizedBox(height: 12),
+              TaskItem(task: tasks[index]),
+            ],
+          ],
         );
       },
     );

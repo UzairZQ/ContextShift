@@ -16,6 +16,15 @@ class CommandHistory extends StatelessWidget {
         StreamBuilder<List<Map<String, dynamic>>>(
           stream: DatabaseService.instance.watchAiCommands(limit: 5),
           builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return const ContextPanel(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Command history is temporarily unavailable.',
+                  style: TextStyle(color: AppTheme.onSurfaceVariant),
+                ),
+              );
+            }
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
               return const _EmptyHistory();
             }

@@ -12,6 +12,15 @@ class ActivityHeatmap extends StatelessWidget {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: DatabaseService.instance.watchHabits(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const ContextPanel(
+            padding: EdgeInsets.all(20),
+            child: Text(
+              'Behavior history is temporarily unavailable.',
+              style: TextStyle(color: AppTheme.onSurfaceVariant),
+            ),
+          );
+        }
         final habits = snapshot.data ?? [];
         final now = DateTime.now();
         final Map<String, int> dailyCounts = {};

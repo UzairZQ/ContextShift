@@ -48,4 +48,31 @@ void main() {
     expect(result.error, RenderError.widgetNotAllowed);
     expect(result.widget, isNull);
   });
+
+  testWidgets('does not expose renderer exceptions to the user', (
+    tester,
+  ) async {
+    late RenderResult result;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            result = SafeRenderer(catalog: WidgetCatalog.instance).render(
+              '{"widget":"Container","props":{"padding":"bad"}}',
+              context,
+            );
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(result.isError, isTrue);
+    expect(
+      result.errorMessage,
+      'The generated view could not be built safely.',
+    );
+    expect(result.errorMessage, isNot(contains('Exception')));
+  });
 }

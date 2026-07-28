@@ -4,13 +4,17 @@ import 'package:flutter/foundation.dart';
 
 import '../database/database_service.dart';
 import '../database/schema.dart';
+import 'context_snapshot_retriever.dart';
 import 'jarvis_memory_service.dart';
 
 class ContextProvider {
   ContextProvider._();
   static final ContextProvider instance = ContextProvider._();
 
-  static const int _maxContextCharacters = 6000;
+  // Keep the prompt comfortably below the E2B context ceiling after system
+  // instructions and tokenizer overhead are included.
+  static const int _maxContextCharacters = 4200;
+  static const int _maxGenUiContextCharacters = 3200;
 
   Future<Map<String, Object?>> buildGenUiContext({
     int? conversationId,
@@ -27,14 +31,12 @@ class ContextProvider {
     final compactMemory = _compactForPrompt(memory) as Map<String, Object?>;
     final history = conversationId == null
         ? const <MessageTableData>[]
-        : await DatabaseService.instance.getMessages(conversationId);
+        : await DatabaseService.instance.getRecentMessages(
+            conversationId,
+            limit: 2,
+          );
     final recent = history
         .where((message) => message.content.trim().isNotEmpty)
-        .toList()
-        .reversed
-        .take(2)
-        .toList()
-        .reversed
         .map(
           (message) => <String, Object?>{
             'role': message.role,
@@ -60,7 +62,7 @@ class ContextProvider {
       memory: compactMemory,
     );
 
-    return <String, Object?>{
+    final context = <String, Object?>{
       'app': 'ContextShift',
       'localSnapshot': selectedSnapshot,
       'jarvisMemory': compactMemory,
@@ -73,6 +75,7 @@ class ContextProvider {
         'continue_conversation': ['message'],
       },
     };
+    return _fitGenUiContext(context);
   }
 
   Future<String> build({
@@ -87,17 +90,17 @@ class ContextProvider {
         conversationId: conversationId,
       ),
     );
+    final compactMemory = _compactForPrompt(memory) as Map<String, Object?>;
     final history = conversationId == null
         ? const <MessageTableData>[]
-        : await DatabaseService.instance.getMessages(conversationId);
+        : await DatabaseService.instance.getRecentMessages(
+            conversationId,
+            limit: 8,
+          );
 
     final recentHistory = history
         .where((message) => message.content.trim().isNotEmpty)
-        .toList()
-        .reversed
-        .take(8)
-        .toList()
-        .reversed;
+        .take(8);
 
     final buffer = StringBuffer()
       ..writeln('You are JARVIS, the private on-device guide in ContextShift.')
@@ -121,18 +124,20 @@ class ContextProvider {
           _selectSnapshotForMessage(
             fullSnapshot,
             userMessage,
-            memory,
+            compactMemory,
             mode: 'action',
           ),
         ),
       )
       ..writeln('Jarvis memory:')
-      ..writeln(jsonEncode(memory));
+      ..writeln(jsonEncode(compactMemory));
 
     if (recentHistory.isNotEmpty) {
       buffer.writeln('Recent conversation:');
       for (final message in recentHistory) {
-        buffer.writeln('${message.role}: ${message.content}');
+        buffer.writeln(
+          '${message.role}: ${_clipForPrompt(message.content, 300)}',
+        );
       }
     }
 
@@ -143,11 +148,11 @@ class ContextProvider {
       snapshot: _selectSnapshotForMessage(
         fullSnapshot,
         userMessage,
-        memory,
+        compactMemory,
         mode: 'action',
       ),
       recentCount: recentHistory.length,
-      memory: memory,
+      memory: compactMemory,
     );
     return _fitPrompt(prompt);
   }
@@ -164,24 +169,24 @@ class ContextProvider {
         conversationId: conversationId,
       ),
     );
+    final compactMemory = _compactForPrompt(memory) as Map<String, Object?>;
     final history = conversationId == null
         ? const <MessageTableData>[]
-        : await DatabaseService.instance.getMessages(conversationId);
+        : await DatabaseService.instance.getRecentMessages(
+            conversationId,
+            limit: 6,
+          );
 
     final recentHistory = history
         .where((message) => message.content.trim().isNotEmpty)
-        .toList()
-        .reversed
-        .take(6)
-        .toList()
-        .reversed;
+        .take(6);
     final selectedSnapshot = _selectSnapshotForMessage(
       fullSnapshot,
       userMessage,
-      memory,
+      compactMemory,
       mode: 'chat',
     );
-    final state = memory['conversationState'];
+    final state = compactMemory['conversationState'];
     final alreadyGreeted =
         state is Map && state['alreadyGreeted'] == true ||
         history.any((message) => message.role == 'assistant');
@@ -209,7 +214,7 @@ class ContextProvider {
             : 'This may be the first assistant reply in the conversation; a brief natural greeting is allowed.',
       )
       ..writeln(
-        'If the user asks what you can do, build, generate, or whether you can make cards, explain that JARVIS can chat, use local context, create app actions, and generate structured cards/surfaces such as plans, schedules, workout cards, study blocks, habit dashboards, task checklists, trackers, comparisons, routines, forms, and decision views.',
+        'Only explain capabilities when the user explicitly asks what you can or cannot do. If the user says build, generate, create, or make, treat it as a request and either act on it or ask one focused clarifying question instead of listing capabilities.',
       )
       ..writeln(
         'Use provided profile, memories, tasks, habits, notes, mood, focus data, and conversation summary when relevant.',
@@ -224,17 +229,22 @@ class ContextProvider {
         'If the user asks what you changed or optimized, only claim changes that actually happened in this turn or the recent conversation. Otherwise explain that you have not changed anything yet and offer a useful next step.',
       )
       ..writeln(
+        'Resolve references such as this task, that habit, it, or the previous message from Recent conversation and Current local context. If the reference is genuinely ambiguous, ask one concise clarifying question instead of changing the subject.',
+      )
+      ..writeln(
         'Do not answer with vague progress phrases like "I am analyzing" unless you immediately include the concrete result.',
       )
       ..writeln('Current local context:')
       ..writeln(jsonEncode(selectedSnapshot))
       ..writeln('Jarvis memory:')
-      ..writeln(jsonEncode(memory));
+      ..writeln(jsonEncode(compactMemory));
 
     if (recentHistory.isNotEmpty) {
       buffer.writeln('Recent conversation:');
       for (final message in recentHistory) {
-        buffer.writeln('${message.role}: ${message.content}');
+        buffer.writeln(
+          '${message.role}: ${_clipForPrompt(message.content, 300)}',
+        );
       }
     }
 
@@ -246,7 +256,7 @@ class ContextProvider {
       mode: 'chat',
       snapshot: selectedSnapshot,
       recentCount: recentHistory.length,
-      memory: memory,
+      memory: compactMemory,
     );
     return _fitPrompt(prompt);
   }
@@ -257,52 +267,14 @@ class ContextProvider {
     Map<String, Object?> memory, {
     required String mode,
   }) {
-    final lower = userMessage.toLowerCase();
     final state = memory['conversationState'];
     final topic = state is Map ? state['currentTopic']?.toString() ?? '' : '';
-    final selected = <String, Object?>{'profile': snapshot['profile']};
-
-    bool mentions(RegExp pattern) =>
-        pattern.hasMatch(lower) || pattern.hasMatch(topic);
-    final wantsOverview =
-        mode == 'generate' &&
-        mentions(
-          RegExp(
-            r'\b(dashboard|overview|summary|stats|metrics|report|everything|all)\b',
-          ),
-        );
-    final includeEverything = lower.trim().isEmpty || wantsOverview;
-    final wantsTasks =
-        includeEverything ||
-        mentions(RegExp(r'\b(task|todo|priority|deadline)\b'));
-    final wantsHabits =
-        includeEverything || mentions(RegExp(r'\b(habit|routine|streak)\b'));
-    final wantsNotes =
-        includeEverything ||
-        mentions(RegExp(r'\b(note|journal|mood|feel|reflect)\b'));
-    final wantsFocus =
-        includeEverything ||
-        mentions(
-          RegExp(
-            r'\b(focus|deep work|pomodoro|session|study|workout|exercise|training)\b',
-          ),
-        );
-
-    if (wantsTasks) selected['tasks'] = snapshot['tasks'];
-    if (wantsHabits) selected['habits'] = snapshot['habits'];
-    if (wantsNotes) {
-      selected['recent_note'] = snapshot['recent_note'];
-      selected['recent_notes'] = snapshot['recent_notes'];
-      selected['today_mood'] = snapshot['today_mood'];
-    }
-    if (wantsFocus) {
-      selected['focus_minutes_today'] = snapshot['focus_minutes_today'];
-    }
-    if (includeEverything) {
-      selected['recent_commands'] = snapshot['recent_commands'];
-      selected['recent_events'] = snapshot['recent_events'];
-    }
-    return selected;
+    return ContextSnapshotRetriever.select(
+      snapshot: snapshot,
+      query: userMessage,
+      topic: topic,
+      mode: mode,
+    );
   }
 
   void _debugPromptContext({
@@ -311,6 +283,7 @@ class ContextProvider {
     required int recentCount,
     required Map<String, Object?> memory,
   }) {
+    if (!kDebugMode) return;
     final state = memory['conversationState'];
     debugPrint(
       '[ContextProvider] mode=$mode recent=$recentCount '
@@ -328,6 +301,81 @@ class ContextProvider {
     return prompt.substring(0, headChars) +
         marker +
         prompt.substring(prompt.length - tailChars);
+  }
+
+  Map<String, Object?> _fitGenUiContext(Map<String, Object?> context) {
+    if (jsonEncode(context).length <= _maxGenUiContextCharacters) {
+      return context;
+    }
+
+    final snapshot = context['localSnapshot'];
+    final memory = context['jarvisMemory'];
+    final recent = context['recentConversation'];
+    final compactSnapshot = <String, Object?>{};
+    if (snapshot is Map) {
+      for (final key in [
+        'profile',
+        'tasks',
+        'habits',
+        'today_mood',
+        'focus_minutes_today',
+        'recent_note',
+      ]) {
+        if (snapshot.containsKey(key)) {
+          compactSnapshot[key] = _compactForPrompt(snapshot[key]);
+        }
+      }
+    }
+
+    final compactMemory = <String, Object?>{};
+    if (memory is Map) {
+      for (final key in [
+        'conversationState',
+        'conversationSummary',
+        'lastGeneratedCardType',
+      ]) {
+        if (memory.containsKey(key)) {
+          compactMemory[key] = _compactForPrompt(memory[key]);
+        }
+      }
+    }
+
+    final compact = <String, Object?>{
+      'app': 'ContextShift',
+      'localSnapshot': compactSnapshot,
+      'jarvisMemory': compactMemory,
+      'recentConversation': recent is List ? recent.take(1).toList() : const [],
+      'allowedActionContext': context['allowedActionContext'],
+    };
+    if (jsonEncode(compact).length <= _maxGenUiContextCharacters) {
+      debugPrint(
+        '[ContextProvider] Compacted GenUI context from '
+        '${jsonEncode(context).length} to ${jsonEncode(compact).length} chars',
+      );
+      return compact;
+    }
+
+    // Keep the prompt valid JSON even when a user has unusually large local
+    // data. The model can still generate a useful card from the request.
+    final minimal = <String, Object?>{
+      'app': 'ContextShift',
+      'localSnapshot': {
+        if (compactSnapshot['profile'] != null)
+          'profile': compactSnapshot['profile'],
+        if (compactSnapshot['today_mood'] != null)
+          'today_mood': compactSnapshot['today_mood'],
+        if (compactSnapshot['focus_minutes_today'] != null)
+          'focus_minutes_today': compactSnapshot['focus_minutes_today'],
+      },
+      'jarvisMemory': const <String, Object?>{},
+      'recentConversation': const <Object?>[],
+      'allowedActionContext': context['allowedActionContext'],
+    };
+    debugPrint(
+      '[ContextProvider] Reduced GenUI context to minimal payload '
+      '(${jsonEncode(minimal).length} chars)',
+    );
+    return minimal;
   }
 
   Map<String, Object?> _jsonSafeMap(Map<String, Object?> value) {

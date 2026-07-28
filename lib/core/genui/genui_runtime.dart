@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../ai/context_provider.dart';
+import '../database/database_service.dart';
 import '../local_llm/gemma_service.dart';
 
 class GenUiGeneration {
@@ -58,35 +59,37 @@ class JarvisGenUiRuntime {
     Duration timeout = const Duration(seconds: 45),
   }) async {
     final stopwatch = Stopwatch()..start();
+    final deadline = DateTime.now().add(timeout);
+    late GenUiGeneration result;
     try {
       final first = await _generateOnce(
         userMessage: userMessage,
         conversationId: conversationId,
-        timeout: timeout,
+        deadline: deadline,
       );
       if (first.surfaceIds.isNotEmpty && first.rawA2ui.trim().isNotEmpty) {
         stopwatch.stop();
-        return GenUiGeneration(
+        result = GenUiGeneration(
           text: first.text,
           rawA2ui: first.rawA2ui,
           surfaceIds: first.surfaceIds,
           source: GenUiGenerationSource.gemma,
           elapsed: stopwatch.elapsed,
         );
+      } else {
+        stopwatch.stop();
+        result = _fallbackGeneration(
+          userMessage,
+          reason: 'no-visible-surface',
+          elapsed: stopwatch.elapsed,
+        );
       }
-
-      stopwatch.stop();
-      return _fallbackGeneration(
-        userMessage,
-        reason: 'no-visible-surface',
-        elapsed: stopwatch.elapsed,
-      );
     } on TimeoutException catch (error) {
       stopwatch.stop();
       debugPrint(
         '[GenUI] Generation timed out, using fallback surface: $error',
       );
-      return _fallbackGeneration(
+      result = _fallbackGeneration(
         userMessage,
         reason: 'timeout',
         elapsed: stopwatch.elapsed,
@@ -95,23 +98,28 @@ class JarvisGenUiRuntime {
       stopwatch.stop();
       debugPrint('[GenUI] Generation failed, using fallback surface: $error');
       debugPrintStack(stackTrace: stackTrace);
-      return _fallbackGeneration(
+      result = _fallbackGeneration(
         userMessage,
         reason: 'runtime-error',
         elapsed: stopwatch.elapsed,
       );
     }
+
+    unawaited(_recordGenerationDiagnostics(userMessage, result));
+    return result;
   }
 
   Future<GenUiGeneration> _generateOnce({
     required String userMessage,
     int? conversationId,
-    required Duration timeout,
+    required DateTime deadline,
   }) async {
-    final localContext = await ContextProvider.instance.buildGenUiContext(
-      conversationId: conversationId,
-      userMessage: userMessage,
-    );
+    final localContext = await ContextProvider.instance
+        .buildGenUiContext(
+          conversationId: conversationId,
+          userMessage: userMessage,
+        )
+        .timeout(_remainingUntil(deadline));
     final prompt = _buildSurfaceSpecPrompt(
       request: userMessage,
       localContext: localContext,
@@ -120,17 +128,27 @@ class JarvisGenUiRuntime {
     final modelText = await GemmaService.instance.generate(
       prompt,
       maxTokens: _maxOutputTokensForRequest(userMessage),
-      temperature: 0.2,
-      timeout: timeout,
+      temperature: GemmaService.structuredTemperature,
+      topK: GemmaService.structuredTopK,
+      topP: GemmaService.structuredTopP,
+      timeout: _remainingUntil(deadline),
     );
-    var spec = _parseSurfaceSpec(modelText);
-    spec ??= await _repairSurfaceSpec(
-      userMessage: userMessage,
-      invalidOutput: modelText,
-      timeout: timeout,
-    );
+    var spec = _parseSurfaceSpec(modelText, userMessage: userMessage);
+    if (spec == null && DateTime.now().isBefore(deadline)) {
+      spec = await _repairSurfaceSpec(
+        userMessage: userMessage,
+        invalidOutput: modelText,
+        timeout: _remainingUntil(deadline),
+      );
+    }
     if (spec == null) {
-      debugPrint('[GenUI] Gemma surface spec was not valid JSON: $modelText');
+      debugPrint(
+        '[GenUI] Gemma surface spec was not valid JSON '
+        '(outputChars=${modelText.length})',
+      );
+      if (kDebugMode) {
+        debugPrint('[GenUI] Invalid spec preview: $modelText');
+      }
       return const GenUiGeneration(
         text: '',
         rawA2ui: '',
@@ -148,6 +166,32 @@ class JarvisGenUiRuntime {
       surfaceIds: const ['jarvis_generated'],
       source: GenUiGenerationSource.gemma,
       elapsed: Duration.zero,
+    );
+  }
+
+  Duration _remainingUntil(DateTime deadline) {
+    final remaining = deadline.difference(DateTime.now());
+    return remaining <= Duration.zero
+        ? const Duration(milliseconds: 1)
+        : remaining;
+  }
+
+  Future<void> _recordGenerationDiagnostics(
+    String userMessage,
+    GenUiGeneration result,
+  ) async {
+    await DatabaseService.instance.logEvent(
+      eventType: 'genui_generation',
+      module: 'jarvis',
+      metadata: {
+        'model': GemmaService.instance.activeModelDef?.modelId ?? 'none',
+        'source': result.source.name,
+        'fallback_reason': result.fallbackReason,
+        'duration_ms': result.elapsed.inMilliseconds,
+        'request_chars': userMessage.length,
+        'output_chars': result.rawA2ui.length,
+        'surface_count': result.surfaceIds.length,
+      },
     );
   }
 
@@ -186,9 +230,11 @@ $clipped
         prompt,
         maxTokens: _maxOutputTokensForRequest(userMessage),
         temperature: 0.1,
+        topK: 4,
+        topP: 0.8,
         timeout: timeout,
       );
-      return _parseSurfaceSpec(repaired);
+      return _parseSurfaceSpec(repaired, userMessage: userMessage);
     } catch (error, stackTrace) {
       debugPrint('[GenUI] Gemma spec repair failed: $error');
       debugPrintStack(stackTrace: stackTrace);
@@ -203,10 +249,7 @@ $clipped
     required Map<String, Object?> localContext,
   }) {
     final forcedRefineDomain = _refineDomainFromRequest(request);
-    final isWorkout = RegExp(
-      r'\b(workout|work out|exercise|training|full body|strength|gym|cardio)\b',
-      caseSensitive: false,
-    ).hasMatch(request);
+    final isWorkout = _isWorkoutRequest(request);
     if (forcedRefineDomain != null &&
         forcedRefineDomain != 'workout' &&
         forcedRefineDomain != 'schedule') {
@@ -286,6 +329,9 @@ Schema:
 Rules:
 - For workout requests, include 3-4 safe exercises with sets/reps/rest/cues.
 - For schedule requests, include timeline items with times.
+- For recipe or cooking requests, use items for ingredients and preparation
+  steps, and make tips food-specific. Never include exercise, warm-up,
+  cooldown, or form advice in a non-workout card.
 - For everything else, use items and tips.
 - Use sensible defaults if details are missing.
 - Maximum 4 exercises, 5 items, 3 tips.
@@ -300,15 +346,15 @@ User request: $request
   int _maxOutputTokensForRequest(String request) {
     final forcedRefineDomain = _refineDomainFromRequest(request);
     if (forcedRefineDomain != null && forcedRefineDomain != 'schedule') {
-      return 280;
+      return GemmaService.structuredOutputTokens;
     }
     if (RegExp(
       r'\b(schedule|calendar|timeline|itinerary|time block|time-blocked)\b',
       caseSensitive: false,
     ).hasMatch(request)) {
-      return 360;
+      return 768;
     }
-    return 280;
+    return GemmaService.structuredOutputTokens;
   }
 
   String? _refineDomainFromRequest(String request) {
@@ -330,20 +376,25 @@ User request: $request
     };
   }
 
-  Map<String, Object?>? _parseSurfaceSpec(String text) {
+  Map<String, Object?>? _parseSurfaceSpec(
+    String text, {
+    required String userMessage,
+  }) {
     final trimmed = text.trim();
     final fenced = RegExp(
       r'```(?:json)?\s*([\s\S]*?)\s*```',
     ).firstMatch(trimmed);
     final candidate = fenced?.group(1) ?? _firstJsonObject(trimmed);
-    if (candidate == null) return _partialSurfaceSpec(trimmed);
+    if (candidate == null) {
+      return _partialSurfaceSpec(trimmed, userMessage: userMessage);
+    }
     try {
       final decoded = jsonDecode(candidate);
       if (decoded is Map) return Map<String, Object?>.from(decoded);
     } catch (_) {
-      return _partialSurfaceSpec(trimmed);
+      return _partialSurfaceSpec(trimmed, userMessage: userMessage);
     }
-    return _partialSurfaceSpec(trimmed);
+    return _partialSurfaceSpec(trimmed, userMessage: userMessage);
   }
 
   String? _firstJsonObject(String text) {
@@ -377,9 +428,13 @@ User request: $request
     return null;
   }
 
-  Map<String, Object?>? _partialSurfaceSpec(String text) {
-    final exercises = _partialObjectsWithKey(text, 'name');
-    if (exercises.isNotEmpty) {
+  Map<String, Object?>? _partialSurfaceSpec(
+    String text, {
+    required String userMessage,
+  }) {
+    final isWorkout = _isWorkoutRequest(userMessage);
+    final exercises = isWorkout ? _partialObjectsWithKey(text, 'name') : [];
+    if (isWorkout && exercises.isNotEmpty) {
       debugPrint(
         '[GenUI] Recovered partial Gemma workout spec with '
         '${exercises.length} exercises',
@@ -410,7 +465,40 @@ User request: $request
       };
     }
 
+    final items = _partialObjectsWithKey(text, 'title');
+    if (items.isNotEmpty) {
+      return {
+        'domain': 'plan',
+        'title': _regexValue(text, 'title') ?? 'Generated plan',
+        'subtitle': _regexValue(text, 'subtitle') ?? 'Gemma-generated plan',
+        'items': items,
+        'tips': const <String>[],
+        'actionTitle': _regexValue(text, 'actionTitle') ?? 'Plan',
+      };
+    }
+
     return null;
+  }
+
+  bool _isWorkoutRequest(String text) {
+    return RegExp(
+      r'\b(workout|work out|exercise|training|full body|strength|gym|cardio)\b',
+      caseSensitive: false,
+    ).hasMatch(text);
+  }
+
+  bool _isRecipeRequest(String text) {
+    return RegExp(
+      r'\b(recipe|cook|cooking|ingredient|ingredients|biryani|meal|dish|food)\b',
+      caseSensitive: false,
+    ).hasMatch(text);
+  }
+
+  bool _isWorkoutOnlyTip(String text) {
+    return RegExp(
+      r'\b(warm[- ]?up|cool[- ]?down|exercise|workout|reps?|sets?|form|stretch|weight jump|failure)\b',
+      caseSensitive: false,
+    ).hasMatch(text);
   }
 
   List<Map<String, Object?>> _partialObjectsWithKey(String text, String key) {
@@ -435,7 +523,11 @@ User request: $request
   }
 
   String _a2uiFromSpec(Map<String, Object?> spec, String userMessage) {
-    final domain = _cleanText(spec['domain'], fallback: 'plan').toLowerCase();
+    final requestedDomain = _cleanText(
+      spec['domain'],
+      fallback: 'plan',
+    ).toLowerCase();
+    final domain = _isRecipeRequest(userMessage) ? 'plan' : requestedDomain;
     final title = _cleanText(
       spec['title'],
       fallback: _fallbackTitle(
@@ -447,10 +539,15 @@ User request: $request
       spec['subtitle'],
       fallback: 'Generated locally with Gemma.',
     );
-    final exercises = _mapList(spec['exercises']).take(4).toList();
+    final exercises = domain == 'workout'
+        ? _mapList(spec['exercises']).take(4).toList()
+        : const <Map<String, Object?>>[];
     final timeline = _mapList(spec['timeline']).take(5).toList();
     final items = _mapList(spec['items']).take(5).toList();
-    final tips = _stringList(spec['tips']).take(3).toList();
+    final tips = _stringList(spec['tips'])
+        .where((tip) => domain == 'workout' || !_isWorkoutOnlyTip(tip))
+        .take(3)
+        .toList();
     final tone = _toneForDomain(domain);
     final supportTone = tone == 'warning' ? 'primary' : 'accent';
     final children = <String>['hero'];
@@ -758,6 +855,13 @@ Improve it by making it more specific, useful, and personalized. Keep what works
           },
           if (domain == _FallbackDomain.schedule)
             {
+              'label': 'Edit times',
+              'event': 'edit_schedule_times',
+              'title': title,
+              'domain': domain.label.toLowerCase(),
+            },
+          if (domain == _FallbackDomain.schedule)
+            {
               'label': 'Add tasks',
               'event': 'add_schedule_to_tasks',
               'title': title,
@@ -949,17 +1053,17 @@ Improve it by making it more specific, useful, and personalized. Keep what works
             {
               'time': 'Start',
               'title': 'Set the outcome',
-              'body': 'Decide what finished looks like.',
+              'detail': 'Decide what finished looks like.',
             },
             {
               'time': 'Middle',
               'title': 'Do the core work',
-              'body': 'Protect the main block from distractions.',
+              'detail': 'Protect the main block from distractions.',
             },
             {
               'time': 'End',
               'title': 'Review and save',
-              'body': 'Capture the next action before closing.',
+              'detail': 'Capture the next action before closing.',
             },
           ],
         },

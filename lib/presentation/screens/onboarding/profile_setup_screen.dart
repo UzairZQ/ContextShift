@@ -34,6 +34,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
   final Set<String> _selectedInterests = {};
   TimeOfDay? _windDownTime;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -64,6 +65,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   }
 
   Future<void> _submit() async {
+    if (_isSubmitting) return;
     if (!_formKey.currentState!.validate()) return;
     if (_selectedInterests.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -76,20 +78,31 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     }
 
     final firstName = _firstNameController.text.trim();
-    await DatabaseService.instance.saveUserProfile(
-      firstName: firstName,
-      lastName: _lastNameController.text.trim().isEmpty
-          ? null
-          : _lastNameController.text.trim(),
-      name: '$firstName ${_lastNameController.text.trim()}'.trim(),
-      focusRole: _focusRoleController.text.trim().isEmpty
-          ? null
-          : _focusRoleController.text.trim(),
-      interests: _selectedInterests.toList(),
-      windDownTime: _windDownTime?.format(context),
-    );
-
-    widget.onComplete();
+    setState(() => _isSubmitting = true);
+    try {
+      await DatabaseService.instance.saveUserProfile(
+        firstName: firstName,
+        lastName: _lastNameController.text.trim(),
+        name: '$firstName ${_lastNameController.text.trim()}'.trim(),
+        focusRole: _focusRoleController.text.trim(),
+        interests: _selectedInterests.toList(),
+        windDownTime: _windDownTime?.format(context),
+      );
+      if (mounted) widget.onComplete();
+    } catch (error, stackTrace) {
+      debugPrint('[ProfileSetupScreen] Save failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not finish setup. Try again.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   void _toggleInterest(String interest) {
@@ -346,7 +359,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                           delay: const Duration(milliseconds: 480),
                           begin: const Offset(0, 0.05),
                           child: PressableScale(
-                            onTap: _submit,
+                            onTap: _isSubmitting ? null : _submit,
                             pressedScale: 0.965,
                             child: Container(
                               width: double.infinity,
@@ -365,14 +378,23 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                                   ),
                                 ],
                               ),
-                              child: const Text(
-                                'Make it mine',
-                                style: TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
+                              child: _isSubmitting
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.black,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Make it mine',
+                                      style: TextStyle(
+                                        color: Colors.black,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
                             ),
                           ),
                         ),

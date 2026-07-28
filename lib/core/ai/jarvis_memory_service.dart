@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
+
 import '../database/database_service.dart';
 import '../database/schema.dart';
 
@@ -19,23 +21,45 @@ class JarvisMemoryService {
     String mode = 'chat',
     String? generatedCardType,
   }) async {
-    await Future.wait([
-      _updateConversationSummary(
-        conversationId: conversationId,
-        userMessage: userMessage,
-        assistantResponse: assistantResponse,
-        mode: mode,
-        generatedCardType: generatedCardType,
-      ),
-      _learnExplicitUserFacts(userMessage),
-    ]);
+    try {
+      await Future.wait([
+        _updateConversationSummary(
+          conversationId: conversationId,
+          userMessage: userMessage,
+          assistantResponse: assistantResponse,
+          mode: mode,
+          generatedCardType: generatedCardType,
+        ),
+        _learnExplicitUserFacts(userMessage),
+      ]);
+    } catch (error, stackTrace) {
+      // Memory is enrichment, not a prerequisite for delivering a reply.
+      // A failed memory write must not turn a successful user message into an
+      // error state after the assistant response was already persisted.
+      debugPrint('[JarvisMemory] Failed to record turn: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 
   Future<Map<String, Object?>> buildMemoryContext({int? conversationId}) async {
-    final memories = await DatabaseService.instance.getJarvisMemories();
-    final conversationMemory = conversationId == null
-        ? null
-        : await DatabaseService.instance.getConversationMemory(conversationId);
+    var memories = const <JarvisMemoryTableData>[];
+    try {
+      memories = await DatabaseService.instance.getJarvisMemories();
+    } catch (error, stackTrace) {
+      debugPrint('[JarvisMemory] Could not load learned memory: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+
+    ConversationMemoryTableData? conversationMemory;
+    if (conversationId != null) {
+      try {
+        conversationMemory = await DatabaseService.instance
+            .getConversationMemory(conversationId);
+      } catch (error, stackTrace) {
+        debugPrint('[JarvisMemory] Could not load conversation memory: $error');
+        debugPrintStack(stackTrace: stackTrace);
+      }
+    }
 
     final parsed = _parseConversationMemory(conversationMemory?.summary ?? '');
 
@@ -87,7 +111,7 @@ class JarvisMemoryService {
         kind: 'identity',
         key: 'preferred_name',
         pattern: RegExp(
-          r"\b(?:call me|my name is|i am|i'm)\s+([a-z][a-z\s]{1,40})",
+          r"\b(?:call me|my name is)\s+([a-z][a-z\s]{1,40})",
           caseSensitive: false,
         ),
         confidence: 0.82,

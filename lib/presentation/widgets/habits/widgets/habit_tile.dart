@@ -3,6 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/app_theme.dart';
 import '../../../../core/database/database_service.dart';
+import '../../shared/module_cards.dart';
 
 class HabitTile extends StatelessWidget {
   final Map<String, dynamic> habit;
@@ -25,6 +26,8 @@ class HabitTile extends StatelessWidget {
     final tinyStep = (habit['tinyStep'] as String?)?.trim();
     final reward = (habit['reward'] as String?)?.trim();
     final friction = (habit['friction'] as String?)?.trim();
+    final name = habit['name']?.toString().trim();
+    final icon = habit['icon']?.toString().trim();
     final strategy = isReduce
         ? [
             if (cue != null && cue.isNotEmpty) 'Trigger: $cue',
@@ -43,20 +46,17 @@ class HabitTile extends StatelessWidget {
         duration: const Duration(milliseconds: 250),
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: isDoneToday
-              ? activeColor.withValues(alpha: 0.1)
-              : AppTheme.surfaceHigh,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isDoneToday
-                ? activeColor.withValues(alpha: 0.4)
-                : Colors.white.withValues(alpha: 0.05),
-          ),
+        decoration: moduleCardDecoration(
+          accent: isDoneToday ? activeColor : AppTheme.success,
+          borderRadius: 16,
+          fill: isDoneToday ? activeColor.withValues(alpha: 0.1) : null,
         ),
         child: Row(
           children: [
-            Text(habit['icon'] ?? '✅', style: const TextStyle(fontSize: 24)),
+            Text(
+              icon == null || icon.isEmpty ? '✅' : icon,
+              style: const TextStyle(fontSize: 24),
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -94,7 +94,7 @@ class HabitTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    habit['name'] ?? '',
+                    name == null || name.isEmpty ? 'Unnamed behavior' : name,
                     style: TextStyle(
                       color: isDoneToday
                           ? AppTheme.onSurface.withValues(alpha: 0.68)

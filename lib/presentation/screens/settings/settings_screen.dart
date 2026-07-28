@@ -28,6 +28,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _focusRoleController = TextEditingController();
   String? _nameError;
   String? _focusRoleError;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -47,24 +48,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _saveProfile() async {
     final name = _nameController.text.trim();
-    if (name.isEmpty) {
-      setState(() => _nameError = 'First name is required');
+    if (name.isEmpty || _isSaving) {
+      if (name.isEmpty) setState(() => _nameError = 'First name is required');
       return;
     }
     setState(() {
+      _isSaving = true;
       _nameError = null;
       _focusRoleError = null;
     });
 
-    await DatabaseService.instance.saveUserProfile(
-      firstName: name,
-      lastName: _lastNameController.text.trim().isEmpty
-          ? null
-          : _lastNameController.text.trim(),
-      focusRole: _focusRoleController.text.trim().isEmpty
-          ? null
-          : _focusRoleController.text.trim(),
-    );
+    try {
+      await DatabaseService.instance.saveUserProfile(
+        firstName: name,
+        lastName: _lastNameController.text.trim(),
+        focusRole: _focusRoleController.text.trim(),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('[SettingsScreen] Profile save failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not update your profile. Try again.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

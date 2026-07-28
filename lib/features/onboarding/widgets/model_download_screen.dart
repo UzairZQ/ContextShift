@@ -48,7 +48,9 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
 
   Future<void> _checkIfAlreadyDownloaded() async {
     try {
+      await GemmaService.instance.init();
       final downloaded = await _downloader.isModelDownloaded(widget.model);
+      await FeatureManager.instance.initialize();
       debugPrint(
         '[ModelDownloadScreen] Model "${widget.model.modelId}" already downloaded: $downloaded',
       );
@@ -82,7 +84,7 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
     super.dispose();
   }
 
-  void _startDownload() {
+  Future<void> _startDownload() async {
     debugPrint('[ModelDownloadScreen] Start download pressed');
     setState(() {
       _hasStarted = true;
@@ -92,19 +94,35 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
     });
 
     _subscription?.cancel();
-    _subscription = _downloader
-        .download(widget.model)
-        .listen(
-          _onProgress,
-          onError: (error) {
-            debugPrint('[ModelDownloadScreen] Stream error: $error');
-          },
-          onDone: () {
-            debugPrint(
-              '[ModelDownloadScreen] Stream done, state=${_progress.state}',
-            );
-          },
+    try {
+      await GemmaService.instance.init();
+      await FeatureManager.instance.initialize();
+      _subscription = _downloader
+          .download(widget.model)
+          .listen(
+            _onProgress,
+            onError: (error) {
+              debugPrint('[ModelDownloadScreen] Stream error: $error');
+            },
+            onDone: () {
+              debugPrint(
+                '[ModelDownloadScreen] Stream done, state=${_progress.state}',
+              );
+            },
+          );
+    } on StateError catch (error, stackTrace) {
+      debugPrint('[ModelDownloadScreen] Download already in progress: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() {
+        _progress = const DownloadProgressInfo(
+          state: DownloadState.failed,
+          errorMessage: 'A model download is already in progress.',
+          errorCode: 'already_downloading',
         );
+      });
+      _showSnack('JARVIS is already downloading.');
+    }
   }
 
   Future<void> _onProgress(DownloadProgressInfo info) async {
@@ -146,7 +164,8 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       setState(() {
-        _statusDetail = error.toString();
+        _statusDetail =
+            'JARVIS could not initialize on this device. Try again after closing other demanding apps.';
       });
       _showSnack('JARVIS could not initialize.');
     } finally {
@@ -176,7 +195,8 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
       if (!mounted) return;
       setState(() {
         _healthCheckPassed = false;
-        _statusDetail = error.toString();
+        _statusDetail =
+            'The local model did not pass its health check. Reinitialize it and try again.';
       });
       FeatureManager.instance.setModelVerified(widget.model.tier, false);
       _showSnack('JARVIS health check failed.');
@@ -234,7 +254,10 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
       debugPrint('[ModelDownloadScreen] Delete failed: $error');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
-      setState(() => _statusDetail = error.toString());
+      setState(
+        () =>
+            _statusDetail = 'The local model could not be removed. Try again.',
+      );
       _showSnack('Could not delete model.');
     } finally {
       if (mounted) setState(() => _isDeleting = false);
@@ -524,26 +547,6 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
               ),
             ),
           ],
-        ],
-        if (_progress.state == DownloadState.failed &&
-            _progress.errorDetail != null) ...[
-          const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppTheme.error.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              _progress.errorDetail!,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppTheme.error,
-                fontFamily: 'monospace',
-              ),
-            ),
-          ),
         ],
       ],
     );

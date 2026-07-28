@@ -5,6 +5,7 @@ import '../../../core/app_spacing.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
 import '../motion/wonderous_motion.dart';
+import '../shared/module_cards.dart';
 import 'widgets/add_task_sheet.dart';
 import 'widgets/task_list.dart';
 import 'widgets/task_stats.dart';
@@ -53,67 +54,38 @@ class _TasksModuleState extends State<TasksModule> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: Spacing.lg),
-          Container(
-            width: double.infinity,
-            decoration: AppTheme.cardDecoration(
-              color: AppTheme.surfaceContainer.withValues(alpha: 0.6),
+          ModuleHeaderCard(
+            title: 'Active Intentions',
+            subtitle: 'Turn today\'s priorities into visible progress.',
+            icon: LucideIcons.checkSquare,
+            accent: AppTheme.primary,
+            trailing: IconButton(
+              tooltip: 'Add task',
+              onPressed: _openAddTaskSheet,
+              icon: const Icon(LucideIcons.plus, color: AppTheme.primary),
+              style: IconButton.styleFrom(
+                backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+                padding: const EdgeInsets.all(8),
+              ),
             ),
+          ),
+          const SizedBox(height: 16),
+          ModuleCard(
+            accent: AppTheme.primary,
             padding: const EdgeInsets.all(Spacing.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                WonderousReveal(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(
-                            LucideIcons.checkSquare,
-                            color: AppTheme.primary,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Active Intentions',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -0.5,
-                                ),
-                          ),
-                        ],
-                      ),
-                      IconButton(
-                        onPressed: _openAddTaskSheet,
-                        icon: const Icon(
-                          LucideIcons.plus,
-                          color: AppTheme.primary,
-                        ),
-                        style: IconButton.styleFrom(
-                          backgroundColor: AppTheme.primary.withValues(
-                            alpha: 0.1,
-                          ),
-                          padding: const EdgeInsets.all(8),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                WonderousReveal(child: TaskStats(stream: _tasksStream)),
                 const SizedBox(height: 20),
                 WonderousReveal(
                   delay: const Duration(milliseconds: 80),
-                  child: TaskStats(stream: _tasksStream),
-                ),
-                const SizedBox(height: 20),
-                WonderousReveal(
-                  delay: const Duration(milliseconds: 140),
                   child: TaskList(stream: _tasksStream),
                 ),
               ],
             ),
           ),
-          SizedBox(height: MediaQuery.of(context).padding.bottom + 92),
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 128),
         ],
       ),
     );

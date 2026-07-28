@@ -15,6 +15,15 @@ class MoodTrend extends StatelessWidget {
         StreamBuilder<List<Map<String, dynamic>>>(
           stream: DatabaseService.instance.watchMoods(days: 7),
           builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return const ContextPanel(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'Mood history is temporarily unavailable.',
+                  style: TextStyle(color: AppTheme.onSurfaceVariant),
+                ),
+              );
+            }
             final moods = snapshot.data ?? [];
 
             if (moods.isEmpty) {

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // ContextShift palette: private sanctuary with warm human action.
@@ -102,7 +101,8 @@ class AppTheme {
         backgroundColor: surfaceHigh.withValues(alpha: 0.96),
         behavior: SnackBarBehavior.floating,
         elevation: 0,
-        contentTextStyle: GoogleFonts.manrope(
+        contentTextStyle: const TextStyle(
+          fontFamily: 'Manrope',
           color: onSurface,
           fontWeight: FontWeight.w700,
           fontSize: 13,
@@ -113,47 +113,63 @@ class AppTheme {
         ),
       ),
       textTheme: TextTheme(
-        displayLarge: GoogleFonts.spaceGrotesk(
+        displayLarge: const TextStyle(
+          fontFamily: 'Space Grotesk',
           fontSize: 56,
           fontWeight: FontWeight.bold,
           color: onSurface,
           letterSpacing: -1.5,
         ),
-        headlineLarge: GoogleFonts.spaceGrotesk(
+        headlineLarge: const TextStyle(
+          fontFamily: 'Space Grotesk',
           fontSize: 40,
           fontWeight: FontWeight.w700,
           color: onSurface,
           letterSpacing: -1,
         ),
-        headlineMedium: GoogleFonts.spaceGrotesk(
+        headlineMedium: const TextStyle(
+          fontFamily: 'Space Grotesk',
           fontSize: 32,
           fontWeight: FontWeight.w600,
           color: onSurface,
           letterSpacing: -0.5,
         ),
-        headlineSmall: GoogleFonts.spaceGrotesk(
+        headlineSmall: const TextStyle(
+          fontFamily: 'Space Grotesk',
           fontSize: 24,
           fontWeight: FontWeight.w600,
           color: onSurface,
         ),
-        titleLarge: GoogleFonts.manrope(
+        titleLarge: const TextStyle(
+          fontFamily: 'Manrope',
           fontSize: 20,
           fontWeight: FontWeight.w600,
           color: onSurface,
         ),
-        titleMedium: GoogleFonts.manrope(
+        titleMedium: const TextStyle(
+          fontFamily: 'Manrope',
           fontSize: 18,
           fontWeight: FontWeight.w600,
           color: onSurface,
         ),
-        bodyLarge: GoogleFonts.manrope(fontSize: 16, color: onSurfaceVariant),
-        bodyMedium: GoogleFonts.manrope(fontSize: 14, color: onSurfaceVariant),
-        labelSmall: GoogleFonts.manrope(
+        bodyLarge: const TextStyle(
+          fontFamily: 'Manrope',
+          fontSize: 16,
+          color: onSurfaceVariant,
+        ),
+        bodyMedium: const TextStyle(
+          fontFamily: 'Manrope',
+          fontSize: 14,
+          color: onSurfaceVariant,
+        ),
+        labelSmall: const TextStyle(
+          fontFamily: 'Manrope',
           fontSize: 12,
           color: onSurfaceVariant,
           letterSpacing: 0.5,
         ),
-        labelMedium: GoogleFonts.manrope(
+        labelMedium: const TextStyle(
+          fontFamily: 'Manrope',
           fontSize: 13,
           fontWeight: FontWeight.w500,
           color: onSurfaceVariant,

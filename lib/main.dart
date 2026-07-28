@@ -1,14 +1,17 @@
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/app_runtime.dart';
 import 'core/app_theme.dart';
 import 'core/database/database_service.dart';
 import 'core/local_llm/gemma_service.dart';
 import 'core/services/feature_manager.dart';
+import 'core/services/focus_timer_controller.dart';
 import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/onboarding/onboarding_screen.dart';
 import 'presentation/screens/onboarding/profile_setup_screen.dart';
@@ -34,7 +37,9 @@ void main() {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'ContextShift UI error:\n${details.exceptionAsString()}',
+                kDebugMode
+                    ? 'ContextShift UI error:\n${details.exceptionAsString()}'
+                    : 'This part of ContextShift could not load.\nPlease restart the app and try again.',
                 style: const TextStyle(color: AppTheme.error, fontSize: 13),
               ),
             ),
@@ -47,26 +52,30 @@ void main() {
         return true;
       };
 
-      // Initialize local database
-      await DatabaseService.instance.init();
-
-      // Initialize FlutterGemma (don't fail if not supported on this platform)
+      // Initialize local database. A storage failure must still render a
+      // recovery screen instead of leaving the process with no Flutter UI.
       try {
-        await GemmaService.instance.init();
-        debugPrint('[main] GemmaService initialized');
-      } catch (e, stack) {
-        debugPrint('[main] GemmaService init skipped (non-fatal): $e');
-        debugPrintStack(stackTrace: stack);
+        await DatabaseService.instance.init();
+      } catch (error, stackTrace) {
+        debugPrint('[main] Database initialization failed: $error');
+        debugPrintStack(stackTrace: stackTrace);
+        runApp(_StartupFailureApp(error: error));
+        return;
       }
 
       try {
-        await FeatureManager.instance.initialize();
-      } catch (e, stack) {
-        debugPrint('[main] Feature state restore failed (non-fatal): $e');
-        debugPrintStack(stackTrace: stack);
+        await FocusTimerController.instance.restore();
+      } catch (error, stackTrace) {
+        debugPrint('[main] Focus timer restore skipped: $error');
+        debugPrintStack(stackTrace: stackTrace);
       }
 
       runApp(const ContextShiftApp());
+      // Model registry work is optional for the first frame. Start it after
+      // the app is visible so cold launch is not coupled to native Gemma.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_warmUpOptionalServices());
+      });
     },
     (error, stack) {
       debugPrint('[ZoneError] $error');
@@ -86,6 +95,131 @@ class ContextShiftApp extends StatelessWidget {
       theme: AppTheme.darkTheme,
       home: const _LaunchGate(),
     );
+  }
+}
+
+class _StartupFailureApp extends StatelessWidget {
+  final Object error;
+
+  const _StartupFailureApp({required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'ContextShift',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.darkTheme,
+      home: _StartupFailureScreen(initialError: error),
+    );
+  }
+}
+
+class _StartupFailureScreen extends StatefulWidget {
+  final Object initialError;
+
+  const _StartupFailureScreen({required this.initialError});
+
+  @override
+  State<_StartupFailureScreen> createState() => _StartupFailureScreenState();
+}
+
+class _StartupFailureScreenState extends State<_StartupFailureScreen> {
+  bool _isRetrying = false;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _error = widget.initialError;
+  }
+
+  Future<void> _retry() async {
+    if (_isRetrying) return;
+    setState(() {
+      _isRetrying = true;
+      _error = null;
+    });
+
+    try {
+      await DatabaseService.instance.init();
+      if (!mounted) return;
+      runApp(const ContextShiftApp());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_warmUpOptionalServices());
+      });
+    } catch (error, stackTrace) {
+      debugPrint('[StartupRecovery] Retry failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _isRetrying = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  LucideIcons.databaseZap,
+                  color: AppTheme.warning,
+                  size: 48,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'ContextShift could not open local storage',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _error == null
+                      ? 'Trying again...'
+                      : 'Your local data was not changed. Retry the startup check.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppTheme.onSurfaceVariant.withValues(alpha: 0.78),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: _isRetrying ? null : _retry,
+                  icon: _isRetrying
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(LucideIcons.refreshCw, size: 18),
+                  label: Text(_isRetrying ? 'Retrying' : 'Retry startup'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _warmUpOptionalServices() async {
+  try {
+    await GemmaService.instance.init();
+  } catch (error, stackTrace) {
+    debugPrint('[StartupWarmup] Gemma initialization skipped: $error');
+    debugPrintStack(stackTrace: stackTrace);
+  }
+  try {
+    await FeatureManager.instance.initialize();
+  } catch (error, stackTrace) {
+    debugPrint('[StartupWarmup] Feature state restore skipped: $error');
+    debugPrintStack(stackTrace: stackTrace);
   }
 }
 
@@ -242,7 +376,6 @@ class _HomeLaunchRevealState extends State<_HomeLaunchReveal>
 
   @override
   Widget build(BuildContext context) {
-    if (_finished) return const HomeScreen();
     final reduceMotion =
         MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
@@ -254,34 +387,35 @@ class _HomeLaunchRevealState extends State<_HomeLaunchReveal>
             child: const HomeScreen(),
           ),
         ),
-        IgnorePointer(
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) {
-              final fade = reduceMotion
-                  ? 0.0
-                  : 1 - Curves.easeOutCubic.transform(_controller.value);
-              final lift = reduceMotion
-                  ? 0.0
-                  : Curves.easeOutCubic.transform(_controller.value);
-              return Opacity(
-                opacity: fade,
-                child: DecoratedBox(
-                  decoration: _launchBackdrop(alpha: fade),
-                  child: Center(
-                    child: Transform.translate(
-                      offset: Offset(0, -10 * lift),
-                      child: Transform.scale(
-                        scale: 1 - (0.018 * lift),
-                        child: _LaunchIdentity(progress: 1 - fade),
+        if (!_finished)
+          IgnorePointer(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                final fade = reduceMotion
+                    ? 0.0
+                    : 1 - Curves.easeOutCubic.transform(_controller.value);
+                final lift = reduceMotion
+                    ? 0.0
+                    : Curves.easeOutCubic.transform(_controller.value);
+                return Opacity(
+                  opacity: fade,
+                  child: DecoratedBox(
+                    decoration: _launchBackdrop(alpha: fade),
+                    child: Center(
+                      child: Transform.translate(
+                        offset: Offset(0, -10 * lift),
+                        child: Transform.scale(
+                          scale: 1 - (0.018 * lift),
+                          child: _LaunchIdentity(progress: 1 - fade),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
-        ),
       ],
     );
   }

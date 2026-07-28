@@ -45,7 +45,9 @@ class AiService {
     required String userName,
     int? conversationId,
   }) async {
-    debugPrint('AI Command — processing locally: "$command"');
+    if (kDebugMode) {
+      debugPrint('AI Command — processing locally: "$command"');
+    }
     return _processLocally(
       command,
       userName,
@@ -88,7 +90,11 @@ class AiService {
           actions: [
             AiAction(
               type: 'add_task',
-              params: {'title': title, 'priority': _detectPriority(lower)},
+              params: {
+                'title': title,
+                'priority': _detectPriority(lower),
+                'dedupe_existing': true,
+              },
             ),
           ],
           response: 'Added "$title" to your tasks.',
@@ -120,8 +126,12 @@ class AiService {
     }
 
     // ── Habit patterns ──
-    if (_matchesAny(lower, ['add habit', 'track', 'new habit'])) {
-      final name = _extractAfter(command, ['add habit', 'track', 'new habit']);
+    if (_matchesAny(lower, ['add habit', 'track habit', 'new habit'])) {
+      final name = _extractAfter(command, [
+        'add habit',
+        'track habit',
+        'new habit',
+      ]);
       if (name.isNotEmpty) {
         return build(
           actions: [
@@ -209,32 +219,68 @@ class AiService {
 
     if (GemmaService.instance.isModelLoaded) {
       try {
-        debugPrint('[AiService] Trying GemmaService for: "$command"');
+        if (kDebugMode) {
+          debugPrint('[AiService] Trying GemmaService for: "$command"');
+        }
         final prompt = await ContextProvider.instance.build(
           userMessage: command,
           conversationId: conversationId,
         );
         final gemmaResponse = await GemmaService.instance.generate(
           prompt,
-          maxTokens: 256,
+          maxTokens: GemmaService.actionOutputTokens,
+          temperature: GemmaService.structuredTemperature,
+          topK: GemmaService.structuredTopK,
+          topP: GemmaService.structuredTopP,
           timeout: const Duration(seconds: 10),
         );
+        final trimmedResponse = gemmaResponse.trim();
 
         // Try to parse as JSON
-        final start = gemmaResponse.indexOf('{');
-        final end = gemmaResponse.lastIndexOf('}');
+        final start = trimmedResponse.indexOf('{');
+        final end = trimmedResponse.lastIndexOf('}');
         if (start != -1 && end != -1 && end > start) {
-          final jsonStr = gemmaResponse.substring(start, end + 1);
-          final parsed = jsonDecode(jsonStr) as Map<String, dynamic>;
-          debugPrint('[AiService] GemmaService returned: $parsed');
-          return build(
-            actions:
-                (parsed['actions'] as List<dynamic>?)
-                    ?.map((a) => AiAction.fromJson(a as Map<String, dynamic>))
-                    .toList() ??
-                [],
-            response: parsed['response'] as String? ?? 'Done!',
-          );
+          try {
+            final jsonStr = trimmedResponse.substring(start, end + 1);
+            final decoded = jsonDecode(jsonStr);
+            if (decoded is Map<String, dynamic>) {
+              final rawActions = decoded['actions'];
+              final actions = rawActions is List
+                  ? rawActions
+                        .whereType<Map>()
+                        .map(
+                          (action) => AiAction.fromJson(
+                            Map<String, dynamic>.from(action),
+                          ),
+                        )
+                        .toList(growable: false)
+                  : const <AiAction>[];
+              debugPrint(
+                '[AiService] GemmaService returned action envelope '
+                '(actions=${actions.length})',
+              );
+              if (kDebugMode) {
+                debugPrint('[AiService] Action response preview: $decoded');
+              }
+              return build(
+                actions: actions,
+                response:
+                    decoded['response']?.toString().trim().isNotEmpty == true
+                    ? decoded['response'].toString().trim()
+                    : 'Done!',
+              );
+            }
+          } catch (parseError) {
+            debugPrint(
+              '[AiService] Gemma response was not valid action JSON: $parseError',
+            );
+          }
+        }
+
+        // A capable local model may answer naturally even when it ignores the
+        // action envelope. Do not replace that answer with a misleading fallback.
+        if (trimmedResponse.isNotEmpty) {
+          return build(actions: const [], response: trimmedResponse);
         }
       } catch (e, stack) {
         debugPrint('[AiService] GemmaService fallback failed: $e');

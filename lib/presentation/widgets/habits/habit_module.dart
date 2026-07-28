@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/app_theme.dart';
 import '../../../core/database/database_service.dart';
 import '../motion/wonderous_motion.dart';
+import '../shared/module_cards.dart';
 import 'widgets/add_habit_sheet.dart';
 import 'widgets/habit_heatmap.dart';
 import 'widgets/habit_progress.dart';
@@ -48,16 +49,19 @@ class _HabitModuleState extends State<HabitModule> {
       children: [
         const SizedBox(height: 16),
         WonderousReveal(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Habits', style: Theme.of(context).textTheme.headlineMedium),
-              IconButton.filled(
-                onPressed: _openAddHabitSheet,
-                icon: const Icon(LucideIcons.plus, color: Colors.white),
-                style: IconButton.styleFrom(backgroundColor: AppTheme.primary),
+          child: ModuleHeaderCard(
+            title: 'Habits',
+            subtitle: 'Build what helps. Protect what matters.',
+            icon: LucideIcons.activity,
+            accent: AppTheme.success,
+            trailing: IconButton(
+              tooltip: 'Add habit',
+              onPressed: _openAddHabitSheet,
+              icon: const Icon(LucideIcons.plus, color: AppTheme.success),
+              style: IconButton.styleFrom(
+                backgroundColor: AppTheme.success.withValues(alpha: 0.12),
               ),
-            ],
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -91,6 +95,18 @@ class _HabitContent extends StatelessWidget {
               child: CircularProgressIndicator(
                 color: AppTheme.primary,
                 strokeWidth: 2,
+              ),
+            ),
+          );
+        }
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Text(
+              'Behaviors are temporarily unavailable. Pull to try again.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppTheme.onSurfaceVariant.withValues(alpha: 0.7),
               ),
             ),
           );
@@ -160,8 +176,7 @@ class _HabitGrid extends StatelessWidget {
           return HabitTile(
             habit: h,
             isDoneToday: isDone,
-            onToggle: (val) =>
-                DatabaseService.instance.toggleHabitToday(h['id'], val),
+            onToggle: (val) => _toggleHabit(context, h['id'], val),
           );
         }
 
@@ -188,6 +203,26 @@ class _HabitGrid extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _toggleHabit(
+    BuildContext context,
+    dynamic habitId,
+    bool value,
+  ) async {
+    try {
+      await DatabaseService.instance.toggleHabitToday(habitId, value);
+    } catch (error, stackTrace) {
+      debugPrint('[HabitModule] Toggle failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not update behavior. Try again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 }
 

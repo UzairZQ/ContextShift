@@ -2,6 +2,17 @@ import 'package:context_shift/core/ai_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('local task commands request duplicate protection', () async {
+    final result = await AiService.instance.processCommand(
+      command: 'add task review the release checklist',
+      userName: 'Alex',
+    );
+
+    expect(result.actions, hasLength(1));
+    expect(result.actions.single.type, 'add_task');
+    expect(result.actions.single.params['dedupe_existing'], isTrue);
+  });
+
   test('AI insight refreshes when user statistics change', () async {
     final overloaded = await AiService.instance.fetchInsight(
       userName: 'Alex',

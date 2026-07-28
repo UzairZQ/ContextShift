@@ -1,0 +1,7 @@
+# Copy this file to android/key.properties and replace every placeholder.
+# This file is intentionally safe to commit; android/key.properties is ignored.
+storePassword=replace-with-keystore-password
+keyPassword=replace-with-key-password
+keyAlias=upload
+# Relative paths are resolved from the android/ project root.
+storeFile=../upload-keystore.jks

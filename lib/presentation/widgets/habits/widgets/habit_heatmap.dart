@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/app_theme.dart';
 import '../../../../core/database/database_service.dart';
+import '../../shared/module_cards.dart';
 
 class HabitHeatmap extends StatelessWidget {
   final List<Map<String, dynamic>> habits;
@@ -25,10 +26,10 @@ class HabitHeatmap extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 24, top: 4),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceHigh,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      decoration: moduleCardDecoration(
+        accent: AppTheme.success,
+        borderRadius: 20,
+        fill: AppTheme.surfaceHigh,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

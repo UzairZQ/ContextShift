@@ -8,7 +8,8 @@ class ProfileTable extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get userId => text().unique()();
   TextColumn get name => text()();
-  TextColumn get firstName => text()();
+  // A default keeps the v1 -> v2 SQLite migration valid for existing rows.
+  TextColumn get firstName => text().withDefault(const Constant(''))();
   TextColumn? get lastName => text().nullable()();
   TextColumn? get focusRole => text().nullable()();
   TextColumn? get interests => text().nullable()();
@@ -111,7 +112,7 @@ class AiCommandTable extends Table {
   DateTimeColumn get timestamp => dateTime()();
 }
 
-// ── Behavior Events (analytics) ────────────────────────────────
+// ── Local Behavior Events ─────────────────────────────────────
 
 class BehaviorEventTable extends Table {
   IntColumn get id => integer().autoIncrement()();

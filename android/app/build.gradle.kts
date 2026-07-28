@@ -1,11 +1,11 @@
 import java.util.Properties
 import java.io.FileInputStream
+import java.io.File
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
-    id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    // Apply the Flutter Gradle Plugin after the Android plugin.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -22,19 +22,31 @@ val hasReleaseSigning = listOf(
     "storeFile",
     "storePassword",
 ).all { key -> !keystoreProperties.getProperty(key).isNullOrBlank() }
+val releaseStoreFile = keystoreProperties.getProperty("storeFile")?.let { path ->
+    val configuredFile = File(path)
+    if (configuredFile.isAbsolute) configuredFile else rootProject.file(path)
+}
+val hasUsableReleaseSigning = hasReleaseSigning && releaseStoreFile?.isFile == true
+
+if (keystorePropertiesFile.exists() && !hasUsableReleaseSigning) {
+    throw GradleException(
+        "android/key.properties is incomplete or its storeFile does not exist. " +
+            "Fix the local signing configuration before building a release."
+    )
+}
 
 
 android {
-    namespace = "com.example.context_shift"
+    namespace = "com.uzairzq.contextshift"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     signingConfigs {
-        if (hasReleaseSigning) {
+        if (hasUsableReleaseSigning) {
             create("release") {
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
-                storeFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
+                storeFile = releaseStoreFile
                 storePassword = keystoreProperties.getProperty("storePassword")
             }
         }
@@ -46,10 +58,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.uzairZQ.context_shift"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        applicationId = "com.uzairzq.contextshift"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -61,10 +70,12 @@ android {
 
     buildTypes {
         release {
-            signingConfig = if (hasReleaseSigning) {
+            // Never publish a release signed with the debug key. Configure
+            // android/key.properties before building an uploadable artifact.
+            signingConfig = if (hasUsableReleaseSigning) {
                 signingConfigs.getByName("release")
             } else {
-                signingConfigs.getByName("debug")
+                null
             }
         }
     }

@@ -12,7 +12,9 @@ class ModelDefinition {
   final bool requiresPurchase;
   final ModelType modelType;
   final ModelFileType fileType;
-  final int maxTokens;
+
+  /// LiteRT-LM context window, including both prompt and generated output.
+  final int contextTokens;
 
   const ModelDefinition({
     required this.tier,
@@ -24,7 +26,7 @@ class ModelDefinition {
     required this.requiresPurchase,
     required this.modelType,
     required this.fileType,
-    this.maxTokens = 2048,
+    this.contextTokens = 2048,
   });
 
   String get downloadSizeFormatted {
@@ -54,7 +56,10 @@ class ModelDefinition {
     requiresPurchase: false,
     modelType: ModelType.gemma4,
     fileType: ModelFileType.litertlm,
-    maxTokens: 2048,
+    // LiteRT-LM uses this as the complete context window (input + output).
+    // 4096 is supported by the E2B runtime and leaves room for useful local
+    // context without the memory cost of a much larger KV cache.
+    contextTokens: 4096,
   );
 }
 

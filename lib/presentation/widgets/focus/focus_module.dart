@@ -8,6 +8,7 @@ import '../../../core/database/database_service.dart';
 import '../../../core/services/focus_timer_controller.dart';
 import '../../../core/responsive.dart';
 import '../motion/wonderous_motion.dart';
+import '../shared/module_cards.dart';
 import 'widgets/control_button.dart';
 import 'widgets/productivity_tip.dart';
 import 'widgets/session_chip.dart';
@@ -81,7 +82,19 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
   }
 
   Future<void> _startTimer() async {
-    await _focusTimer.start();
+    try {
+      await _focusTimer.start();
+    } catch (error, stackTrace) {
+      debugPrint('[FocusTimerModule] Start failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not start focus. Try again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _pauseTimer() {
@@ -147,58 +160,63 @@ class _FocusTimerModuleState extends State<FocusTimerModule>
         children: [
           const SizedBox(height: 16),
           WonderousReveal(
-            child: Text(
-              'Focus Timer',
-              style: Theme.of(context).textTheme.headlineMedium,
+            child: const ModuleHeaderCard(
+              title: 'Focus Timer',
+              subtitle: 'One session, one clear next step.',
+              icon: LucideIcons.timer,
+              accent: AppTheme.tertiary,
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 16),
 
           ResponsiveWrapper(
             maxWidth: 600,
-            child: Column(
-              children: [
-                WonderousReveal(
-                  delay: const Duration(milliseconds: 80),
-                  child: _SessionTypeSelector(
-                    selectedType: _timerState.sessionType,
-                    onSelect: _updateSession,
+            child: ModuleCard(
+              accent: AppTheme.tertiary,
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+              child: Column(
+                children: [
+                  WonderousReveal(
+                    child: _SessionTypeSelector(
+                      selectedType: _timerState.sessionType,
+                      onSelect: _updateSession,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 48),
-                WonderousReveal(
-                  delay: const Duration(milliseconds: 140),
-                  child: TimerRing(
-                    progress: _progress,
-                    timeDisplay: _timeDisplay,
-                    sessionLabel: _timerState.isRunning
-                        ? _timerState.sessionType
-                        : 'Ready',
-                    pulseAnimation: _timerState.isRunning
-                        ? _pulseAnim
-                        : const AlwaysStoppedAnimation(1.0),
+                  const SizedBox(height: 48),
+                  WonderousReveal(
+                    delay: const Duration(milliseconds: 80),
+                    child: TimerRing(
+                      progress: _progress,
+                      timeDisplay: _timeDisplay,
+                      sessionLabel: _timerState.isRunning
+                          ? _timerState.sessionType
+                          : 'Ready',
+                      pulseAnimation: _timerState.isRunning
+                          ? _pulseAnim
+                          : const AlwaysStoppedAnimation(1.0),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 48),
-                WonderousReveal(
-                  delay: const Duration(milliseconds: 200),
-                  child: _TimerControls(
-                    isRunning: _timerState.isRunning,
-                    onReset: _resetTimer,
-                    onToggle: () =>
-                        _timerState.isRunning ? _pauseTimer() : _startTimer(),
-                    onComplete: _completeSession,
+                  const SizedBox(height: 48),
+                  WonderousReveal(
+                    delay: const Duration(milliseconds: 140),
+                    child: _TimerControls(
+                      isRunning: _timerState.isRunning,
+                      onReset: _resetTimer,
+                      onToggle: () =>
+                          _timerState.isRunning ? _pauseTimer() : _startTimer(),
+                      onComplete: _completeSession,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 40),
-                const WonderousReveal(
-                  delay: Duration(milliseconds: 260),
-                  child: ProductivityTip(),
-                ),
-                SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
-              ],
+                  const SizedBox(height: 40),
+                  const WonderousReveal(
+                    delay: Duration(milliseconds: 200),
+                    child: ProductivityTip(),
+                  ),
+                ],
+              ),
             ),
           ),
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
         ],
       ),
     );
@@ -218,9 +236,10 @@ class _SessionTypeSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceHigh,
-        borderRadius: BorderRadius.circular(24),
+      decoration: moduleCardDecoration(
+        accent: AppTheme.tertiary,
+        borderRadius: 24,
+        fill: AppTheme.surfaceHigh,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

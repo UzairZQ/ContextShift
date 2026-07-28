@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -421,14 +422,14 @@ class WidgetCatalog {
 
   Widget _buildBottomSheet(WidgetNode node, BuildContext ctx) {
     final title = _prop<String>(node, 'title') ?? '';
-    Widget content = Column(
+    final content = Column(
       mainAxisSize: MainAxisSize.min,
       children: _buildChildren(node.children, ctx),
     );
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      showModalBottomSheet(
-        context: ctx,
+    return _DeferredOverlay(
+      show: (overlayContext) => showModalBottomSheet<void>(
+        context: overlayContext,
         backgroundColor: AppTheme.surfaceLow,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -465,17 +466,15 @@ class WidgetCatalog {
             ],
           ),
         ),
-      );
-    });
-
-    return const SizedBox.shrink();
+      ),
+    );
   }
 
   Widget _buildDialog(WidgetNode node, BuildContext ctx) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      showDialog(
-        context: ctx,
-        builder: (_) => AlertDialog(
+    return _DeferredOverlay(
+      show: (overlayContext) => showDialog<void>(
+        context: overlayContext,
+        builder: (dialogContext) => AlertDialog(
           backgroundColor: AppTheme.surfaceLow,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
@@ -495,7 +494,7 @@ class WidgetCatalog {
           actions: [
             if (_prop<String>(node, 'cancelLabel') != null)
               TextButton(
-                onPressed: () => Navigator.pop(ctx),
+                onPressed: () => Navigator.pop(dialogContext),
                 child: Text(
                   _prop<String>(node, 'cancelLabel')!,
                   style: const TextStyle(color: AppTheme.onSurfaceVariant),
@@ -504,7 +503,7 @@ class WidgetCatalog {
             if (_prop<String>(node, 'confirmLabel') != null)
               TextButton(
                 onPressed: () {
-                  Navigator.pop(ctx);
+                  Navigator.pop(dialogContext);
                   if (node.onAction != null) {
                     _handleAction(node.onAction!, ctx);
                   }
@@ -516,10 +515,8 @@ class WidgetCatalog {
               ),
           ],
         ),
-      );
-    });
-
-    return const SizedBox.shrink();
+      ),
+    );
   }
 
   Widget _buildCard(WidgetNode node, BuildContext ctx) {
@@ -586,7 +583,10 @@ class WidgetCatalog {
   }
 
   void _handleAction(WidgetAction action, BuildContext ctx) {
-    debugPrint('[GenUI] Action triggered: ${action.action} ${action.params}');
+    debugPrint('[GenUI] Action triggered: ${action.action}');
+    if (kDebugMode) {
+      debugPrint('[GenUI] Action params: ${action.params}');
+    }
     GenUiActionBus.instance.emit(action);
   }
 
@@ -770,4 +770,27 @@ class WidgetCatalog {
         return LucideIcons.helpCircle;
     }
   }
+}
+
+/// Defers an overlay until after the catalog has mounted, exactly once.
+class _DeferredOverlay extends StatefulWidget {
+  final Future<void> Function(BuildContext context) show;
+
+  const _DeferredOverlay({required this.show});
+
+  @override
+  State<_DeferredOverlay> createState() => _DeferredOverlayState();
+}
+
+class _DeferredOverlayState extends State<_DeferredOverlay> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.show(context);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }

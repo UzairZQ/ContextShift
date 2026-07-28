@@ -1,11 +1,11 @@
 {
-    "name": "context_shift",
-    "short_name": "context_shift",
+    "name": "ContextShift",
+    "short_name": "ContextShift",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#06143A",
     "theme_color": "#63E7FF",
-    "description": "A new Flutter project.",
+    "description": "An offline-first productivity workspace with private on-device JARVIS.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

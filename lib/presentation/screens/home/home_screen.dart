@@ -24,10 +24,12 @@ import '../../widgets/focus/focus_module.dart';
 import '../../widgets/genui/schedule_card_editor.dart';
 import '../../widgets/habits/habit_module.dart';
 import '../../widgets/tasks/tasks_module.dart';
+import '../../widgets/voice/voice_input_overlay.dart';
 import '../ai_dashboard/ai_dashboard_screen.dart';
 import '../chat/chat_screen.dart';
 import '../journal/journal_screen.dart';
 import '../settings/settings_screen.dart';
+import 'jarvis_home_status.dart';
 import 'widgets/floating_nav_bar.dart';
 import 'widgets/home_tab.dart';
 
@@ -47,6 +49,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? _aiResponse;
   bool _isProcessingCommand = false;
   bool _isLoadingInsight = true;
+  bool _hasCheckedJarvisStatus =
+      FeatureManager.instance.hasInitializationResult;
   int _focusMinutesToday = 0;
   String? _todayMood;
   String? _activeSurfaceRawA2ui;
@@ -54,6 +58,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? _activeSurfaceFallbackReason;
   int? _activeSurfaceElapsedMs;
   SavedGeneratedCardTableData? _savedGeneratedCard;
+  final Set<String> _tasksAddedSurfaceKeys = <String>{};
 
   final TextEditingController _commandController = TextEditingController();
   JarvisGenUiRuntime? _homeGenUiRuntime;
@@ -68,6 +73,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 400),
     );
     GemmaService.instance.statusRevision.addListener(_refreshJarvisStatus);
+    FeatureManager.instance.statusRevision.addListener(_refreshJarvisStatus);
     _computeGreeting();
     _watchSavedGeneratedCard();
     _loadInitialData();
@@ -76,6 +82,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     GemmaService.instance.statusRevision.removeListener(_refreshJarvisStatus);
+    FeatureManager.instance.statusRevision.removeListener(_refreshJarvisStatus);
     _savedCardSub?.cancel();
     _homeGenUiRuntime?.dispose();
     _responseAnimController.dispose();
@@ -84,22 +91,36 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _refreshJarvisStatus() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {
+      _hasCheckedJarvisStatus = FeatureManager.instance.hasInitializationResult;
+    });
   }
 
   JarvisGenUiRuntime get _homeGenUiRuntimeInstance {
     return _homeGenUiRuntime ??= JarvisGenUiRuntime();
   }
 
+  JarvisHomeStatus get _jarvisStatus => resolveJarvisHomeStatus(
+    hasCheckedAvailability: _hasCheckedJarvisStatus,
+    isDownloaded: FeatureManager.instance.isE2bAvailable,
+    isLoading: GemmaService.instance.isModelLoading,
+    isLoaded: GemmaService.instance.isModelLoaded,
+  );
+
   void _watchSavedGeneratedCard() {
-    _savedCardSub = DatabaseService.instance.watchSavedGeneratedCards().listen((
-      cards,
-    ) {
-      if (!mounted) return;
-      setState(() {
-        _savedGeneratedCard = cards.isEmpty ? null : cards.first;
-      });
-    });
+    _savedCardSub = DatabaseService.instance.watchSavedGeneratedCards().listen(
+      (cards) {
+        if (!mounted) return;
+        setState(() {
+          _savedGeneratedCard = cards.isEmpty ? null : cards.first;
+        });
+      },
+      onError: (error, stackTrace) {
+        debugPrint('[HomeScreen] Saved card stream failed: $error');
+        debugPrintStack(stackTrace: stackTrace);
+      },
+    );
   }
 
   void _computeGreeting() {
@@ -117,18 +138,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _loadInitialData() async {
-    final results = await Future.wait([
-      DatabaseService.instance.getTodayFocusMinutes(),
-      DatabaseService.instance.getTodayMood(),
-    ]);
+    try {
+      final results = await Future.wait([
+        DatabaseService.instance.getTodayFocusMinutes(),
+        DatabaseService.instance.getTodayMood(),
+      ]);
 
-    if (!mounted) return;
-    setState(() {
-      _focusMinutesToday = results[0] as int;
-      _todayMood = results[1] as String?;
-    });
+      if (!mounted) return;
+      setState(() {
+        _focusMinutesToday = results[0] as int;
+        _todayMood = results[1] as String?;
+      });
 
-    _loadAiInsight();
+      unawaited(_loadAiInsight());
+    } catch (error, stackTrace) {
+      debugPrint('[HomeScreen] Failed to load initial data: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() => _isLoadingInsight = false);
+    }
   }
 
   Future<void> _loadAiInsight() async {
@@ -160,14 +188,41 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (command.trim().isEmpty) return;
 
     try {
-      if (!FeatureManager.instance.isE2bAvailable) {
-        if (!mounted) return;
-        _openModelDownload();
-        return;
-      }
-
       _commandController.clear();
       if (mounted) setState(() => _isProcessingCommand = true);
+
+      if (_looksLikeHomeDirectAction(command)) {
+        final result = await AiService.instance.processCommand(
+          command: command,
+          userName: DatabaseService.instance.firstName,
+        );
+        final actionResult = await ActionExecutor.instance.executeAll(
+          result.actions,
+        );
+        final response = actionResult.failedCount > 0
+            ? 'I could not complete that action. Please check the details and try again.'
+            : actionResult.ignoredCount > 0
+            ? 'That item is already in your workspace.'
+            : result.response;
+        await DatabaseService.instance.saveAiCommand(
+          command: command,
+          response: response,
+          actions: result.actions
+              .map((action) => {'type': action.type, 'params': action.params})
+              .toList(growable: false),
+        );
+        if (!mounted) return;
+        setState(() {
+          _aiResponse = response;
+          _activeSurfaceRawA2ui = null;
+          _activeSurfaceSource = null;
+          _activeSurfaceFallbackReason = null;
+          _activeSurfaceElapsedMs = null;
+          _currentIndex = 0;
+        });
+        _responseAnimController.forward(from: 0);
+        return;
+      }
 
       await _ensureJarvisReadyForHome(command);
       if (!_looksLikeHomeCardRequest(command)) {
@@ -220,6 +275,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _responseAnimController.forward(from: 0);
       _showResponseSnackBar(response);
     } catch (error, stackTrace) {
+      if (error is GemmaException &&
+          error.code == GemmaErrorCode.modelNotInstalled) {
+        if (mounted) unawaited(_openModelDownload());
+        return;
+      }
       debugPrint('[HomeScreen] JARVIS command failed: $error');
       debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
@@ -241,12 +301,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       '[HomeScreen] Loading downloaded model before JARVIS response. '
       'messageLength=${message.length}',
     );
-    try {
-      await GemmaService.instance.loadBestAvailableModel();
-    } on GemmaException catch (error) {
-      if (error.code == GemmaErrorCode.modelNotInstalled) _openModelDownload();
-      rethrow;
-    }
+    await GemmaService.instance.loadBestAvailableModel();
   }
 
   bool _looksLikeHomeCardRequest(String command) {
@@ -264,6 +319,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return false;
   }
 
+  bool _looksLikeHomeDirectAction(String command) {
+    return RegExp(
+      r'^(add task|todo|remind me|create task|start focus|focus|add habit|new habit|track habit|note|remember|write down|jot down)\b',
+      caseSensitive: false,
+    ).hasMatch(command.trim());
+  }
+
   Future<String> _generateHomeChatReply(String command) async {
     final prompt = [
       await ContextProvider.instance.buildChat(userMessage: command),
@@ -273,9 +335,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     ].join('\n');
     final response = await GemmaService.instance.generate(
       prompt,
-      maxTokens: GemmaService.instance.activeModelDef?.maxTokens ?? 2048,
-      temperature: 1.0,
-      topK: 64,
+      maxTokens: GemmaService.naturalChatOutputTokens,
+      temperature: GemmaService.naturalTemperature,
+      topK: GemmaService.naturalTopK,
+      topP: GemmaService.naturalTopP,
       timeout: const Duration(seconds: 45),
     );
     final trimmed = response.trim();
@@ -347,8 +410,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _saveMood(String mood) async {
+    final previousMood = _todayMood;
     if (mounted) setState(() => _todayMood = mood);
-    await DatabaseService.instance.saveMood(mood);
+    try {
+      await DatabaseService.instance.saveMood(mood);
+    } catch (error, stackTrace) {
+      debugPrint('[HomeScreen] Failed to save mood: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() => _todayMood = previousMood);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not save your mood. Try again.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -393,10 +471,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     ).push(SmoothPageRoute(builder: (_) => const SettingsScreen()));
   }
 
-  Future<void> _openChat() async {
-    final text = _commandController.text.trim();
-    await _pushChat(initialMessage: text.isNotEmpty ? text : null);
+  Future<void> _openVoiceInput() async {
+    final transcript = await VoiceInputOverlay.show(
+      context,
+      initialText: _commandController.text,
+    );
+    if (!mounted || transcript == null || transcript.trim().isEmpty) return;
     _commandController.clear();
+    await _pushChat(
+      initialMessage: transcript.trim(),
+      startNewOnOpen: true,
+      initialMessageDraftOnly: true,
+    );
   }
 
   Future<void> _openEmptyChat() async {
@@ -419,7 +505,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Chat screen could not open. Check debug logs.'),
+          content: Text('Chat screen could not open. Please try again.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -445,34 +531,48 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _handleHomeSurfaceAction(WidgetAction action) async {
-    if (action.action == 'save_card') {
-      await _saveGeneratedCard(action);
-      return;
-    }
-    if (action.action == 'edit_schedule_times') {
-      await _editScheduleTimes(action);
-      return;
-    }
-    if (action.action == 'add_schedule_to_tasks') {
-      await _addScheduleToTasks(action);
-      return;
-    }
+    try {
+      if (action.action == 'save_card') {
+        await _saveGeneratedCard(action);
+        return;
+      }
+      if (action.action == 'edit_schedule_times') {
+        await _editScheduleTimes(action);
+        return;
+      }
+      if (action.action == 'add_schedule_to_tasks') {
+        await _addScheduleToTasks(action);
+        return;
+      }
 
-    final aiAction = GeneratedUiActionMapper.toAiAction(action);
-    if (aiAction == null) {
-      final message = GeneratedUiActionMapper.continuationMessage(action);
-      if (message != null && message.isNotEmpty) {
-        await _pushChat(
-          initialMessage: message,
-          initialGenerateMode: action.action == 'continue_conversation',
-          initialMessageDraftOnly: action.action == 'continue_conversation',
+      final aiAction = GeneratedUiActionMapper.toAiAction(action);
+      if (aiAction == null) {
+        final message = GeneratedUiActionMapper.continuationMessage(action);
+        if (message != null && message.isNotEmpty) {
+          await _pushChat(
+            initialMessage: message,
+            initialGenerateMode: action.action == 'continue_conversation',
+            initialMessageDraftOnly: action.action == 'continue_conversation',
+          );
+        }
+        return;
+      }
+      final result = await ActionExecutor.instance.executeAll([aiAction]);
+      if (!mounted) return;
+      _showResponseSnackBar(
+        result.allSucceeded
+            ? 'Done'
+            : 'I could not complete that action. Please check the request and try again.',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('[HomeScreen] GenUI action failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        _showResponseSnackBar(
+          'I could not complete that card action. Try again.',
         );
       }
-      return;
     }
-    await ActionExecutor.instance.executeAll([aiAction]);
-    if (!mounted) return;
-    _showResponseSnackBar('Done');
   }
 
   Future<void> _saveGeneratedCard(WidgetAction action) async {
@@ -515,15 +615,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
     if (updatedRaw == null || !mounted) return;
 
-    if (_savedGeneratedCard != null) {
+    final savedCard = _savedGeneratedCard;
+    if (savedCard != null && savedCard.rawA2ui == rawA2ui) {
       await DatabaseService.instance.saveGeneratedCard(
-        title: _savedGeneratedCard!.title,
-        domain: _savedGeneratedCard!.domain,
+        title: savedCard.title,
+        domain: savedCard.domain,
         rawA2ui: updatedRaw,
-        source: _savedGeneratedCard!.source,
-        fallbackReason: _savedGeneratedCard!.fallbackReason,
-        elapsedMs: _savedGeneratedCard!.elapsedMs,
-        originalPrompt: _savedGeneratedCard!.originalPrompt,
+        source: savedCard.source,
+        fallbackReason: savedCard.fallbackReason,
+        elapsedMs: savedCard.elapsedMs,
+        originalPrompt: savedCard.originalPrompt,
       );
     } else {
       setState(() {
@@ -548,15 +649,39 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _showResponseSnackBar('No schedule blocks were found to add.');
       return;
     }
-    await ActionExecutor.instance.executeAll(actions);
+    final result = await ActionExecutor.instance.executeAll(actions);
     if (!mounted) return;
-    _showResponseSnackBar(
-      'Added ${actions.length} schedule block${actions.length == 1 ? '' : 's'} to Tasks',
-    );
+    if (result.failedCount == 0) {
+      setState(() => _tasksAddedSurfaceKeys.add(rawA2ui));
+    }
+    _showResponseSnackBar(_taskActionMessage(result, actions.length));
+  }
+
+  String _taskActionMessage(ActionExecutionResult result, int requested) {
+    if (result.failedCount == 0 && result.executedCount == 0) {
+      return 'Those schedule blocks are already in Tasks';
+    }
+    if (result.failedCount == 0 && result.ignoredCount > 0) {
+      return 'Added ${result.executedCount}; the rest were already in Tasks';
+    }
+    if (result.allSucceeded) {
+      return 'Added $requested schedule block${requested == 1 ? '' : 's'} to Tasks';
+    }
+    if (result.executedCount > 0) {
+      return 'Added ${result.executedCount} of $requested schedule blocks to Tasks';
+    }
+    return 'I could not add those schedule blocks to Tasks.';
   }
 
   Future<void> _deleteSavedGeneratedCard(int id) async {
-    await DatabaseService.instance.deleteSavedGeneratedCard(id);
+    try {
+      await DatabaseService.instance.deleteSavedGeneratedCard(id);
+    } catch (error, stackTrace) {
+      debugPrint('[HomeScreen] Saved card deletion failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) _showResponseSnackBar('Could not remove this card.');
+      return;
+    }
     if (!mounted) return;
     _showResponseSnackBar('Removed from Home');
   }
@@ -584,6 +709,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildBody() {
+    final temporarySurface = _activeSurfaceRawA2ui;
+    final showingTemporarySurface = temporarySurface != null;
+    final displayedSavedCard = showingTemporarySurface
+        ? null
+        : _savedGeneratedCard;
+
     return switch (_currentIndex) {
       0 => RefreshIndicator(
         onRefresh: _loadInitialData,
@@ -592,39 +723,40 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           hideWordmark: widget.hideWordmark,
           commandController: _commandController,
           isJarvisOnline: GemmaService.instance.isModelLoaded,
-          hasCheckedJarvisStatus: true,
+          jarvisStatus: _jarvisStatus,
           isProcessingCommand: _isProcessingCommand,
-          offlineHint: FeatureManager.instance.hasVerifiedModel
-              ? 'Ready. Send to initialize JARVIS'
-              : FeatureManager.instance.isE2bAvailable
-              ? 'Initialize JARVIS in Manage AI'
-              : 'Download JARVIS to chat',
           aiResponse: _aiResponse,
           responseAnimation: _responseAnimController,
           isLoadingInsight: _isLoadingInsight,
           aiInsight: _aiInsight,
           focusMinutesToday: _focusMinutesToday,
           todayMood: _todayMood,
-          activeSurfaceTitle: _savedGeneratedCard?.title,
-          activeSurfaceRawA2ui:
-              _savedGeneratedCard?.rawA2ui ?? _activeSurfaceRawA2ui,
-          activeSurfaceSource:
-              _savedGeneratedCard?.source ?? _activeSurfaceSource,
-          activeSurfaceFallbackReason:
-              _savedGeneratedCard?.fallbackReason ??
-              _activeSurfaceFallbackReason,
-          activeSurfaceElapsedMs:
-              _savedGeneratedCard?.elapsedMs ?? _activeSurfaceElapsedMs,
-          onDeleteActiveSurface: _savedGeneratedCard == null
-              ? (_activeSurfaceRawA2ui == null
+          activeSurfaceTitle: displayedSavedCard?.title,
+          activeSurfaceRawA2ui: temporarySurface ?? displayedSavedCard?.rawA2ui,
+          activeSurfaceSource: showingTemporarySurface
+              ? _activeSurfaceSource
+              : displayedSavedCard?.source,
+          activeSurfaceFallbackReason: showingTemporarySurface
+              ? _activeSurfaceFallbackReason
+              : displayedSavedCard?.fallbackReason,
+          activeSurfaceElapsedMs: showingTemporarySurface
+              ? _activeSurfaceElapsedMs
+              : displayedSavedCard?.elapsedMs,
+          hiddenActionNames:
+              _tasksAddedSurfaceKeys.contains(
+                temporarySurface ?? displayedSavedCard?.rawA2ui,
+              )
+              ? const {'add_schedule_to_tasks'}
+              : const {},
+          onDeleteActiveSurface: displayedSavedCard == null
+              ? (temporarySurface == null
                     ? null
                     : _dismissTemporaryGeneratedCard)
-              : () => unawaited(
-                  _deleteSavedGeneratedCard(_savedGeneratedCard!.id),
-                ),
+              : () =>
+                    unawaited(_deleteSavedGeneratedCard(displayedSavedCard.id)),
           onOpenDashboard: _openDashboard,
           onOpenProfile: _openProfile,
-          onOpenChat: _openChat,
+          onOpenVoiceInput: () => unawaited(_openVoiceInput()),
           onOpenTasks: () => _switchTab(1),
           onOpenHabits: () => _switchTab(2),
           onOpenFocus: () => _switchTab(3),
@@ -654,7 +786,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         bottom: false,
         child: Column(
           children: [
-            if (!FeatureManager.instance.isE2bAvailable)
+            if (_jarvisStatus == JarvisHomeStatus.downloadRequired)
               GestureDetector(
                 onTap: _openModelDownload,
                 child: Container(

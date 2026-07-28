@@ -436,7 +436,6 @@ class JarvisDesignCatalog {
     ),
     widgetBuilder: (context) {
       final data = _map(context.data);
-      final tone = _toneColor(data['tone']);
       return Wrap(
         spacing: Spacing.sm,
         runSpacing: Spacing.sm,
@@ -471,7 +470,7 @@ class JarvisDesignCatalog {
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: tone,
+                backgroundColor: AppTheme.primary,
                 foregroundColor: Colors.white,
               ),
               child: Text(_text(action['label'], fallback: 'Continue')),

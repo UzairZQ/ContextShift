@@ -16,6 +16,7 @@ class ScheduleCardTaskConverter {
             params: {
               'title': item.title,
               'priority': 'normal',
+              'dedupe_existing': true,
               if (item.time.isNotEmpty && item.time.toLowerCase() != 'next')
                 'due': item.time,
               if (item.detail.isNotEmpty)

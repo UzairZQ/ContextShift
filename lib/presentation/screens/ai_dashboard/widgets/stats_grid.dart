@@ -18,6 +18,12 @@ class StatsGrid extends StatelessWidget {
         return StreamBuilder<List<Map<String, dynamic>>>(
           stream: DatabaseService.instance.watchHabits(),
           builder: (context, habitSnap) {
+            if (taskSnap.hasError || habitSnap.hasError) {
+              return const Text(
+                'Activity totals are temporarily unavailable.',
+                style: TextStyle(color: AppTheme.onSurfaceVariant),
+              );
+            }
             final tasks = taskSnap.data ?? [];
             final habits = habitSnap.data ?? [];
             final tasksDone = tasks.where((t) => t['done'] == true).length;

@@ -1,4 +1,4 @@
-package com.example.context_shift
+package com.uzairzq.contextshift
 
 import android.os.StatFs
 import io.flutter.embedding.android.FlutterActivity
