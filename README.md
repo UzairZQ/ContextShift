@@ -57,14 +57,26 @@ The app is fully offline-first with no account requirement:
 
 ## Screenshots
 
-The current screenshots are available in [`assets/screenshots/`](assets/screenshots/) and cover the workspace, productivity modules, notes, focus, and AI insights.
+The current release screenshots are available in
+[`assets/screenshots/`](assets/screenshots/).
+
+### Daily workspace
 
 <p>
-  <img src="assets/screenshots/home.png" alt="ContextShift home workspace" width="220" />
-  <img src="assets/screenshots/home2.png" alt="ContextShift home modules" width="220" />
-  <img src="assets/screenshots/tasks.png" alt="ContextShift tasks module" width="220" />
-  <img src="assets/screenshots/focus.png" alt="ContextShift focus timer" width="220" />
-  <img src="assets/screenshots/quicknotes.png" alt="ContextShift journal notes" width="220" />
+  <img src="assets/screenshots/home.jpg" alt="ContextShift home workspace" width="220" />
+  <img src="assets/screenshots/tasks.jpg" alt="ContextShift active intentions" width="220" />
+  <img src="assets/screenshots/habits.jpg" alt="ContextShift behavior-focused habits" width="220" />
+  <img src="assets/screenshots/focus.jpg" alt="ContextShift persistent focus timer" width="220" />
+  <img src="assets/screenshots/journal.jpg" alt="ContextShift mood and guided journal" width="220" />
+</p>
+
+### Local intelligence
+
+<p>
+  <img src="assets/screenshots/generated-workout.jpg" alt="Gemma-generated workout card" width="220" />
+  <img src="assets/screenshots/jarvis-chat.jpg" alt="JARVIS on-device chat" width="220" />
+  <img src="assets/screenshots/model-health.jpg" alt="JARVIS model health check" width="220" />
+  <img src="assets/screenshots/settings.jpg" alt="ContextShift identity, model, and privacy settings" width="220" />
   <img src="assets/screenshots/ai_insights.png" alt="ContextShift AI insights" width="220" />
 </p>
 
