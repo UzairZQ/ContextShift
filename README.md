@@ -60,6 +60,14 @@ The app is fully offline-first with no account requirement:
 The current release screenshots are available in
 [`assets/screenshots/`](assets/screenshots/).
 
+### Onboarding
+
+<p>
+  <img src="assets/screenshots/1.png" alt="ContextShift onboarding workspace introduction" width="220" />
+  <img src="assets/screenshots/3..png" alt="ContextShift onboarding JARVIS introduction" width="220" />
+  <img src="assets/screenshots/2.png" alt="ContextShift onboarding access choices" width="220" />
+</p>
+
 ### Daily workspace
 
 <p>
