@@ -2400,6 +2400,29 @@ class $FocusSessionTableTable extends FocusSessionTable
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _sessionTypeMeta = const VerificationMeta(
+    'sessionType',
+  );
+  @override
+  late final GeneratedColumn<String> sessionType = GeneratedColumn<String>(
+    'session_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('Focus'),
+  );
+  static const VerificationMeta _actualSecondsMeta = const VerificationMeta(
+    'actualSeconds',
+  );
+  @override
+  late final GeneratedColumn<int> actualSeconds = GeneratedColumn<int>(
+    'actual_seconds',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _startedAtMeta = const VerificationMeta(
     'startedAt',
   );
@@ -2442,6 +2465,8 @@ class $FocusSessionTableTable extends FocusSessionTable
     id,
     userId,
     durationMinutes,
+    sessionType,
+    actualSeconds,
     startedAt,
     completedAt,
     completed,
@@ -2479,6 +2504,24 @@ class $FocusSessionTableTable extends FocusSessionTable
       );
     } else if (isInserting) {
       context.missing(_durationMinutesMeta);
+    }
+    if (data.containsKey('session_type')) {
+      context.handle(
+        _sessionTypeMeta,
+        sessionType.isAcceptableOrUnknown(
+          data['session_type']!,
+          _sessionTypeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('actual_seconds')) {
+      context.handle(
+        _actualSecondsMeta,
+        actualSeconds.isAcceptableOrUnknown(
+          data['actual_seconds']!,
+          _actualSecondsMeta,
+        ),
+      );
     }
     if (data.containsKey('started_at')) {
       context.handle(
@@ -2524,6 +2567,14 @@ class $FocusSessionTableTable extends FocusSessionTable
         DriftSqlType.int,
         data['${effectivePrefix}duration_minutes'],
       )!,
+      sessionType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}session_type'],
+      )!,
+      actualSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}actual_seconds'],
+      ),
       startedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}started_at'],
@@ -2550,6 +2601,8 @@ class FocusSessionTableData extends DataClass
   final int id;
   final String userId;
   final int durationMinutes;
+  final String sessionType;
+  final int? actualSeconds;
   final DateTime startedAt;
   final DateTime? completedAt;
   final bool completed;
@@ -2557,6 +2610,8 @@ class FocusSessionTableData extends DataClass
     required this.id,
     required this.userId,
     required this.durationMinutes,
+    required this.sessionType,
+    this.actualSeconds,
     required this.startedAt,
     this.completedAt,
     required this.completed,
@@ -2567,6 +2622,10 @@ class FocusSessionTableData extends DataClass
     map['id'] = Variable<int>(id);
     map['user_id'] = Variable<String>(userId);
     map['duration_minutes'] = Variable<int>(durationMinutes);
+    map['session_type'] = Variable<String>(sessionType);
+    if (!nullToAbsent || actualSeconds != null) {
+      map['actual_seconds'] = Variable<int>(actualSeconds);
+    }
     map['started_at'] = Variable<DateTime>(startedAt);
     if (!nullToAbsent || completedAt != null) {
       map['completed_at'] = Variable<DateTime>(completedAt);
@@ -2580,6 +2639,10 @@ class FocusSessionTableData extends DataClass
       id: Value(id),
       userId: Value(userId),
       durationMinutes: Value(durationMinutes),
+      sessionType: Value(sessionType),
+      actualSeconds: actualSeconds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(actualSeconds),
       startedAt: Value(startedAt),
       completedAt: completedAt == null && nullToAbsent
           ? const Value.absent()
@@ -2597,6 +2660,8 @@ class FocusSessionTableData extends DataClass
       id: serializer.fromJson<int>(json['id']),
       userId: serializer.fromJson<String>(json['userId']),
       durationMinutes: serializer.fromJson<int>(json['durationMinutes']),
+      sessionType: serializer.fromJson<String>(json['sessionType']),
+      actualSeconds: serializer.fromJson<int?>(json['actualSeconds']),
       startedAt: serializer.fromJson<DateTime>(json['startedAt']),
       completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
       completed: serializer.fromJson<bool>(json['completed']),
@@ -2609,6 +2674,8 @@ class FocusSessionTableData extends DataClass
       'id': serializer.toJson<int>(id),
       'userId': serializer.toJson<String>(userId),
       'durationMinutes': serializer.toJson<int>(durationMinutes),
+      'sessionType': serializer.toJson<String>(sessionType),
+      'actualSeconds': serializer.toJson<int?>(actualSeconds),
       'startedAt': serializer.toJson<DateTime>(startedAt),
       'completedAt': serializer.toJson<DateTime?>(completedAt),
       'completed': serializer.toJson<bool>(completed),
@@ -2619,6 +2686,8 @@ class FocusSessionTableData extends DataClass
     int? id,
     String? userId,
     int? durationMinutes,
+    String? sessionType,
+    Value<int?> actualSeconds = const Value.absent(),
     DateTime? startedAt,
     Value<DateTime?> completedAt = const Value.absent(),
     bool? completed,
@@ -2626,6 +2695,10 @@ class FocusSessionTableData extends DataClass
     id: id ?? this.id,
     userId: userId ?? this.userId,
     durationMinutes: durationMinutes ?? this.durationMinutes,
+    sessionType: sessionType ?? this.sessionType,
+    actualSeconds: actualSeconds.present
+        ? actualSeconds.value
+        : this.actualSeconds,
     startedAt: startedAt ?? this.startedAt,
     completedAt: completedAt.present ? completedAt.value : this.completedAt,
     completed: completed ?? this.completed,
@@ -2637,6 +2710,12 @@ class FocusSessionTableData extends DataClass
       durationMinutes: data.durationMinutes.present
           ? data.durationMinutes.value
           : this.durationMinutes,
+      sessionType: data.sessionType.present
+          ? data.sessionType.value
+          : this.sessionType,
+      actualSeconds: data.actualSeconds.present
+          ? data.actualSeconds.value
+          : this.actualSeconds,
       startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
       completedAt: data.completedAt.present
           ? data.completedAt.value
@@ -2651,6 +2730,8 @@ class FocusSessionTableData extends DataClass
           ..write('id: $id, ')
           ..write('userId: $userId, ')
           ..write('durationMinutes: $durationMinutes, ')
+          ..write('sessionType: $sessionType, ')
+          ..write('actualSeconds: $actualSeconds, ')
           ..write('startedAt: $startedAt, ')
           ..write('completedAt: $completedAt, ')
           ..write('completed: $completed')
@@ -2663,6 +2744,8 @@ class FocusSessionTableData extends DataClass
     id,
     userId,
     durationMinutes,
+    sessionType,
+    actualSeconds,
     startedAt,
     completedAt,
     completed,
@@ -2674,6 +2757,8 @@ class FocusSessionTableData extends DataClass
           other.id == this.id &&
           other.userId == this.userId &&
           other.durationMinutes == this.durationMinutes &&
+          other.sessionType == this.sessionType &&
+          other.actualSeconds == this.actualSeconds &&
           other.startedAt == this.startedAt &&
           other.completedAt == this.completedAt &&
           other.completed == this.completed);
@@ -2684,6 +2769,8 @@ class FocusSessionTableCompanion
   final Value<int> id;
   final Value<String> userId;
   final Value<int> durationMinutes;
+  final Value<String> sessionType;
+  final Value<int?> actualSeconds;
   final Value<DateTime> startedAt;
   final Value<DateTime?> completedAt;
   final Value<bool> completed;
@@ -2691,6 +2778,8 @@ class FocusSessionTableCompanion
     this.id = const Value.absent(),
     this.userId = const Value.absent(),
     this.durationMinutes = const Value.absent(),
+    this.sessionType = const Value.absent(),
+    this.actualSeconds = const Value.absent(),
     this.startedAt = const Value.absent(),
     this.completedAt = const Value.absent(),
     this.completed = const Value.absent(),
@@ -2699,6 +2788,8 @@ class FocusSessionTableCompanion
     this.id = const Value.absent(),
     required String userId,
     required int durationMinutes,
+    this.sessionType = const Value.absent(),
+    this.actualSeconds = const Value.absent(),
     required DateTime startedAt,
     this.completedAt = const Value.absent(),
     this.completed = const Value.absent(),
@@ -2709,6 +2800,8 @@ class FocusSessionTableCompanion
     Expression<int>? id,
     Expression<String>? userId,
     Expression<int>? durationMinutes,
+    Expression<String>? sessionType,
+    Expression<int>? actualSeconds,
     Expression<DateTime>? startedAt,
     Expression<DateTime>? completedAt,
     Expression<bool>? completed,
@@ -2717,6 +2810,8 @@ class FocusSessionTableCompanion
       if (id != null) 'id': id,
       if (userId != null) 'user_id': userId,
       if (durationMinutes != null) 'duration_minutes': durationMinutes,
+      if (sessionType != null) 'session_type': sessionType,
+      if (actualSeconds != null) 'actual_seconds': actualSeconds,
       if (startedAt != null) 'started_at': startedAt,
       if (completedAt != null) 'completed_at': completedAt,
       if (completed != null) 'completed': completed,
@@ -2727,6 +2822,8 @@ class FocusSessionTableCompanion
     Value<int>? id,
     Value<String>? userId,
     Value<int>? durationMinutes,
+    Value<String>? sessionType,
+    Value<int?>? actualSeconds,
     Value<DateTime>? startedAt,
     Value<DateTime?>? completedAt,
     Value<bool>? completed,
@@ -2735,6 +2832,8 @@ class FocusSessionTableCompanion
       id: id ?? this.id,
       userId: userId ?? this.userId,
       durationMinutes: durationMinutes ?? this.durationMinutes,
+      sessionType: sessionType ?? this.sessionType,
+      actualSeconds: actualSeconds ?? this.actualSeconds,
       startedAt: startedAt ?? this.startedAt,
       completedAt: completedAt ?? this.completedAt,
       completed: completed ?? this.completed,
@@ -2752,6 +2851,12 @@ class FocusSessionTableCompanion
     }
     if (durationMinutes.present) {
       map['duration_minutes'] = Variable<int>(durationMinutes.value);
+    }
+    if (sessionType.present) {
+      map['session_type'] = Variable<String>(sessionType.value);
+    }
+    if (actualSeconds.present) {
+      map['actual_seconds'] = Variable<int>(actualSeconds.value);
     }
     if (startedAt.present) {
       map['started_at'] = Variable<DateTime>(startedAt.value);
@@ -2771,6 +2876,8 @@ class FocusSessionTableCompanion
           ..write('id: $id, ')
           ..write('userId: $userId, ')
           ..write('durationMinutes: $durationMinutes, ')
+          ..write('sessionType: $sessionType, ')
+          ..write('actualSeconds: $actualSeconds, ')
           ..write('startedAt: $startedAt, ')
           ..write('completedAt: $completedAt, ')
           ..write('completed: $completed')
@@ -8088,6 +8195,8 @@ typedef $$FocusSessionTableTableCreateCompanionBuilder =
       Value<int> id,
       required String userId,
       required int durationMinutes,
+      Value<String> sessionType,
+      Value<int?> actualSeconds,
       required DateTime startedAt,
       Value<DateTime?> completedAt,
       Value<bool> completed,
@@ -8097,6 +8206,8 @@ typedef $$FocusSessionTableTableUpdateCompanionBuilder =
       Value<int> id,
       Value<String> userId,
       Value<int> durationMinutes,
+      Value<String> sessionType,
+      Value<int?> actualSeconds,
       Value<DateTime> startedAt,
       Value<DateTime?> completedAt,
       Value<bool> completed,
@@ -8123,6 +8234,16 @@ class $$FocusSessionTableTableFilterComposer
 
   ColumnFilters<int> get durationMinutes => $composableBuilder(
     column: $table.durationMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sessionType => $composableBuilder(
+    column: $table.sessionType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get actualSeconds => $composableBuilder(
+    column: $table.actualSeconds,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8166,6 +8287,16 @@ class $$FocusSessionTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sessionType => $composableBuilder(
+    column: $table.sessionType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get actualSeconds => $composableBuilder(
+    column: $table.actualSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get startedAt => $composableBuilder(
     column: $table.startedAt,
     builder: (column) => ColumnOrderings(column),
@@ -8199,6 +8330,16 @@ class $$FocusSessionTableTableAnnotationComposer
 
   GeneratedColumn<int> get durationMinutes => $composableBuilder(
     column: $table.durationMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sessionType => $composableBuilder(
+    column: $table.sessionType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get actualSeconds => $composableBuilder(
+    column: $table.actualSeconds,
     builder: (column) => column,
   );
 
@@ -8257,6 +8398,8 @@ class $$FocusSessionTableTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<String> userId = const Value.absent(),
                 Value<int> durationMinutes = const Value.absent(),
+                Value<String> sessionType = const Value.absent(),
+                Value<int?> actualSeconds = const Value.absent(),
                 Value<DateTime> startedAt = const Value.absent(),
                 Value<DateTime?> completedAt = const Value.absent(),
                 Value<bool> completed = const Value.absent(),
@@ -8264,6 +8407,8 @@ class $$FocusSessionTableTableTableManager
                 id: id,
                 userId: userId,
                 durationMinutes: durationMinutes,
+                sessionType: sessionType,
+                actualSeconds: actualSeconds,
                 startedAt: startedAt,
                 completedAt: completedAt,
                 completed: completed,
@@ -8273,6 +8418,8 @@ class $$FocusSessionTableTableTableManager
                 Value<int> id = const Value.absent(),
                 required String userId,
                 required int durationMinutes,
+                Value<String> sessionType = const Value.absent(),
+                Value<int?> actualSeconds = const Value.absent(),
                 required DateTime startedAt,
                 Value<DateTime?> completedAt = const Value.absent(),
                 Value<bool> completed = const Value.absent(),
@@ -8280,6 +8427,8 @@ class $$FocusSessionTableTableTableManager
                 id: id,
                 userId: userId,
                 durationMinutes: durationMinutes,
+                sessionType: sessionType,
+                actualSeconds: actualSeconds,
                 startedAt: startedAt,
                 completedAt: completedAt,
                 completed: completed,

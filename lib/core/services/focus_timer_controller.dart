@@ -124,14 +124,15 @@ class FocusTimerController {
     }
   }
 
-  static int activeElapsedMinutes(FocusTimerState current) {
-    final elapsedSeconds =
-        (current.selectedMinutes * 60 - current.remainingSeconds).clamp(
-          0,
-          current.selectedMinutes * 60,
-        );
-    return elapsedSeconds ~/ 60;
+  static int activeElapsedSeconds(FocusTimerState current) {
+    return (current.selectedMinutes * 60 - current.remainingSeconds).clamp(
+      0,
+      current.selectedMinutes * 60,
+    );
   }
+
+  static int activeElapsedMinutes(FocusTimerState current) =>
+      activeElapsedSeconds(current) ~/ 60;
 
   void updateSession(String type, int minutes) {
     final current = state.value;
@@ -158,6 +159,7 @@ class FocusTimerController {
         current.sessionId ??
         await DatabaseService.instance.startFocusSession(
           durationMinutes: current.selectedMinutes,
+          sessionType: current.sessionType,
         );
     _endsAt = DateTime.now().add(Duration(seconds: current.remainingSeconds));
     state.value = current.copyWith(isRunning: true, sessionId: sessionId);
@@ -205,17 +207,22 @@ class FocusTimerController {
   Future<void> complete() async {
     if (_isCompleting) return;
     _isCompleting = true;
+
+    if (state.value.isRunning) {
+      _tick(updateOnly: true);
+    }
     _ticker?.cancel();
     _ticker = null;
     _endsAt = null;
 
     final current = state.value;
     final sessionId = current.sessionId;
+    final actualSeconds = activeElapsedSeconds(current);
     try {
       if (sessionId != null) {
         await DatabaseService.instance.completeFocusSession(
           sessionId,
-          actualMinutes: activeElapsedMinutes(current),
+          actualSeconds: actualSeconds,
         );
       }
     } catch (error, stackTrace) {

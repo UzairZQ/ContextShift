@@ -71,6 +71,8 @@ class FocusSessionTable extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get userId => text()();
   IntColumn get durationMinutes => integer()();
+  TextColumn get sessionType => text().withDefault(const Constant('Focus'))();
+  IntColumn? get actualSeconds => integer().nullable()();
   DateTimeColumn get startedAt => dateTime()();
   DateTimeColumn? get completedAt => dateTime().nullable()();
   BoolColumn get completed => boolean().withDefault(const Constant(false))();
@@ -209,7 +211,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration {
@@ -253,6 +255,10 @@ class AppDatabase extends _$AppDatabase {
         }
         if (from < 5) {
           await m.createTable(savedGeneratedCardTable);
+        }
+        if (from < 6) {
+          await m.addColumn(focusSessionTable, focusSessionTable.sessionType);
+          await m.addColumn(focusSessionTable, focusSessionTable.actualSeconds);
         }
       },
     );

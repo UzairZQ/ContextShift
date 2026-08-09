@@ -662,42 +662,49 @@ class DatabaseService {
 
   // ── Focus Sessions ───────────────────────────────────────────
 
-  Future<String> startFocusSession({int durationMinutes = 25}) async {
+  Future<String> startFocusSession({
+    int durationMinutes = 25,
+    String sessionType = 'Focus',
+  }) async {
     final id = await _db
         .into(_db.focusSessionTable)
         .insert(
           FocusSessionTableCompanion.insert(
             userId: _deviceId,
             durationMinutes: durationMinutes,
+            sessionType: Value(sessionType),
             startedAt: DateTime.now(),
           ),
         );
     await logEvent(
       eventType: 'focus_started',
       module: 'focus',
-      metadata: {'duration': durationMinutes},
+      metadata: {'duration': durationMinutes, 'session_type': sessionType},
     );
     return id.toString();
   }
 
   Future<void> completeFocusSession(
     String sessionId, {
-    int? actualMinutes,
+    required int actualSeconds,
   }) async {
     final id = int.tryParse(sessionId);
     if (id == null) return;
+    final clampedSeconds = actualSeconds.clamp(0, 24 * 60 * 60);
     await (_db.update(
       _db.focusSessionTable,
     )..where((t) => t.id.equals(id) & t.userId.equals(_deviceId))).write(
       FocusSessionTableCompanion(
-        durationMinutes: actualMinutes == null
-            ? const Value.absent()
-            : Value(actualMinutes.clamp(0, 24 * 60)),
+        actualSeconds: Value(clampedSeconds),
         completedAt: Value(DateTime.now()),
         completed: const Value(true),
       ),
     );
-    await logEvent(eventType: 'focus_completed', module: 'focus');
+    await logEvent(
+      eventType: 'focus_completed',
+      module: 'focus',
+      metadata: {'actual_seconds': clampedSeconds},
+    );
   }
 
   Future<void> cancelFocusSession(String sessionId) async {
@@ -718,17 +725,20 @@ class DatabaseService {
           await (_db.select(_db.focusSessionTable)..where(
                 (t) =>
                     t.userId.equals(_deviceId) &
+                    t.sessionType.equals('Focus') &
                     t.completed.equals(true) &
                     t.completedAt.isBiggerOrEqualValue(startOfDay) &
                     t.completedAt.isSmallerThanValue(startOfTomorrow),
               ))
               .get();
 
-      int total = 0;
+      int totalSeconds = 0;
       for (final s in sessions) {
-        total += s.durationMinutes.clamp(0, 24 * 60);
+        totalSeconds +=
+            s.actualSeconds?.clamp(0, 24 * 60 * 60) ??
+            s.durationMinutes.clamp(0, 24 * 60) * 60;
       }
-      return total;
+      return totalSeconds ~/ 60;
     } catch (e) {
       debugPrint('DatabaseService.getTodayFocusMinutes error: $e');
       return 0;

@@ -134,6 +134,11 @@ void main() {
           "(user_id, name, icon, created_at) "
           "VALUES ('device-1', 'consume nicotine', 'smoking', 0)",
         );
+        database.execute(
+          "INSERT INTO focus_session_table "
+          "(user_id, duration_minutes, started_at, completed_at, completed) "
+          "VALUES ('device-1', 25, 0, 300000, 1)",
+        );
         database.execute('PRAGMA user_version = 1');
       },
     );
@@ -142,11 +147,17 @@ void main() {
 
     final profile = await database.select(database.profileTable).getSingle();
     final habit = await database.select(database.habitTable).getSingle();
+    final focusSession = await database
+        .select(database.focusSessionTable)
+        .getSingle();
 
     expect(profile.firstName, 'Ada Lovelace');
     expect(profile.focusRole, 'Engineering');
     expect(habit.kind, 'reduce');
     expect(habit.tinyStep, isNull);
+    expect(focusSession.durationMinutes, 25);
+    expect(focusSession.sessionType, 'Focus');
+    expect(focusSession.actualSeconds, isNull);
     expect(
       await database
           .customSelect(

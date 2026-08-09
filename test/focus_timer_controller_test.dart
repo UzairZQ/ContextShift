@@ -5,6 +5,7 @@ void main() {
   test('counts active time from remaining time, not planned duration', () {
     final state = FocusTimerState.initial().copyWith(remainingSeconds: 21 * 60);
 
+    expect(FocusTimerController.activeElapsedSeconds(state), 4 * 60);
     expect(FocusTimerController.activeElapsedMinutes(state), 4);
   });
 
